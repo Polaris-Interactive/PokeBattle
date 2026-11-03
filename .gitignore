@@ -281,3 +281,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/vim,java,macos,maven,eclipse,windows,intellij+all
+
+# IntelliJ module files
+*.iml
