@@ -1,0 +1,24 @@
+name: PokeBattle
+version: '${project.version}'
+main: com.astralrealms.poke.battle.PokeBattle
+api-version: '26.3'
+authors: [ Roch Blondiaux ]
+# Not folia-supported while AstralCore is not: the code still only uses region/entity/async schedulers
+dependencies:
+  server:
+    AstralCore:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    PokeCore:
+      load: BEFORE
+      required: true
+      join-classpath: true
+    AstralSkill:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    AstralHud:
+      load: BEFORE
+      required: false
+      join-classpath: true
