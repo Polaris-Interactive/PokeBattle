@@ -15,6 +15,18 @@
 
     <!-- dependencies -->
     <dependencies>
+        <!-- polaris/api -->
+        <dependency>
+            <groupId>com.astralrealms.polaris</groupId>
+            <artifactId>polaris-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- astral/core-paper -->
+        <dependency>
+            <groupId>com.astralrealms</groupId>
+            <artifactId>core-paper</artifactId>
+            <scope>provided</scope>
+        </dependency>
         <!-- pokecore/api -->
         <dependency>
             <groupId>com.astralrealms</groupId>

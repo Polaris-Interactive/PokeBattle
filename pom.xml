@@ -13,6 +13,7 @@
 
     <!-- modules -->
     <modules>
+        <module>common</module>
         <module>api</module>
         <module>paper</module>
     </modules>
@@ -26,6 +27,11 @@
         <lombok.version>1.18.46</lombok.version>
         <polaris.version>26.3</polaris.version>
         <core.version>1.6.3-SNAPSHOT</core.version>
+        <commons.version>1.2-SNAPSHOT</commons.version>
+        <jackson.version>2.20.1</jackson.version>
+        <junit.version>5.11.4</junit.version>
+        <assertj.version>3.27.3</assertj.version>
+        <adventure.version>5.1.1</adventure.version>
         <acf.version>0.5.2-SNAPSHOT</acf.version>
         <configurate.version>4.2.0</configurate.version>
     </properties>
@@ -58,6 +64,26 @@
         </repository>
     </repositories>
 
+    <!-- managed: modules that touch Paper declare these; common stays free of Bukkit -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- polaris/api -->
+            <dependency>
+                <groupId>com.astralrealms.polaris</groupId>
+                <artifactId>polaris-api</artifactId>
+                <version>${polaris.version}</version>
+                <scope>provided</scope>
+            </dependency>
+            <!-- astral/core-paper -->
+            <dependency>
+                <groupId>com.astralrealms</groupId>
+                <artifactId>core-paper</artifactId>
+                <version>${core.version}</version>
+                <scope>provided</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <!-- dependencies -->
     <dependencies>
         <!-- lombok -->
@@ -72,20 +98,6 @@
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
             <version>26.0.2-1</version>
-            <scope>provided</scope>
-        </dependency>
-        <!-- polaris/api -->
-        <dependency>
-            <groupId>com.astralrealms.polaris</groupId>
-            <artifactId>polaris-api</artifactId>
-            <version>${polaris.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <!-- astral/core-paper -->
-        <dependency>
-            <groupId>com.astralrealms</groupId>
-            <artifactId>core-paper</artifactId>
-            <version>${core.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
