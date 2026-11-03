@@ -1,0 +1,5 @@
+# PokeBattle configuration
+
+settings:
+  # Verbose logging for this plugin.
+  debug: false

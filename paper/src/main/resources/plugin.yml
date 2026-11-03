@@ -1,0 +1,11 @@
+name: PokeBattle
+version: '${project.version}'
+main: com.astralrealms.poke.battle.PokeBattle
+api-version: '26.3'
+authors: [ Roch Blondiaux ]
+depend:
+  - AstralCore
+  - PokeCore
+softdepend:
+  - AstralSkill
+  - AstralHud

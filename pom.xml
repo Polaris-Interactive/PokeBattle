@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.astralrealms</groupId>
+    <artifactId>pokebattle-parent</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>PokeBattle-Parent</name>
+
+    <!-- modules -->
+    <modules>
+        <module>api</module>
+        <module>paper</module>
+    </modules>
+
+    <!-- properties -->
+    <properties>
+        <java.version>25</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- dependencies -->
+        <lombok.version>1.18.46</lombok.version>
+        <polaris.version>26.3</polaris.version>
+        <core.version>1.6.3-SNAPSHOT</core.version>
+        <acf.version>0.5.2-SNAPSHOT</acf.version>
+        <configurate.version>4.2.0</configurate.version>
+    </properties>
+
+    <!-- deployment -->
+    <distributionManagement>
+        <!-- astralrealms/releases -->
+        <repository>
+            <id>astralrealms-releases</id>
+            <url>https://maven.astralrealms.fr/repository/maven-releases/</url>
+        </repository>
+        <!-- astralrealms/snapshots -->
+        <snapshotRepository>
+            <id>astralrealms-snapshots</id>
+            <url>https://maven.astralrealms.fr/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <!-- repositories -->
+    <repositories>
+        <!-- papermc -->
+        <repository>
+            <id>papermc-repo</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+        <!-- astralrealms -->
+        <repository>
+            <id>astralrealms</id>
+            <url>https://maven.astralrealms.fr/repository/maven-public/</url>
+        </repository>
+    </repositories>
+
+    <!-- dependencies -->
+    <dependencies>
+        <!-- lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- jetbrains annotations -->
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>26.0.2-1</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- polaris/api -->
+        <dependency>
+            <groupId>com.astralrealms.polaris</groupId>
+            <artifactId>polaris-api</artifactId>
+            <version>${polaris.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- astral/core-paper -->
+        <dependency>
+            <groupId>com.astralrealms</groupId>
+            <artifactId>core-paper</artifactId>
+            <version>${core.version}</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- build -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- compiler -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                    <configuration>
+                        <source>${java.version}</source>
+                        <target>${java.version}</target>
+                        <parameters>true</parameters>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+                <!-- surefire (run JUnit 5) -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.2</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>
