@@ -33,6 +33,13 @@
             <artifactId>core-paper</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- pokecore/api (PokeCore is a required dependency at runtime) -->
+        <dependency>
+            <groupId>com.astralrealms</groupId>
+            <artifactId>pokecore-api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- pokebattle/api (shaded: the plugin jar carries the API it implements) -->
         <dependency>
             <groupId>com.astralrealms</groupId>
