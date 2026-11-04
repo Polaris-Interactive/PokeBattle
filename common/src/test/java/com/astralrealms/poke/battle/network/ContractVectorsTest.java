@@ -21,10 +21,12 @@ import com.astralrealms.poke.battle.network.packet.BattleChoiceErrorPacket;
 import com.astralrealms.poke.battle.network.packet.BattleChoicePacket;
 import com.astralrealms.poke.battle.network.packet.BattleEndPacket;
 import com.astralrealms.poke.battle.network.packet.BattleEndedPacket;
+import com.astralrealms.poke.battle.network.packet.BattleMemberState;
 import com.astralrealms.poke.battle.network.packet.BattleRequestPacket;
 import com.astralrealms.poke.battle.network.packet.BattleSide;
 import com.astralrealms.poke.battle.network.packet.BattleStartPacket;
 import com.astralrealms.poke.battle.network.packet.BattleStartReplyPacket;
+import com.astralrealms.poke.battle.network.packet.BattleTeamState;
 import com.astralrealms.poke.battle.network.packet.BattleUpdatePacket;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -104,7 +106,8 @@ class ContractVectorsTest {
             case "BattleChoiceErrorPacket" -> new BattleChoiceErrorPacket(battleId, fields.get("seq").asLong(),
                     fields.get("side").asText(), fields.get("rqid").asInt(), fields.get("message").asText());
             case "BattleEndedPacket" -> new BattleEndedPacket(battleId, fields.get("seq").asLong(),
-                    fields.get("result").asText(), fields.get("reason").asText(), fields.get("turns").asInt());
+                    fields.get("result").asText(), fields.get("reason").asText(), fields.get("turns").asInt(),
+                    this.teams(fields.get("teams")));
             default -> throw new IllegalArgumentException("Unknown packet " + name);
         };
     }
@@ -114,8 +117,29 @@ class ContractVectorsTest {
         for (JsonNode side : nodes)
             sides.add(new BattleSide(side.get("slot").asText(), side.get("name").asText(),
                     side.get("playerId").isNull() ? null : UUID.fromString(side.get("playerId").asText()),
-                    side.get("team").asText(), side.get("ai").asText()));
+                    side.get("team").asText(), side.get("ai").asText(), this.members(side.get("state"))));
         return sides;
+    }
+
+    private List<BattleTeamState> teams(JsonNode nodes) {
+        List<BattleTeamState> teams = new ArrayList<>();
+        for (JsonNode team : nodes)
+            teams.add(new BattleTeamState(team.get("slot").asText(), this.members(team.get("members"))));
+        return teams;
+    }
+
+    private List<BattleMemberState> members(JsonNode nodes) {
+        List<BattleMemberState> members = new ArrayList<>();
+        for (JsonNode member : nodes)
+            members.add(new BattleMemberState(member.get("hp").asInt(), member.get("status").asText(),
+                    this.ints(member.get("pp")), this.ints(member.get("maxPp"))));
+        return members;
+    }
+
+    private List<Integer> ints(JsonNode nodes) {
+        List<Integer> ints = new ArrayList<>();
+        nodes.forEach(node -> ints.add(node.asInt()));
+        return ints;
     }
 
     private List<String> strings(JsonNode nodes) {

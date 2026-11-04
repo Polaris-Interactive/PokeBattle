@@ -1,5 +1,7 @@
 package com.astralrealms.poke.battle.network.packet;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.jetbrains.annotations.Nullable;
@@ -13,8 +15,15 @@ import com.astralrealms.core.packet.binary.BinaryMessage;
  * @param playerId the player on this side, null for a creature or an NPC
  * @param team     the team in the simulator's packed format (PokeCore's {@code PackedTeam})
  * @param ai       the AI that plays this side ({@code wild}, {@code trainer}...), empty when a player chooses
+ * @param state    the condition of each team member, in team order; empty when the whole team is fresh (full HP and
+ *                 PP, no status). Members must not be fainted: leave them out of the team
  */
-public record BattleSide(String slot, String name, @Nullable UUID playerId, String team, String ai) {
+public record BattleSide(String slot, String name, @Nullable UUID playerId, String team, String ai,
+                         List<BattleMemberState> state) {
+
+    public BattleSide {
+        state = List.copyOf(state);
+    }
 
     public boolean human() {
         return this.ai.isEmpty();
@@ -26,6 +35,7 @@ public record BattleSide(String slot, String name, @Nullable UUID playerId, Stri
         buffer.writeOptional(this.playerId, BinaryMessage::writeUUID);
         buffer.writeString(this.team);
         buffer.writeString(this.ai);
+        buffer.writeList(this.state, (message, member) -> member.write(message));
     }
 
     static BattleSide read(BinaryMessage buffer) {
@@ -34,6 +44,7 @@ public record BattleSide(String slot, String name, @Nullable UUID playerId, Stri
         UUID playerId = buffer.readOptional(BinaryMessage::readUUID).orElse(null);
         String team = buffer.readString();
         String ai = buffer.readString();
-        return new BattleSide(slot, name, playerId, team, ai);
+        List<BattleMemberState> state = buffer.readList(BattleMemberState::read, ArrayList::new);
+        return new BattleSide(slot, name, playerId, team, ai, state);
     }
 }

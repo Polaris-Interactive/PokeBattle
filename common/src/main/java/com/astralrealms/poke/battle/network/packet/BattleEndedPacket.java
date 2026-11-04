@@ -1,5 +1,7 @@
 package com.astralrealms.poke.battle.network.packet;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.astralrealms.core.packet.Packet;
@@ -14,6 +16,7 @@ import lombok.NoArgsConstructor;
  *
  * @param result {@code p1}, {@code p2}... for the winner, {@code tie}, or {@code aborted}
  * @param turns  turns played
+ * @param teams  how every side's team left the battle; empty when the battle never started
  * @see BattleUpdatePacket for {@code seq}
  */
 @Getter
@@ -26,6 +29,7 @@ public class BattleEndedPacket implements Packet {
     private String result;
     private String reason;
     private int turns;
+    private List<BattleTeamState> teams;
 
     @Override
     public void write(BinaryMessage buffer) {
@@ -34,6 +38,7 @@ public class BattleEndedPacket implements Packet {
         buffer.writeString(this.result);
         buffer.writeString(this.reason);
         buffer.writeVarInt(this.turns);
+        buffer.writeList(this.teams, (message, team) -> team.write(message));
     }
 
     @Override
@@ -43,5 +48,6 @@ public class BattleEndedPacket implements Packet {
         this.result = buffer.readString();
         this.reason = buffer.readString();
         this.turns = buffer.readVarInt();
+        this.teams = buffer.readList(BattleTeamState::read, ArrayList::new);
     }
 }
