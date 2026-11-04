@@ -34,6 +34,7 @@
         <adventure.version>5.1.1</adventure.version>
         <acf.version>0.5.2-SNAPSHOT</acf.version>
         <configurate.version>4.2.0</configurate.version>
+        <lettuce.version>7.7.0.RELEASE</lettuce.version>
     </properties>
 
     <!-- deployment -->

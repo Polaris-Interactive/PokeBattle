@@ -46,6 +46,13 @@
             <artifactId>pokebattle-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- lettuce-core (provided by AstralCore: the lock scripts use it directly) -->
+        <dependency>
+            <groupId>io.lettuce</groupId>
+            <artifactId>lettuce-core</artifactId>
+            <version>${lettuce.version}</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- configurate-yaml -->
         <dependency>
             <groupId>org.spongepowered</groupId>

@@ -3,3 +3,33 @@
 settings:
   # Verbose logging for this plugin.
   debug: false
+
+start:
+  # How long a battle worker has to take a battle. Keep it close to the start queue's TTL (START_TTL_MS, 10 s).
+  timeout: 10s
+  # Attempts with the same battle id when no worker answers (a worker that already took it drops the copy).
+  attempts: 2
+
+battle:
+  # GDD: 40 s per turn, after which the AI chooses for the player. 0 disables it.
+  turn-timer-seconds: 40
+  # The per-player lock (one battle at a time, network-wide). Refreshed on every request, so only an idle battle
+  # outlives it.
+  lock-ttl: 15m
+  # A player who leaves for longer than this loses the battle with no penalty (GDD). Rejoining this server in time
+  # resumes it.
+  disconnect-grace: 60s
+  # After asking a worker to stop a battle, how long to wait for its end before releasing the players anyway.
+  end-timeout: 15s
+
+rewards:
+  # Product of every experience bonus for these battles; the formula itself is PokeCore's (modern, level-scaled).
+  experience-multiplier: 1.0
+  # Whether defeated creatures give their EV yield.
+  effort-values: true
+  # Friendship each rewarded creature gains for a win (not in the GDD: 0 by default).
+  friendship-on-win: 0
+
+dialog:
+  # Move buttons per row in the choice dialog.
+  move-columns: 2

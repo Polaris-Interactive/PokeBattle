@@ -1,0 +1,37 @@
+package com.astralrealms.poke.battle.model;
+
+import java.util.Locale;
+
+import org.jetbrains.annotations.Nullable;
+
+import com.astralrealms.poke.core.PokeCoreAPI;
+
+import lombok.experimental.UtilityClass;
+
+/**
+ * Display text from the species bundle, in the viewer's language: {@code <kind>.<id>.name}. Battle lines name moves,
+ * items and abilities by display name; their simulator id is the bundle's id.
+ * <p>
+ * Kinds used by battles: {@code species}, {@code move}, {@code type}, {@code status}, {@code stat}, {@code ability},
+ * {@code item}, {@code condition} (weather, hazards, volatile effects), {@code category}.
+ */
+@UtilityClass
+public class Names {
+
+    public static String text(@Nullable Locale locale, String kind, @Nullable String id) {
+        if (id == null || id.isEmpty())
+            return "";
+        return PokeCoreAPI.get().species().text(locale, kind + "." + id + ".name");
+    }
+
+    public static String ally(@Nullable Locale locale, Battle.Ally ally) {
+        String nickname = ally.pokemon().nickname();
+        if (nickname != null && !nickname.isBlank())
+            return nickname;
+        return text(locale, "species", ally.pokemon().species());
+    }
+
+    public static String foe(@Nullable Locale locale, Battle.Foe foe) {
+        return text(locale, "species", foe.creature().species());
+    }
+}
