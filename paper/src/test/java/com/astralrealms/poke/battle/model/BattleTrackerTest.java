@@ -44,6 +44,20 @@ class BattleTrackerTest {
     }
 
     @Test
+    void recordsACatchWithTheCreaturesThatFought() {
+        BattleTracker tracker = feed(
+                "|switch|p1a: 1|Emberling, L10, M|31/31",
+                "|switch|p2a: 1|Pebblit, L7|100/100",
+                "|polaris-ball|p2a: 1|duskorb|2|free",
+                "|switch|p1a: 2|Leafkit, L12|38/38");
+        assertThat(tracker.capture()).isNull();
+
+        tracker.accept(ProtocolLine.parse("|polaris-ball|p2a: 1|duskorb|3|caught"));
+        assertThat(tracker.capture()).isEqualTo(new BattleTracker.Capture("1", "duskorb", java.util.Set.of("1", "2")));
+        assertThat(tracker.defeats()).isEmpty();
+    }
+
+    @Test
     void creditsEveryCreatureThatFoughtAndStillStands() {
         BattleTracker tracker = feed(
                 "|switch|p1a: 1|Emberling, L10, M|31/31",

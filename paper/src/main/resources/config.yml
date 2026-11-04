@@ -29,6 +29,8 @@ rewards:
   effort-values: true
   # Friendship each rewarded creature gains for a win (not in the GDD: 0 by default).
   friendship-on-win: 0
+  # Whether catching the opponent gives experience and EVs as defeating it would (modern rule).
+  experience-on-capture: true
 
 dialog:
   # Move buttons per row in the choice dialog.

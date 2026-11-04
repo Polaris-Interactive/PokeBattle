@@ -9,6 +9,7 @@ import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
+import com.astralrealms.poke.battle.service.BattleBag;
 
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.registry.data.dialog.ActionButton;
@@ -24,18 +25,26 @@ import net.kyori.adventure.text.event.ClickCallback;
  * The battle choice dialog (Java players), built in code: its buttons change every turn, which AstralCore's YAML
  * dialogs cannot express. Every text is a {@code messages.yml} entry. Bedrock forms come with the presentation step.
  * <p>
+ * Moves, then the team, the balls and the bag (each a sub-dialog with a way back), and fleeing.
+ * <p>
  * Buttons answer the request they were built for ({@link ChoiceView#rqid()}); the battle refuses a click for an older
  * one.
  */
 public class ChoiceDialogs {
 
     /**
-     * What a click does: the battle checks the choice and sends it, or tells the player why not.
+     * What a click does: the battle checks the choice and sends it, or tells the player why not. Called on the
+     * player's thread.
      */
-    @FunctionalInterface
     public interface Handler {
 
         void choose(Player player, ChoiceView view, String choice);
+
+        void throwBall(Player player, ChoiceView view, String ball);
+
+        void useItem(Player player, ChoiceView view, String item, int position);
+
+        BattleBag bag();
     }
 
     private final Handler handler;
@@ -72,6 +81,15 @@ public class ChoiceDialogs {
         if (!view.switchable().isEmpty() && !view.trapped())
             buttons.add(this.button(PokeBattleMessages.TEAM_BUTTON.component(), null,
                     player -> player.showDialog(this.team(view, true))));
+        if (view.actions().capture())
+            buttons.add(this.button(PokeBattleMessages.BALL_BUTTON.component(), null,
+                    player -> this.openBalls(player, view)));
+        if (view.actions().bag())
+            buttons.add(this.button(PokeBattleMessages.BAG_BUTTON.component(), null,
+                    player -> this.openBag(player, view)));
+        if (view.actions().flee())
+            buttons.add(this.button(PokeBattleMessages.RUN_BUTTON.component(), null,
+                    player -> this.handler.choose(player, view, "run")));
 
         List<DialogBody> body = List.of(DialogBody.plainMessage(this.field(view), 300));
         DialogBase base = DialogBase.builder(PokeBattleMessages.DIALOG_TITLE.component(new PlaceholderContainer()
@@ -115,6 +133,79 @@ public class ChoiceDialogs {
             type.exitAction(this.button(PokeBattleMessages.BACK_BUTTON.component(), null,
                     player -> player.showDialog(this.main(view))));
         return Dialog.create(factory -> factory.empty().base(base).type(type.build()));
+    }
+
+    private void openBalls(Player player, ChoiceView view) {
+        List<BattleBag.Entry> balls = this.handler.bag().balls(player);
+        if (balls.isEmpty()) {
+            PokeBattleMessages.NO_BALLS.message(player);
+            player.showDialog(this.main(view));
+            return;
+        }
+        List<ActionButton> buttons = new ArrayList<>();
+        for (BattleBag.Entry ball : balls)
+            buttons.add(this.button(this.entry(ball), null,
+                    clicker -> this.handler.throwBall(clicker, view, ball.itemId())));
+        player.showDialog(this.list(PokeBattleMessages.BALLS_TITLE.component(), view, buttons,
+                clicker -> clicker.showDialog(this.main(view))));
+    }
+
+    private void openBag(Player player, ChoiceView view) {
+        List<BattleBag.Entry> items = this.handler.bag().medicine(player);
+        if (items.isEmpty()) {
+            PokeBattleMessages.NO_BATTLE_ITEMS.message(player);
+            player.showDialog(this.main(view));
+            return;
+        }
+        List<ActionButton> buttons = new ArrayList<>();
+        for (BattleBag.Entry item : items)
+            buttons.add(this.button(this.entry(item), null, clicker -> this.openTargets(clicker, view, item)));
+        player.showDialog(this.list(PokeBattleMessages.BAG_TITLE.component(), view, buttons,
+                clicker -> clicker.showDialog(this.main(view))));
+    }
+
+    private void openTargets(Player player, ChoiceView view, BattleBag.Entry item) {
+        List<ChoiceView.Member> targets = BattleBag.targets(item, view.team());
+        if (targets.isEmpty()) {
+            PokeBattleMessages.ITEM_NO_TARGET.message(player);
+            this.openBag(player, view);
+            return;
+        }
+        List<ActionButton> buttons = new ArrayList<>();
+        for (ChoiceView.Member member : targets)
+            buttons.add(this.button(PokeBattleMessages.TARGET_BUTTON.component(new PlaceholderContainer()
+                            .registerDirect("name", member.name())
+                            .registerDirect("level", member.level())
+                            .registerDirect("hp", member.hp())
+                            .registerDirect("max", member.maxHp())
+                            .registerDirect("status", member.fainted()
+                                    ? PokeBattleMessages.TARGET_FAINTED.component()
+                                    : this.status(member.status()))), null,
+                    clicker -> this.handler.useItem(clicker, view, item.itemId(), member.position())));
+        player.showDialog(this.list(PokeBattleMessages.TARGET_TITLE.component(new PlaceholderContainer()
+                .registerDirect("item", item.name())), view, buttons, clicker -> this.openBag(clicker, view)));
+    }
+
+    private Component entry(BattleBag.Entry entry) {
+        return PokeBattleMessages.BAG_ENTRY_BUTTON.component(new PlaceholderContainer()
+                .registerDirect("item", entry.name())
+                .registerDirect("amount", entry.amount()));
+    }
+
+    /**
+     * A one-column list with the field on top and a way back.
+     */
+    private Dialog list(Component title, ChoiceView view, List<ActionButton> buttons, Consumer<Player> back) {
+        DialogBase base = DialogBase.builder(title)
+                .canCloseWithEscape(true)
+                .pause(false)
+                .body(List.of(DialogBody.plainMessage(this.field(view), 300)))
+                .build();
+        MultiActionType type = DialogType.multiAction(buttons)
+                .columns(1)
+                .exitAction(this.button(PokeBattleMessages.BACK_BUTTON.component(), null, back))
+                .build();
+        return Dialog.create(factory -> factory.empty().base(base).type(type));
     }
 
     private Component field(ChoiceView view) {

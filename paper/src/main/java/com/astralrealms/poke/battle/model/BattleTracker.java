@@ -26,6 +26,7 @@ public class BattleTracker {
     private final Map<String, Condition> conditions = new HashMap<>();
     private final Set<String> participants = new LinkedHashSet<>();
     private final List<Defeat> defeats = new ArrayList<>();
+    private @Nullable Capture capture;
     private int turn;
 
     /**
@@ -34,6 +35,16 @@ public class BattleTracker {
     public record Defeat(String label, Set<String> participants) {
 
         public Defeat {
+            participants = Set.copyOf(participants);
+        }
+    }
+
+    /**
+     * An opponent caught with {@code ball}, and the side's creatures that were on the field against it.
+     */
+    public record Capture(String label, String ball, Set<String> participants) {
+
+        public Capture {
             participants = Set.copyOf(participants);
         }
     }
@@ -53,6 +64,7 @@ public class BattleTracker {
             case "-curestatus" -> this.onStatus(PokemonRef.parse(line.arg(0)), "");
             case "faint" -> this.onFaint(PokemonRef.parse(line.arg(0)));
             case "turn" -> this.turn = parseInt(line.arg(0));
+            case "polaris-ball" -> this.onBall(line);
             default -> {
             }
         }
@@ -100,6 +112,22 @@ public class BattleTracker {
             this.participants.remove(ref.label());
         else
             this.defeats.add(new Defeat(ref.label(), this.participants));
+    }
+
+    /**
+     * {@code |polaris-ball|<target>|<ball>|<shakes>|caught|free}
+     */
+    private void onBall(ProtocolLine line) {
+        PokemonRef target = PokemonRef.parse(line.arg(0));
+        if (target != null && !target.side().equals(this.side) && line.arg(3).equals("caught"))
+            this.capture = new Capture(target.label(), line.arg(1), this.participants);
+    }
+
+    /**
+     * The opponent this side caught, if it did (the battle ends with it).
+     */
+    public @Nullable Capture capture() {
+        return this.capture;
     }
 
     /**

@@ -34,8 +34,12 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     public record Battle(int turnTimerSeconds, Duration lockTtl, Duration disconnectGrace, Duration endTimeout) {
     }
 
+    /**
+     * @param experienceOnCapture a catch rewards like a win (modern rule)
+     */
     @ConfigSerializable
-    public record Rewards(double experienceMultiplier, boolean effortValues, int friendshipOnWin) {
+    public record Rewards(double experienceMultiplier, boolean effortValues, int friendshipOnWin,
+                          boolean experienceOnCapture) {
 
         public RewardCalculator.Rules rules() {
             return new RewardCalculator.Rules(this.experienceMultiplier, this.effortValues, this.friendshipOnWin);

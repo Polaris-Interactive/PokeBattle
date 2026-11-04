@@ -22,6 +22,8 @@ import net.kyori.adventure.text.Component;
 public class BattleLogRenderer {
 
     private static final Set<String> STATUSES = Set.of("brn", "par", "slp", "frz", "psn", "tox");
+    /** The {@code [from]} of the worker's {@code -heal} for a revive from the bag. */
+    private static final String REVIVE = "polaris-revive";
 
     private final Battle battle;
     private final @Nullable Locale locale;
@@ -40,9 +42,13 @@ public class BattleLogRenderer {
             case "move" -> PokeBattleMessages.LOG_MOVE.component(this.creature(line.arg(0))
                     .registerDirect("move", Names.text(this.locale, "move", ProtocolLine.toId(line.arg(1)))));
             case "-damage" -> this.damage(line);
-            case "-heal" -> line.has("from")
-                    ? PokeBattleMessages.LOG_HEAL.component(this.creature(line.arg(0)))
-                    : this.hp(line.arg(0), line.arg(1));
+            case "-heal" -> {
+                if (REVIVE.equals(line.tag("from")))
+                    yield PokeBattleMessages.LOG_REVIVE.component(this.creature(line.arg(0)));
+                yield line.has("from")
+                        ? PokeBattleMessages.LOG_HEAL.component(this.creature(line.arg(0)))
+                        : this.hp(line.arg(0), line.arg(1));
+            }
             case "faint" -> PokeBattleMessages.LOG_FAINT.component(this.creature(line.arg(0)));
             case "-supereffective" -> PokeBattleMessages.LOG_SUPER_EFFECTIVE.component();
             case "-resisted" -> PokeBattleMessages.LOG_RESISTED.component();
@@ -64,6 +70,22 @@ public class BattleLogRenderer {
                             .registerDirect("amount", line.arg(2)));
             case "cant" -> PokeBattleMessages.LOG_CANT.component(this.creature(line.arg(0))
                     .registerDirect("reason", this.effect(line.arg(1))));
+            case "polaris-ball" -> (line.arg(3).equals("caught")
+                    ? PokeBattleMessages.LOG_BALL_CAUGHT
+                    : PokeBattleMessages.LOG_BALL_FREE)
+                    .component(this.creature(line.arg(0))
+                            .registerDirect("ball", this.item(line.arg(1)))
+                            .registerDirect("shakes", line.arg(2)));
+            case "polaris-run" -> this.ownSide(line.arg(0))
+                    ? (line.arg(1).equals("escaped")
+                    ? PokeBattleMessages.LOG_RUN_ESCAPED
+                    : PokeBattleMessages.LOG_RUN_FAILED).component()
+                    : null;
+            case "polaris-item" -> PokeBattleMessages.LOG_ITEM.component(this.creature(line.arg(0))
+                    .registerDirect("item", this.item(line.arg(1))));
+            case "polaris-timer" -> line.arg(0).equals(Battle.PLAYER_SIDE)
+                    ? PokeBattleMessages.LOG_TIMER.component()
+                    : null;
             default -> null;
         };
     }
@@ -131,6 +153,19 @@ public class BattleLogRenderer {
         if (effect.kind().isEmpty())
             return Names.text(this.locale, STATUSES.contains(effect.id()) ? "status" : "condition", effect.id());
         return Names.text(this.locale, effect.kind(), effect.id());
+    }
+
+    /**
+     * An item by its battle engine id: the name of the stack the player used, else the bundle's.
+     */
+    private Object item(String itemId) {
+        Component name = this.battle.itemNames().get(itemId);
+        return name != null ? name : Names.text(this.locale, "item", itemId);
+    }
+
+    private boolean ownSide(String creature) {
+        PokemonRef ref = PokemonRef.parse(creature);
+        return ref != null && ref.side().equals(Battle.PLAYER_SIDE);
     }
 
     private PlaceholderContainer placeholders() {

@@ -32,6 +32,12 @@ public class BattleCommand extends BaseCommand {
         this.plugin.battles().choose(player, "move " + index);
     }
 
+    @Subcommand("fuite")
+    @Description("Prendre la fuite")
+    public void onRun(Player player) {
+        this.plugin.battles().choose(player, "run");
+    }
+
     @Subcommand("changer")
     @Description("Envoyer une autre créature")
     @Syntax("<position>")

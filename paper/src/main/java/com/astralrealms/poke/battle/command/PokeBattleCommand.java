@@ -47,8 +47,9 @@ public class PokeBattleCommand extends BaseCommand {
                     .registerDirect("species", species));
             return;
         }
+        // Signed as a spawn would sign it: catching it redeems this roll
         this.plugin.battles()
-                .start(BattleRequest.wild(player, creature))
+                .start(BattleRequest.wild(player, PokeCoreAPI.get().creation().sign(creature)))
                 .thenAccept(result -> report(player, result));
     }
 

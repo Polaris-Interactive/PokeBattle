@@ -4,12 +4,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -27,6 +30,7 @@ import com.astralrealms.poke.battle.api.service.BattleService;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.model.Battle;
+import com.astralrealms.poke.battle.model.BattleTracker;
 import com.astralrealms.poke.battle.model.Names;
 import com.astralrealms.poke.battle.model.RewardCalculator;
 import com.astralrealms.poke.battle.network.BattleTransport;
@@ -40,19 +44,32 @@ import com.astralrealms.poke.battle.network.packet.BattleStartReplyPacket;
 import com.astralrealms.poke.battle.network.packet.BattleTeamState;
 import com.astralrealms.poke.battle.network.packet.BattleUpdatePacket;
 import com.astralrealms.poke.battle.protocol.ChoiceRequest;
+import com.astralrealms.poke.battle.protocol.Condition;
 import com.astralrealms.poke.battle.protocol.ProtocolLine;
 import com.astralrealms.poke.battle.render.BattleLogRenderer;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.api.model.CaptureAttempt;
+import com.astralrealms.poke.core.api.model.CreationOptions;
+import com.astralrealms.poke.core.api.model.CreationResult;
 import com.astralrealms.poke.core.mechanics.PokemonStats;
+import com.astralrealms.poke.core.mechanics.StatCalculator;
+import com.astralrealms.poke.core.mechanics.capture.CaptureContext;
+import com.astralrealms.poke.core.mechanics.capture.CaptureResult;
+import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
+import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
 import com.astralrealms.poke.core.mechanics.progression.BattleCondition;
 import com.astralrealms.poke.core.mechanics.progression.ExperienceGain;
 import com.astralrealms.poke.core.mechanics.progression.Progression;
 import com.astralrealms.poke.core.model.MoveSlot;
 import com.astralrealms.poke.core.model.Pokemon;
+import com.astralrealms.poke.core.model.stat.StatSpread;
+import com.astralrealms.poke.core.model.storage.StoragePosition;
+import com.astralrealms.poke.core.model.storage.StorageResult;
 import com.astralrealms.poke.core.model.storage.TrainerStorage;
 import com.astralrealms.poke.core.species.Species;
+import com.astralrealms.poke.core.species.SpeciesVariant;
 import com.astralrealms.poke.core.species.SpeciesRegistry;
 import com.astralrealms.poke.core.team.BattleSets;
 import com.astralrealms.poke.core.team.PackedSet;
@@ -79,6 +96,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private static final int MAX_TEAM = 6;
     private static final String WILD_SIDE_NAME = "wild";
     private static final String WILD_AI = "wild";
+    private static final String RUN = "run";
 
     private final PokeBattle plugin;
     private final BattleTransport transport;
@@ -86,6 +104,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private final String shardId;
     private final Map<UUID, Battle> battles = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> byPlayer = new ConcurrentHashMap<>();
+    private final BattleBag bag = new BattleBag();
 
     public BattleServiceImpl(PokeBattle plugin, BattleTransport transport, BattleLocks locks, String shardId) {
         this.plugin = plugin;
@@ -105,17 +124,26 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         if (storage == null)
             return CompletableFuture.completedFuture(BattleStartResult.NO_USABLE_CREATURE);
 
-        // Fainted creatures stay out: the simulator only gets creatures that can fight
-        List<Battle.Ally> allies = new ArrayList<>();
+        // Standing creatures first (the lead must fight); fainted ones follow, only there to be revived from the bag
+        List<Pokemon> standing = new ArrayList<>();
+        List<Pokemon> fainted = new ArrayList<>();
         for (Pokemon pokemon : storage.partyMembers())
-            if (allies.size() < MAX_TEAM && PokemonStats.currentHp(pokemon, registry) > 0)
-                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
-        if (allies.isEmpty())
+            (PokemonStats.currentHp(pokemon, registry) > 0 ? standing : fainted).add(pokemon);
+        if (standing.isEmpty())
             return CompletableFuture.completedFuture(BattleStartResult.NO_USABLE_CREATURE);
+        List<Battle.Ally> allies = new ArrayList<>();
+        for (Pokemon pokemon : standing)
+            if (allies.size() < MAX_TEAM)
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+        for (Pokemon pokemon : fainted)
+            if (allies.size() < MAX_TEAM)
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
 
         UUID battleId = UuidV7.generate();
+        Battle.Options options = new Battle.Options(true, true, true, request.wild(), request.captureFlags(),
+                player.getWorld().getName());
         Battle battle = new Battle(battleId, request.format(), playerId, allies,
-                List.of(new Battle.Foe(Battle.label(0), request.wild())));
+                List.of(new Battle.Foe(Battle.label(0), request.wild().creature())), options);
         BattleStartPacket packet;
         try {
             packet = this.startPacket(battle, player.getName(), registry);
@@ -170,7 +198,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 new BattleSide(Battle.PLAYER_SIDE, playerName, battle.playerId(), PackedTeam.pack(sets), "", states),
                 new BattleSide(Battle.FOE_SIDE, WILD_SIDE_NAME, null, PackedTeam.pack(wild), WILD_AI, List.of()));
         return new BattleStartPacket(battle.id(), this.shardId, battle.format(), "", sides,
-                this.plugin.configuration().battle().turnTimerSeconds(), false, false);
+                this.plugin.configuration().battle().turnTimerSeconds(), battle.options().bag(),
+                battle.options().capture());
     }
 
     private BattleStartResult onStartReply(Battle battle, Player player, @Nullable BattleStartReplyPacket reply) {
@@ -306,6 +335,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         }
         battle.pending(request);
         battle.chosen(false);
+        // A new request: the item spent on the last choice was used
+        battle.spent(null);
         this.locks.refresh(battle.playerId(), battle.id(), this.plugin.configuration().battle().lockTtl())
                 .exceptionally(throwable -> {
                     this.plugin.getSLF4JLogger().warn("Battle {}: lock refresh failed", battle.id(), throwable);
@@ -320,6 +351,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         this.plugin.debug("Battle {}: choice refused ({})", battle.id(), error.message());
         battle.chosen(false);
+        this.refund(battle, error.rqid());
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player != null)
             PokeBattleMessages.CHOICE_REFUSED.message(player);
@@ -392,13 +424,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private void submit(Player player, Battle battle, int rqid, String choice) {
         String workerId;
         synchronized (battle) {
-            ChoiceRequest request = battle.pending();
-            if (battle.state() != Battle.State.RUNNING || request == null || !request.choosable() || battle.chosen()
-                    || request.rqid() != rqid) {
-                PokeBattleMessages.WAITING_FOR_TURN.message(player);
+            ChoiceRequest request = this.answerable(player, battle, rqid);
+            if (request == null)
                 return;
-            }
-            if (!legal(request, choice)) {
+            if (!legal(request, choice) || (choice.equals(RUN) && !battle.options().flee())) {
                 PokeBattleMessages.CHOICE_UNAVAILABLE.message(player);
                 this.openDialog(battle);
                 return;
@@ -406,7 +435,145 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             battle.chosen(true);
             workerId = battle.workerId();
         }
+        this.send(player, battle, workerId, rqid, choice);
+    }
 
+    /**
+     * A ball from the player's inventory. The capture is rolled here, where the formula, the ball rules and the
+     * encounter's flags are, and the result goes to the worker with the choice (so a replay throws the same ball).
+     * Must run on the player's thread (it takes the ball).
+     */
+    @Override
+    public void throwBall(Player player, ChoiceView view, String ball) {
+        Battle battle = this.battleFor(player);
+        if (battle == null || !battle.id().equals(view.battleId())) {
+            PokeBattleMessages.NOT_IN_BATTLE.message(player);
+            return;
+        }
+        String workerId;
+        String choice;
+        synchronized (battle) {
+            ChoiceRequest request = this.answerable(player, battle, view.rqid());
+            if (request == null)
+                return;
+            CaptureAttempt attempt = request.canAct() && battle.options().capture() ? this.attempt(battle, ball) : null;
+            if (attempt == null) {
+                PokeBattleMessages.CHOICE_UNAVAILABLE.message(player);
+                this.openDialog(battle);
+                return;
+            }
+            BattleBag.Taken taken = this.bag.take(player, ball);
+            if (taken == null) {
+                PokeBattleMessages.ITEM_MISSING.message(player);
+                this.openDialog(battle);
+                return;
+            }
+            CaptureResult result = PokeCoreAPI.get().capture().roll(attempt);
+            this.plugin.debug("Battle {}: {} thrown, {} shakes, caught {}", battle.id(), ball, result.shakes(),
+                    result.caught());
+            battle.itemNames().put(ball, taken.name());
+            battle.spent(new Battle.Spent(view.rqid(), ball));
+            battle.chosen(true);
+            workerId = battle.workerId();
+            choice = "ball " + ball + " " + result.shakes() + " " + (result.caught() ? 1 : 0);
+        }
+        this.send(player, battle, workerId, view.rqid(), choice);
+    }
+
+    /**
+     * A bag item from the player's inventory on the team member at {@code position}, with the effects its blueprint
+     * fixes. Must run on the player's thread (it takes the item).
+     */
+    @Override
+    public void useItem(Player player, ChoiceView view, String item, int position) {
+        Battle battle = this.battleFor(player);
+        if (battle == null || !battle.id().equals(view.battleId())) {
+            PokeBattleMessages.NOT_IN_BATTLE.message(player);
+            return;
+        }
+        String workerId;
+        String choice;
+        synchronized (battle) {
+            ChoiceRequest request = this.answerable(player, battle, view.rqid());
+            if (request == null)
+                return;
+            if (!request.canAct() || !battle.options().bag()
+                    || request.team().stream().noneMatch(member -> member.position() == position)) {
+                PokeBattleMessages.CHOICE_UNAVAILABLE.message(player);
+                this.openDialog(battle);
+                return;
+            }
+            BattleBag.Taken taken = this.bag.take(player, item);
+            if (taken == null || taken.effects().isEmpty()) {
+                if (taken != null)
+                    this.bag.refund(player, item);
+                PokeBattleMessages.ITEM_MISSING.message(player);
+                this.openDialog(battle);
+                return;
+            }
+            battle.itemNames().put(item, taken.name());
+            battle.spent(new Battle.Spent(view.rqid(), item));
+            battle.chosen(true);
+            workerId = battle.workerId();
+            choice = "item " + item + " " + position + " " + BattleBag.encode(taken.effects());
+        }
+        this.send(player, battle, workerId, view.rqid(), choice);
+    }
+
+    @Override
+    public BattleBag bag() {
+        return this.bag;
+    }
+
+    /**
+     * The pending request, if the player can answer it now. Under the battle's monitor.
+     */
+    private @Nullable ChoiceRequest answerable(Player player, Battle battle, int rqid) {
+        ChoiceRequest request = battle.pending();
+        if (battle.state() != Battle.State.RUNNING || request == null || !request.choosable() || battle.chosen()
+                || request.rqid() != rqid) {
+            PokeBattleMessages.WAITING_FOR_TURN.message(player);
+            return null;
+        }
+        return request;
+    }
+
+    /**
+     * A throw at the opponent on the field. Its HP is only known as the percentage the player sees: close enough for
+     * the formula (the error is under 1 % of the rate).
+     */
+    private @Nullable CaptureAttempt attempt(Battle battle, String ball) {
+        if (PokeCoreAPI.get().capture().ball(ball).isEmpty() || battle.options().wildRoll() == null)
+            return null;
+        String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
+        Battle.Foe foe = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
+        Condition condition = foeLabel == null ? null : battle.tracker().condition(Battle.FOE_SIDE, foeLabel);
+        if (foe == null || condition == null || condition.fainted())
+            return null;
+
+        SpeciesRegistry registry = PokeCoreAPI.get().species();
+        GeneratedCreature creature = foe.creature();
+        Species species = registry.findSpecies(creature.species()).orElse(null);
+        if (species == null)
+            return null;
+        SpeciesVariant variant = species.variant(creature.form());
+        int maxHp = StatCalculator.calculate(variant.baseStats(), creature.ivs(), StatSpread.ZERO, creature.level(),
+                registry.findNature(creature.nature()).orElse(null)).hp();
+        int currentHp = Math.clamp(Math.round(condition.percent() * maxHp / 100.0), 1, maxHp);
+
+        String allyLabel = battle.tracker().active(Battle.PLAYER_SIDE);
+        int throwerLevel = allyLabel == null ? 0 : battle.ally(allyLabel).map(ally -> ally.pokemon().level()).orElse(0);
+        Set<String> types = variant.types()
+                .stream()
+                .map(type -> type.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        return new CaptureAttempt(creature.species(), maxHp, currentHp,
+                condition.status().isEmpty() ? null : condition.status(), ball,
+                new CaptureContext(types, creature.level(), throwerLevel, Math.max(1, battle.tracker().turn()),
+                        battle.options().captureFlags()));
+    }
+
+    private void send(Player player, Battle battle, @Nullable String workerId, int rqid, String choice) {
         this.transport.choose(workerId, battle.id(), Battle.PLAYER_SIDE, rqid, choice).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().error("Battle {}: sending a choice failed", battle.id(), throwable);
             PokeBattleMessages.UNEXPECTED_ERROR.message(player);
@@ -414,6 +581,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 ChoiceRequest pending = battle.pending();
                 if (pending != null && pending.rqid() == rqid) {
                     battle.chosen(false);
+                    this.refund(battle, rqid);
                     this.openDialog(battle);
                 }
             }
@@ -422,9 +590,37 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     /**
-     * The choices the dialog and the commands send, checked against the request before they leave this server.
+     * Gives back the item spent on the choice for {@code rqid}, which the battle refused. Under the battle's monitor.
+     */
+    private void refund(Battle battle, int rqid) {
+        Battle.Spent spent = battle.spent();
+        if (spent == null || spent.rqid() != rqid)
+            return;
+        battle.spent(null);
+        Player player = Bukkit.getPlayer(battle.playerId());
+        if (player == null) {
+            this.plugin.getSLF4JLogger().warn("Battle {}: {} could not be given back to {} (offline)", battle.id(),
+                    spent.itemId(), battle.playerId());
+            return;
+        }
+        Component name = battle.itemNames().get(spent.itemId());
+        player.getScheduler().run(this.plugin, _ -> {
+            if (this.bag.refund(player, spent.itemId()))
+                PokeBattleMessages.ITEM_REFUNDED.message(player, new PlaceholderContainer()
+                        .registerDirect("item", name == null ? spent.itemId() : name));
+            else
+                this.plugin.getSLF4JLogger().warn("Battle {}: {} has no item stack any more, not given back",
+                        battle.id(), spent.itemId());
+        }, null);
+    }
+
+    /**
+     * The choices the dialog and the commands send, checked against the request before they leave this server. Balls
+     * and bag items are built here, not typed: they have their own checks.
      */
     static boolean legal(ChoiceRequest request, String choice) {
+        if (choice.equals(RUN))
+            return request.canAct();
         String[] parts = choice.split(" ");
         if (parts.length != 2)
             return false;
@@ -479,9 +675,11 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     private void settle(Battle battle, BattleEndedPacket ended) {
+        BattleTracker.Capture capture = battle.tracker().capture();
         BattleOutcome outcome = switch (ended.result()) {
-            case Battle.PLAYER_SIDE -> BattleOutcome.WON;
+            case Battle.PLAYER_SIDE -> capture != null ? BattleOutcome.CAPTURED : BattleOutcome.WON;
             case "tie" -> BattleOutcome.TIE;
+            case "fled" -> BattleOutcome.FLED;
             case "aborted" -> BattleOutcome.ABORTED;
             default -> BattleOutcome.LOST;
         };
@@ -504,8 +702,11 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                     ally.pokemon().level(), state != null && state.hp() > 0));
         }
 
+        // Rewards for a win; for a catch too (modern rule, configurable): the caught opponent counts as defeated
         List<ExperienceGain> gains = List.of();
-        if (outcome == BattleOutcome.WON) {
+        boolean rewarded = outcome == BattleOutcome.WON
+                || (outcome == BattleOutcome.CAPTURED && this.plugin.configuration().rewards().experienceOnCapture());
+        if (rewarded) {
             SpeciesRegistry registry = PokeCoreAPI.get().species();
             Map<String, RewardCalculator.Foe> foes = new LinkedHashMap<>();
             for (Battle.Foe foe : battle.foes()) {
@@ -514,22 +715,82 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                     foes.put(foe.label(), new RewardCalculator.Foe(species.baseExperience(), foe.creature().level(),
                             species.evYield()));
             }
-            gains = RewardCalculator.gains(battle.tracker().defeats(), allies, foes,
-                    this.plugin.configuration().rewards().rules());
+            List<BattleTracker.Defeat> defeats = new ArrayList<>(battle.tracker().defeats());
+            if (capture != null)
+                defeats.add(new BattleTracker.Defeat(capture.label(), capture.participants()));
+            gains = RewardCalculator.gains(defeats, allies, foes, this.plugin.configuration().rewards().rules());
         }
 
         List<ExperienceGain> granted = gains;
-        this.settle(battle.playerId(), conditions, gains, true)
-                .thenAccept(result -> {
-                    this.report(battle, outcome, granted, result.orElse(null));
-                    this.finish(battle, outcome, ended.turns(), result.isPresent());
+        CompletableFuture<@Nullable CreationResult> caught = outcome == BattleOutcome.CAPTURED
+                ? this.redeem(battle, capture)
+                : CompletableFuture.completedFuture(null);
+        caught.thenCompose(creation -> {
+                    // The caught creature keeps the condition the battle left it in, like the team
+                    List<BattleCondition> all = new ArrayList<>(conditions);
+                    BattleCondition captured = this.capturedCondition(battle, capture, creation, ended);
+                    if (captured != null)
+                        all.add(captured);
+                    return this.settle(battle.playerId(), all, granted, true).thenAccept(result -> {
+                        this.report(battle, outcome, creation, granted, result.orElse(null));
+                        this.finish(battle, outcome, ended.turns(), result.isPresent());
+                    });
                 })
                 .exceptionally(throwable -> {
                     this.plugin.getSLF4JLogger().error("Battle {}: settlement failed", battle.id(), throwable);
-                    this.report(battle, outcome, List.of(), null);
+                    this.report(battle, outcome, null, List.of(), null);
                     this.finish(battle, outcome, ended.turns(), false);
                     return null;
                 });
+    }
+
+    /**
+     * Stores the caught creature: the signed roll it appeared with, redeemed once. A failure (storage full, invalid
+     * or already redeemed roll) still settles the rest of the battle.
+     */
+    private CompletableFuture<@Nullable CreationResult> redeem(Battle battle,
+                                                               BattleTracker.@Nullable Capture capture) {
+        SignedRoll roll = battle.options().wildRoll();
+        if (capture == null || roll == null)
+            return CompletableFuture.completedFuture(null);
+        return PokeCoreAPI.get()
+                .creation()
+                .redeem(battle.playerId(), roll, CreationOptions.capture(capture.ball(), battle.options().metAt(),
+                        battle.id().toString()))
+                .<@Nullable CreationResult>thenApply(result -> {
+                    if (!result.succeeded())
+                        this.plugin.getSLF4JLogger().warn("Battle {}: the caught creature was not stored ({})",
+                                battle.id(), result.status());
+                    return result;
+                })
+                .exceptionally(throwable -> {
+                    this.plugin.getSLF4JLogger().error("Battle {}: storing the caught creature failed", battle.id(),
+                            throwable);
+                    return null;
+                });
+    }
+
+    private @Nullable BattleCondition capturedCondition(Battle battle, BattleTracker.@Nullable Capture capture,
+                                                        @Nullable CreationResult creation, BattleEndedPacket ended) {
+        if (capture == null || creation == null || !creation.succeeded() || creation.pokemon() == null)
+            return null;
+        int index = -1;
+        for (int i = 0; i < battle.foes().size(); i++)
+            if (battle.foes().get(i).label().equals(capture.label()))
+                index = i;
+        int foeIndex = index;
+        BattleMemberState state = ended.teams()
+                .stream()
+                .filter(team -> team.slot().equals(Battle.FOE_SIDE))
+                .findFirst()
+                .filter(team -> foeIndex >= 0 && foeIndex < team.members().size())
+                .map(team -> team.members().get(foeIndex))
+                .orElse(null);
+        if (state == null)
+            return null;
+        Pokemon stored = creation.pokemon();
+        return new BattleCondition(stored.id(), stored.version(), state.hp(),
+                state.status().isEmpty() ? null : state.status(), state.pp());
     }
 
     /**
@@ -565,15 +826,17 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     /**
      * @param progressions null when nothing was written
      */
-    private void report(Battle battle, BattleOutcome outcome, List<ExperienceGain> gains,
-                        @Nullable List<Progression> progressions) {
+    private void report(Battle battle, BattleOutcome outcome, @Nullable CreationResult creation,
+                        List<ExperienceGain> gains, @Nullable List<Progression> progressions) {
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player == null)
             return;
         switch (outcome) {
             case WON -> PokeBattleMessages.BATTLE_WON.message(player);
+            case CAPTURED -> this.reportCapture(player, battle, creation);
             case LOST -> PokeBattleMessages.BATTLE_LOST.message(player);
             case TIE -> PokeBattleMessages.BATTLE_TIE.message(player);
+            case FLED -> PokeBattleMessages.BATTLE_FLED.message(player);
             case ABORTED -> PokeBattleMessages.BATTLE_ABORTED.message(player);
         }
         if (progressions == null) {
@@ -606,6 +869,22 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                         .registerDirect("pokemon", name)
                         .registerDirect("move", Names.text(player.locale(), "move", move)));
         }
+    }
+
+    private void reportCapture(Player player, Battle battle, @Nullable CreationResult creation) {
+        PlaceholderContainer placeholders = new PlaceholderContainer().registerDirect("pokemon",
+                battle.foes().isEmpty() ? "" : Names.foe(player.locale(), battle.foes().getFirst()));
+        if (creation == null || !creation.succeeded()) {
+            (creation != null && creation.status() == StorageResult.Status.STORAGE_FULL
+                    ? PokeBattleMessages.CAPTURE_STORAGE_FULL
+                    : PokeBattleMessages.CAPTURE_FAILED).message(player, placeholders);
+            return;
+        }
+        StoragePosition position = creation.position();
+        if (position == null || position.party())
+            PokeBattleMessages.BATTLE_CAPTURED.message(player, placeholders);
+        else
+            PokeBattleMessages.BATTLE_CAPTURED_PC.message(player, placeholders.registerDirect("box", position.box() + 1));
     }
 
     private void finish(Battle battle, BattleOutcome outcome, int turns, boolean settled) {

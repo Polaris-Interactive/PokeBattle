@@ -19,14 +19,27 @@ import com.astralrealms.poke.core.species.SpeciesRegistry;
  * What the choice dialog shows, taken from a battle under its monitor: the dialog is then built on the player's
  * thread from this snapshot alone.
  *
- * @param rqid the request the buttons answer; a click for an older one is refused
+ * @param rqid       the request the buttons answer; a click for an older one is refused
+ * @param switchable members a switch can send in
+ * @param team       every member in request order, fainted ones included (bag targets)
+ * @param actions    what the player may do besides moves and switches this turn
  */
 public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch, boolean trapped, Creature ally,
-                         Creature foe, List<Move> moves, List<Member> switchable) {
+                         Creature foe, List<Move> moves, List<Member> switchable, List<Member> team,
+                         Actions actions) {
 
     public ChoiceView {
         moves = List.copyOf(moves);
         switchable = List.copyOf(switchable);
+        team = List.copyOf(team);
+    }
+
+    /**
+     * Ball, bag and flee buttons: allowed by the battle, and only when the active creature acts (not a forced switch).
+     */
+    public record Actions(boolean capture, boolean bag, boolean flee) {
+
+        public static final Actions NONE = new Actions(false, false, false);
     }
 
     /**
@@ -44,9 +57,10 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     }
 
     /**
-     * @param position as {@code switch N}
+     * @param position as {@code switch N} (and the target of a bag item)
+     * @param status   display name, empty when healthy
      */
-    public record Member(int position, String name, int level, int hp, int maxHp, String status) {
+    public record Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted) {
     }
 
     /**
@@ -85,20 +99,27 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
         }
 
         List<Member> switchable = new ArrayList<>();
+        List<Member> team = new ArrayList<>();
         for (ChoiceRequest.TeamMember member : request.team()) {
-            if (!request.canSwitchTo(member.position()))
-                continue;
             Battle.Ally stored = battle.ally(member.label()).orElse(null);
             if (stored == null)
                 continue;
             Condition condition = member.condition();
-            switchable.add(new Member(member.position(), Names.ally(locale, stored), stored.pokemon().level(),
+            Member view = new Member(member.position(), Names.ally(locale, stored), stored.pokemon().level(),
                     condition == null ? 0 : condition.hp(), condition == null ? 0 : condition.maxHp(),
-                    status(condition, locale)));
+                    status(condition, locale), member.fainted());
+            team.add(view);
+            if (request.canSwitchTo(member.position()))
+                switchable.add(view);
         }
 
+        Actions actions = Actions.NONE;
+        if (request.canAct()) {
+            Battle.Options options = battle.options();
+            actions = new Actions(options.capture() && options.wildRoll() != null, options.bag(), options.flee());
+        }
         return new ChoiceView(battle.id(), request.rqid(), battle.tracker().turn(), request.forceSwitch(),
-                request.trapped(), ally, foe, moves, switchable);
+                request.trapped(), ally, foe, moves, switchable, team, actions);
     }
 
     /**

@@ -17,11 +17,12 @@ import com.google.gson.JsonParser;
  * @param waiting     nothing to choose: the opponent is choosing
  * @param forceSwitch the active creature fainted (or must leave): only a switch is legal
  * @param trapped     the active creature cannot switch out
+ * @param reviving    Revival Blessing: the forced "switch" names a fainted member to bring back
  * @param moves       the active creature's moves, empty for a forced switch
  * @param team        the side's creatures in their current order: {@code switch N} names a position here
  */
-public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, boolean trapped, List<MoveOption> moves,
-                            List<TeamMember> team) {
+public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, boolean trapped, boolean reviving,
+                            List<MoveOption> moves, List<TeamMember> team) {
 
     public ChoiceRequest {
         moves = List.copyOf(moves);
@@ -79,17 +80,19 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
         }
 
         List<TeamMember> team = new ArrayList<>();
+        boolean reviving = false;
         if (root.has("side")) {
             JsonArray list = root.getAsJsonObject("side").getAsJsonArray("pokemon");
             for (int i = 0; i < list.size(); i++) {
                 JsonObject member = list.get(i).getAsJsonObject();
+                boolean active = member.has("active") && member.get("active").getAsBoolean();
+                reviving |= forceSwitch && active && member.has("reviving") && member.get("reviving").getAsBoolean();
                 PokemonRef ref = PokemonRef.parse(string(member, "ident"));
                 team.add(new TeamMember(i + 1, ref == null ? "" : ref.label(),
-                        Condition.parse(string(member, "condition")),
-                        member.has("active") && member.get("active").getAsBoolean()));
+                        Condition.parse(string(member, "condition")), active));
             }
         }
-        return new ChoiceRequest(rqid, waiting, forceSwitch, trapped, moves, team);
+        return new ChoiceRequest(rqid, waiting, forceSwitch, trapped, reviving, moves, team);
     }
 
     private static boolean isDisabled(JsonObject move) {
@@ -117,13 +120,23 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
     }
 
     /**
-     * Whether the creature at this position can be sent in: on the bench and still standing.
+     * Whether the creature at this position can be sent in: on the bench and still standing. After Revival Blessing,
+     * the opposite: a fainted one, to bring back.
      */
     public boolean canSwitchTo(int position) {
         if (this.trapped && !this.forceSwitch)
             return false;
         return this.team.stream()
-                .anyMatch(member -> member.position() == position && !member.active() && !member.fainted());
+                .anyMatch(member -> member.position() == position && !member.active()
+                        && member.fainted() == this.reviving);
+    }
+
+    /**
+     * Whether the active creature can act otherwise than by a move (ball, bag, flee): a move request, not a forced
+     * switch.
+     */
+    public boolean canAct() {
+        return !this.waiting && !this.forceSwitch && !this.moves.isEmpty();
     }
 
     public boolean canUseMove(int index) {
