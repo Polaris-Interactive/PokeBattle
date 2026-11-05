@@ -50,8 +50,8 @@ hud:
     text: "<white>●"
     scale: 0.3
     range: { yaw: 42, pitch: 26 }
-    sensitivity: 1.0
-    smoothing: 1
+    sensitivity: 1.5
+    smoothing: 0
   # Whether the battle log also goes to the chat (the HUD shows its last lines).
   chat-log: true
   log-lines: 4
