@@ -128,6 +128,11 @@ hud:
     # Each card and the log sit on their frame: the frame element (`*-frame`) is drawn a little behind its text.
     ally:   { position: { yaw: -36, pitch: -24 }, scale: 0.3, background: false }
     foe:    { position: { yaw: 36, pitch: -24 }, scale: 0.3, background: false }
+    # The HP text and the bar sit on their own slots of the card frame.
+    ally-hp:  { position: { yaw: -36, pitch: -24.6 }, scale: 0.3, background: false }
+    foe-hp:   { position: { yaw: 36, pitch: -24.6 }, scale: 0.3, background: false }
+    ally-bar: { position: { yaw: -36, pitch: -26.6 }, scale: 0.3, background: false }
+    foe-bar:  { position: { yaw: 36, pitch: -26.6 }, scale: 0.3, background: false }
     ally-frame: { position: { yaw: -36, pitch: -26.3 }, scale: 0.66, background: false, depth: 2.05 }
     foe-frame:  { position: { yaw: 36, pitch: -26.3 }, scale: 0.66, background: false, depth: 2.05 }
     # The status strip under the creature's name, drawn only while it has a status.
@@ -153,5 +158,5 @@ hud:
     back:   { position: { yaw: -38, pitch: 22.5 }, scale: 0.28, background: true }
     next:   { position: { yaw: -21, pitch: 22.5 }, scale: 0.28, background: true }
     info:   { position: { yaw: 32, pitch: 3 }, scale: 0.26, background: true }
-    log:    { position: { yaw: 32, pitch: 15 }, scale: 0.22, background: false }
-    log-frame: { position: { yaw: 32, pitch: 12.5 }, scale: 0.8, background: false, depth: 2.05 }
+    log:    { position: { yaw: 32, pitch: 15 }, scale: 0.19, background: false }
+    log-frame: { position: { yaw: 32, pitch: 12.5 }, scale: 0.9, background: false, depth: 2.05 }
