@@ -126,15 +126,18 @@ hud:
   # as a grid bottom left, the log bottom right.
   elements:
     # Each card and the log sit on their frame: the frame element (`*-frame`) is drawn a little behind its text.
-    ally:   { position: { yaw: -36, pitch: -24 }, scale: 0.3, background: false }
-    foe:    { position: { yaw: 36, pitch: -24 }, scale: 0.3, background: false }
+    ally:   { position: { yaw: -36, pitch: -27.6 }, scale: 0.3, background: false }
+    foe:    { position: { yaw: 36, pitch: -27.6 }, scale: 0.3, background: false }
     # The HP text and the bar sit on their own slots of the card frame.
     ally-hp:  { position: { yaw: -36, pitch: -24.6 }, scale: 0.3, background: false }
     foe-hp:   { position: { yaw: 36, pitch: -24.6 }, scale: 0.3, background: false }
-    ally-bar: { position: { yaw: -36, pitch: -26.6 }, scale: 0.3, background: false }
-    foe-bar:  { position: { yaw: 36, pitch: -26.6 }, scale: 0.3, background: false }
+    ally-bar: { position: { yaw: -36, pitch: -26.1 }, scale: 0.3, background: false }
+    foe-bar:  { position: { yaw: 36, pitch: -26.1 }, scale: 0.3, background: false }
     ally-frame: { position: { yaw: -36, pitch: -26.3 }, scale: 0.66, background: false, depth: 2.05 }
     foe-frame:  { position: { yaw: 36, pitch: -26.3 }, scale: 0.66, background: false, depth: 2.05 }
+    # The species icon in the card's portrait slot (the frame's square on the outside edge).
+    ally-icon: { position: { yaw: -26.5, pitch: -26.6 }, scale: 0.45, background: false, depth: 2.05 }
+    foe-icon:  { position: { yaw: 26, pitch: -26.6 }, scale: 0.45, background: false, depth: 2.05 }
     # The status strip under the creature's name, drawn only while it has a status.
     ally-status: { position: { yaw: -36, pitch: -21.5 }, scale: 1.2, background: false }
     foe-status:  { position: { yaw: 36, pitch: -21.5 }, scale: 1.2, background: false }

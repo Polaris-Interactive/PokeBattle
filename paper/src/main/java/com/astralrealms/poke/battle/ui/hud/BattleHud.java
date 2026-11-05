@@ -52,10 +52,10 @@ final class BattleHud {
 
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
             "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon",
-            "ally-hp", "foe-hp", "ally-bar", "foe-bar");
+            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon");
     /** Art drawn as items (see {@link HudArt}); every other element is text. */
     private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
-            "turn-icon");
+            "turn-icon", "ally-icon", "foe-icon");
     private static final String BUTTON = "button-";
     /** The strip behind a list button, drawn in the element of the same number. */
     private static final String FRAME = "frame-";
@@ -477,8 +477,10 @@ final class BattleHud {
             this.set(id, List.of());
             this.set(id + "-hp", List.of());
             this.set(id + "-bar", List.of());
+            this.setItem(id + "-icon", null);
             return;
         }
+        this.setItem(id + "-icon", HudArt.speciesItem(creature.species()));
         this.set(id, List.of(name.component(new PlaceholderContainer()
                 .registerDirect("name", creature.name())
                 .registerDirect("level", creature.level())

@@ -1,5 +1,6 @@
 package com.astralrealms.poke.battle.ui.hud;
 
+import java.util.Locale;
 import java.util.Map;
 
 import org.bukkit.Material;
@@ -52,6 +53,13 @@ public class HudArt {
      */
     public static @Nullable Key statusItem(String statusId) {
         return STATUS.get(statusId);
+    }
+
+    /**
+     * The species icon item (CraftEngine's {@code pokesmp:species/<name>}), or null for no species.
+     */
+    public static @Nullable Key speciesItem(String species) {
+        return species == null || species.isBlank() ? null : Key.key("pokesmp", "species/" + species.toLowerCase(Locale.ROOT));
     }
 
     /**
