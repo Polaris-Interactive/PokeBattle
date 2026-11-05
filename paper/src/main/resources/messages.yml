@@ -91,3 +91,16 @@ bag-entry-button: "%item% <gray>×%amount%"
 target-title: "<green>Sur qui utiliser %item%<green> ?"
 target-button: "<white>%name%</white> <gray>N.%level% · %hp%/%max% PV %status%"
 target-fainted: "<red>K.O."
+
+# Battle HUD (AstralHologram). Dialog texts above are reused for the buttons and the menu titles.
+# %bar%: the health bar (hud.bar in config.yml); %status%: dialog-status, empty when healthy.
+hud-foe: "<white>%name%</white> <gray>N.%level%</gray> %status%<newline>%bar% <gray>%percent% %"
+hud-ally: "<white>%name%</white> <gray>N.%level%</gray> %status%<newline>%bar% <white>%hp%</white><gray>/%max% PV"
+hud-timer: "<gray>Tour <white>%turn%</white> · <white>%seconds%</white> s"
+hud-turn: "<gray>Tour <white>%turn%"
+hud-prompt: "<white>Que doit faire %ally% ?"
+hud-moves-title: "<red>Quelle capacité ?"
+hud-waiting: "<gray>En attente..."
+hud-fight-button: "<red>Attaque"
+hud-next-button: "<gray>Suivant ›"
+hud-closed: "<gray>Tapez <white>/combat</white> pour revenir au combat."

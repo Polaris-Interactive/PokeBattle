@@ -94,6 +94,16 @@ public enum PokeBattleMessages implements MessageEnum {
     TARGET_TITLE,
     TARGET_BUTTON,
     TARGET_FAINTED,
+    HUD_FOE,
+    HUD_ALLY,
+    HUD_TIMER,
+    HUD_TURN,
+    HUD_PROMPT,
+    HUD_MOVES_TITLE,
+    HUD_WAITING,
+    HUD_FIGHT_BUTTON,
+    HUD_NEXT_BUTTON,
+    HUD_CLOSED,
     ;
 
     @Setter

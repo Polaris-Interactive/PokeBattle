@@ -125,7 +125,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     /**
      * @param exact the player's own creature (exact HP); the opponent's is only known as a percentage
      */
-    private static Creature creature(String name, int level, @Nullable Condition condition, boolean exact,
+    static Creature creature(String name, int level, @Nullable Condition condition, boolean exact,
                                      @Nullable Locale locale) {
         if (condition == null)
             return new Creature(name, level, 0, 0, "");

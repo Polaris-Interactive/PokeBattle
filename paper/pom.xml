@@ -40,6 +40,13 @@
             <version>1.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
+        <!-- astral/hologram (optional at runtime: the battle HUD; without it, the choice dialog) -->
+        <dependency>
+            <groupId>com.astralrealms</groupId>
+            <artifactId>hologram</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- pokebattle/api (shaded: the plugin jar carries the API it implements) -->
         <dependency>
             <groupId>com.astralrealms</groupId>

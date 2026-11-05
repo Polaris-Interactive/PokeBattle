@@ -15,7 +15,10 @@ import com.astralrealms.poke.battle.network.PokeBattlePacketRegistry;
 import com.astralrealms.poke.battle.network.ShardPacketListener;
 import com.astralrealms.poke.battle.service.BattleLocks;
 import com.astralrealms.poke.battle.service.BattleServiceImpl;
+import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
+import com.astralrealms.poke.battle.ui.DialogUi;
+import com.astralrealms.poke.battle.ui.hud.HudUi;
 import com.astralrealms.poke.core.PokeCoreAPI;
 import com.astralrealms.poke.core.species.Species;
 
@@ -27,6 +30,7 @@ public final class PokeBattle extends AstralPaperPlugin {
     // Configuration
     private volatile PokeBattleConfiguration configuration;
     private volatile ChoiceDialogs dialogs;
+    private BattleUi ui;
 
     // Infrastructure
     private MessagingService messaging;
@@ -53,6 +57,14 @@ public final class PokeBattle extends AstralPaperPlugin {
         this.battles = new BattleServiceImpl(this, new BattleTransport(this.messaging), new BattleLocks(this.cache),
                 shardId);
         this.dialogs = new ChoiceDialogs(this.battles, this.configuration.dialog().moveColumns());
+        DialogUi dialogUi = new DialogUi(this::dialogs);
+        if (this.getServer().getPluginManager().isPluginEnabled("AstralHologram")) {
+            HudUi hudUi = new HudUi(this, this.battles, dialogUi);
+            this.registerListeners(hudUi);
+            this.ui = hudUi;
+        } else {
+            this.ui = dialogUi;
+        }
         this.messaging.registerExchange(PokeBattleExchanges.shard(shardId), new ShardPacketListener(this, this.battles));
         PokeBattleAPI.initialize(new PokeBattleApiImpl(this));
 
@@ -76,6 +88,8 @@ public final class PokeBattle extends AstralPaperPlugin {
 
         if (this.battles != null)
             this.battles.shutdown();
+        if (this.ui != null)
+            this.ui.shutdown();
         if (this.cache != null)
             this.cache.disconnect();
         if (this.messaging != null)

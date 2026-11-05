@@ -12,6 +12,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
@@ -47,8 +48,10 @@ import com.astralrealms.poke.battle.protocol.ChoiceRequest;
 import com.astralrealms.poke.battle.protocol.Condition;
 import com.astralrealms.poke.battle.protocol.ProtocolLine;
 import com.astralrealms.poke.battle.render.BattleLogRenderer;
+import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
+import com.astralrealms.poke.battle.ui.FieldView;
 import com.astralrealms.poke.core.PokeCoreAPI;
 import com.astralrealms.poke.core.api.model.CaptureAttempt;
 import com.astralrealms.poke.core.api.model.CreationOptions;
@@ -221,6 +224,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             if (battle.state() == Battle.State.REQUESTED)
                 battle.state(Battle.State.RUNNING);
             abortReason = battle.abortReason();
+            this.showField(battle);
             // A request that came before the reply could not be answered yet
             this.openDialog(battle);
         }
@@ -319,8 +323,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                     log.add(rendered);
             }
         }
-        if (player != null)
-            log.forEach(player::sendMessage);
+        if (player != null) {
+            FieldView field = FieldView.of(battle, player.locale());
+            this.withUi(battle.playerId(), (ui, viewer) -> ui.update(viewer, field, log));
+        }
     }
 
     private void onRequest(Battle battle, BattleRequestPacket packet) {
@@ -372,8 +378,29 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         ChoiceView view = ChoiceView.of(battle, player.locale());
         if (view == null)
             return;
-        ChoiceDialogs dialogs = this.plugin.dialogs();
-        player.getScheduler().run(this.plugin, _ -> dialogs.open(player, view), null);
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.choose(viewer, view));
+    }
+
+    /**
+     * Shows the battle to the player (started, rejoined, {@code /combat}). Under the battle's monitor.
+     */
+    private void showField(Battle battle) {
+        Player player = Bukkit.getPlayer(battle.playerId());
+        if (player == null || battle.state() != Battle.State.RUNNING)
+            return;
+        FieldView field = FieldView.of(battle, player.locale());
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.open(viewer, field));
+    }
+
+    /**
+     * Runs on the player's thread, in the order asked, with the UI they play with. Nothing if they are offline.
+     */
+    private void withUi(UUID playerId, BiConsumer<BattleUi, Player> action) {
+        Player player = Bukkit.getPlayer(playerId);
+        if (player == null)
+            return;
+        BattleUi ui = this.plugin.ui();
+        player.getScheduler().run(this.plugin, _ -> action.accept(ui, player), null);
     }
 
     /**
@@ -386,6 +413,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         }
         synchronized (battle) {
+            this.showField(battle);
             if (battle.pending() == null || battle.chosen() || !battle.pending().choosable()) {
                 PokeBattleMessages.WAITING_FOR_TURN.message(player);
                 return;
@@ -574,6 +602,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     private void send(Player player, Battle battle, @Nullable String workerId, int rqid, String choice) {
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.waiting(viewer));
         this.transport.choose(workerId, battle.id(), Battle.PLAYER_SIDE, rqid, choice).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().error("Battle {}: sending a choice failed", battle.id(), throwable);
             PokeBattleMessages.UNEXPECTED_ERROR.message(player);
@@ -889,6 +918,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
     private void finish(Battle battle, BattleOutcome outcome, int turns, boolean settled) {
         this.forget(battle);
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
         this.locks.release(battle.playerId(), battle.id()).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().warn("Battle {}: lock release failed", battle.id(), throwable);
             return false;
@@ -902,6 +932,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      */
     private void discard(Battle battle) {
         this.forget(battle);
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
         this.locks.release(battle.playerId(), battle.id()).exceptionally(_ -> false);
     }
 
@@ -934,6 +965,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         synchronized (battle) {
             this.cancelDisconnect(battle);
+            this.showField(battle);
             this.openDialog(battle);
         }
     }
