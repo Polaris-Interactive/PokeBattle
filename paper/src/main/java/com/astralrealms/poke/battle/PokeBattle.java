@@ -15,10 +15,14 @@ import com.astralrealms.poke.battle.network.PokeBattlePacketRegistry;
 import com.astralrealms.poke.battle.network.ShardPacketListener;
 import com.astralrealms.poke.battle.service.BattleLocks;
 import com.astralrealms.poke.battle.service.BattleServiceImpl;
+import com.astralrealms.poke.battle.ui.BattleStages;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.DialogUi;
 import com.astralrealms.poke.battle.ui.hud.HudUi;
+import com.astralrealms.poke.battle.ui.stage.CreatureActors;
+import com.astralrealms.poke.battle.ui.stage.PokeEntitiesActors;
+import com.astralrealms.poke.battle.ui.stage.StagedUi;
 import com.astralrealms.poke.core.PokeCoreAPI;
 import com.astralrealms.poke.core.species.Species;
 
@@ -31,6 +35,7 @@ public final class PokeBattle extends AstralPaperPlugin {
     private volatile PokeBattleConfiguration configuration;
     private volatile ChoiceDialogs dialogs;
     private BattleUi ui;
+    private final BattleStages stages = new BattleStages();
 
     // Infrastructure
     private MessagingService messaging;
@@ -58,13 +63,17 @@ public final class PokeBattle extends AstralPaperPlugin {
                 shardId);
         this.dialogs = new ChoiceDialogs(this.battles, this.configuration.dialog().moveColumns());
         DialogUi dialogUi = new DialogUi(this::dialogs);
+        BattleUi chosen = dialogUi;
         if (this.getServer().getPluginManager().isPluginEnabled("AstralHologram")) {
             HudUi hudUi = new HudUi(this, this.battles, dialogUi);
             this.registerListeners(hudUi);
-            this.ui = hudUi;
-        } else {
-            this.ui = dialogUi;
+            chosen = hudUi;
         }
+        // The creatures on stage, whichever UI the player has; PokeEntities' types are only loaded when it is there
+        CreatureActors actors = this.getServer().getPluginManager().isPluginEnabled("PokeEntities")
+                ? new PokeEntitiesActors(this.getSLF4JLogger())
+                : null;
+        this.ui = new StagedUi(this, chosen, actors);
         this.messaging.registerExchange(PokeBattleExchanges.shard(shardId), new ShardPacketListener(this, this.battles));
         PokeBattleAPI.initialize(new PokeBattleApiImpl(this));
 

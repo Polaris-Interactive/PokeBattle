@@ -20,6 +20,8 @@ class BattleCueTest {
         assertThat(cue("|drag|p2a: 1|Fixturemon, L12|100/100")).isEqualTo(BattleCue.FOE_SWITCH);
         assertThat(cue("|faint|p2a: 1")).isEqualTo(BattleCue.FOE_FAINT);
         assertThat(cue("|faint|p1a: 1")).isEqualTo(BattleCue.ALLY_FAINT);
+        assertThat(cue("|-damage|p2a: 1|40/100")).isEqualTo(BattleCue.FOE_DAMAGE);
+        assertThat(cue("|-damage|p1a: 1|12/30 psn|[from] psn")).isEqualTo(BattleCue.ALLY_DAMAGE);
     }
 
     @Test
@@ -31,7 +33,6 @@ class BattleCueTest {
 
     @Test
     void theRestShowsNothing() {
-        assertThat(cue("|-damage|p2a: 1|50/100")).isNull();
         assertThat(cue("|turn|2")).isNull();
         assertThat(cue("|move|nobody|testmove")).isNull();
     }

@@ -1,6 +1,7 @@
 package com.astralrealms.poke.battle.configuration;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import org.jetbrains.annotations.Nullable;
@@ -14,7 +15,7 @@ import com.astralrealms.poke.battle.model.RewardCalculator;
  */
 @ConfigSerializable
 public record PokeBattleConfiguration(Settings settings, Start start, Battle battle, Rewards rewards, Dialog dialog,
-                                      @Nullable Hud hud) {
+                                      Stage stage, @Nullable Creatures creatures, @Nullable Hud hud) {
 
     @ConfigSerializable
     public record Settings(boolean debug) {
@@ -85,18 +86,46 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     }
 
     /**
-     * The camera moving around the stage as the battle goes. Places are in blocks from where the battle started:
-     * {@code forward} the way the player looked, {@code right} (left when negative), {@code up} from their feet.
+     * Where a battle takes place, laid in front of where it started. Places are in blocks from there: {@code forward}
+     * the way the player looked, {@code right} (left when negative), {@code up} from their feet.
      *
-     * @param ally        where the player's creature stands
-     * @param foe         where the opponent stands
+     * @param ally where the player's creature stands
+     * @param foe  where the opponent stands
+     */
+    @ConfigSerializable
+    public record Stage(Point ally, Point foe) {
+    }
+
+    /**
+     * The two creatures standing on the stage, seen only by the player (PokeEntities). Without PokeEntities, or
+     * disabled, the battle has no creatures in the world.
+     *
+     * @param animations by moment ({@code switch}, {@code move}, {@code damage}, {@code faint}): the model
+     *                   animations to try, first found plays
+     * @param cueSpacing time between two moments of one update, so they play in order
+     * @param faintLinger how long a fainted creature stays before it goes
+     * @param closeDelay how long the creatures stay after the battle ended
+     */
+    @ConfigSerializable
+    public record Creatures(boolean enabled, Map<String, List<String>> animations, Duration cueSpacing,
+                            Duration faintLinger, Duration closeDelay) {
+
+        public List<String> animations(String moment) {
+            List<String> names = this.animations == null ? null : this.animations.get(moment);
+            return names == null ? List.of() : names;
+        }
+    }
+
+    /**
+     * The camera moving around the stage as the battle goes (see {@link Stage} for places).
+     *
      * @param lookHeight  blocks above a creature's feet a shot looks at
      * @param maxSequence the longest run of shots after one update; what does not fit is skipped
      * @param shots       by {@code idle} (while choosing) and by cue ({@code ally-move}, {@code foe-faint}...); a cue
      *                    without a shot leaves the camera where it is
      */
     @ConfigSerializable
-    public record Camera(boolean enabled, Point ally, Point foe, double lookHeight, Duration maxSequence,
+    public record Camera(boolean enabled, double lookHeight, Duration maxSequence,
                          Map<String, Shot> shots) {
     }
 

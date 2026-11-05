@@ -18,6 +18,9 @@ public enum BattleCue {
     FOE_MOVE,
     ALLY_FAINT,
     FOE_FAINT,
+    /** The creature lost HP (an attack, poison, recoil...). */
+    ALLY_DAMAGE,
+    FOE_DAMAGE,
     CAPTURE,
     END;
 
@@ -36,6 +39,7 @@ public enum BattleCue {
             case "switch", "drag" -> side(line, ALLY_SWITCH, FOE_SWITCH);
             case "move" -> side(line, ALLY_MOVE, FOE_MOVE);
             case "faint" -> side(line, ALLY_FAINT, FOE_FAINT);
+            case "-damage" -> side(line, ALLY_DAMAGE, FOE_DAMAGE);
             case "polaris-ball" -> CAPTURE;
             case "win", "tie" -> END;
             default -> null;

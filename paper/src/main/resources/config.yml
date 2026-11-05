@@ -36,6 +36,31 @@ dialog:
   # Move buttons per row in the choice dialog.
   move-columns: 2
 
+
+# Where a battle takes place, laid in front of where the player stood when it was first shown: `forward` the way they
+# looked, `right` (left when negative), `up` from their feet, in blocks. The creatures stand there and the HUD camera
+# films it.
+stage:
+  # Where the creatures stand (GDD: 6 blocks apart).
+  ally: { forward: 3, right: -0.8, up: 0 }
+  foe: { forward: 8.8, right: 0.8, up: 0 }
+
+# The two creatures standing on the stage, seen only by the player (needs PokeEntities, its models and blueprints).
+creatures:
+  enabled: true
+  # By moment, the model animations to try; the first one the model has plays. BetterModel plays idle and walk itself.
+  animations:
+    switch: [cry]
+    move: [physical, special, status, cry]
+    damage: [damage, recoil]
+    faint: [death, faint]
+  # Time between two moments of one update, so an attack, the hit and a faint play one after the other.
+  cue-spacing: 1500ms
+  # How long a fainted creature stays (its faint animation) before it goes.
+  faint-linger: 3s
+  # How long the creatures stay after the battle ended.
+  close-delay: 3s
+
 hud:
   # The battle drawn in front of the player with AstralHologram (Java players). false, without AstralHologram, or
   # for a Bedrock player: the choice dialog above.
@@ -77,9 +102,6 @@ hud:
   # the camera. Remove this block, or `enabled: false`, for a still camera where the player stands.
   camera:
     enabled: true
-    # Where the creatures stand (GDD: 6 blocks apart).
-    ally: { forward: 3, right: -0.8, up: 0 }
-    foe: { forward: 8.8, right: 0.8, up: 0 }
     # Blocks above a creature's feet a shot looks at.
     look-height: 0.9
     # GDD: a camera run lasts at most 6 s. Shots that would go past it are skipped; F skips the rest anyway.

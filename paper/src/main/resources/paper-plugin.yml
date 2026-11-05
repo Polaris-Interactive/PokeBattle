@@ -26,3 +26,7 @@ dependencies:
       load: BEFORE
       required: false
       join-classpath: true
+    PokeEntities:
+      load: BEFORE
+      required: false
+      join-classpath: true

@@ -16,7 +16,7 @@ import com.astralrealms.poke.battle.model.Names;
  */
 public record FieldView(UUID battleId, int turn, ChoiceView.Creature ally, ChoiceView.Creature foe) {
 
-    private static final ChoiceView.Creature NOBODY = new ChoiceView.Creature("", 0, 0, 0, "", "");
+    private static final ChoiceView.Creature NOBODY = new ChoiceView.Creature("", 0, 0, 0, "", "", "");
 
     /**
      * Must run under the battle's monitor.
@@ -26,15 +26,15 @@ public record FieldView(UUID battleId, int turn, ChoiceView.Creature ally, Choic
         String allyLabel = battle.tracker().active(Battle.PLAYER_SIDE);
         Battle.Ally member = allyLabel == null ? null : battle.ally(allyLabel).orElse(null);
         if (member != null)
-            ally = ChoiceView.creature(Names.ally(locale, member), member.pokemon().level(),
-                    battle.tracker().condition(Battle.PLAYER_SIDE, allyLabel), true, locale);
+            ally = ChoiceView.creature(Names.ally(locale, member), member.pokemon().species(),
+                    member.pokemon().level(), battle.tracker().condition(Battle.PLAYER_SIDE, allyLabel), true, locale);
 
         ChoiceView.Creature foe = NOBODY;
         String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
         Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
         if (opponent != null)
-            foe = ChoiceView.creature(Names.foe(locale, opponent), opponent.creature().level(),
-                    battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
+            foe = ChoiceView.creature(Names.foe(locale, opponent), opponent.creature().species(),
+                    opponent.creature().level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
         return new FieldView(battle.id(), battle.tracker().turn(), ally, foe);
     }
 

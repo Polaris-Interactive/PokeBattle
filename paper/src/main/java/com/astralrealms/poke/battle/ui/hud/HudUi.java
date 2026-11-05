@@ -18,6 +18,8 @@ import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.ui.BattleCue;
+import com.astralrealms.poke.battle.ui.BattleStage;
+import com.astralrealms.poke.battle.ui.BattleStages;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
@@ -45,7 +47,6 @@ public class HudUi implements BattleUi, Listener {
     private final BattleUi fallback;
     private final Map<UUID, BattleHud> huds = new HashMap<>();
     private final Set<UUID> failed = new HashSet<>();
-    private final Map<UUID, BattleStage> stages = new HashMap<>();
 
     public HudUi(PokeBattle plugin, ChoiceDialogs.Handler handler, BattleUi fallback) {
         this.plugin = plugin;
@@ -101,7 +102,6 @@ public class HudUi implements BattleUi, Listener {
     @Override
     public void close(Player player, UUID battleId) {
         this.failed.remove(battleId);
-        this.stages.remove(battleId);
         this.fallback.close(player, battleId);
         BattleHud hud = this.active(player, battleId);
         if (hud == null)
@@ -121,7 +121,6 @@ public class HudUi implements BattleUi, Listener {
         List.copyOf(this.huds.values()).forEach(BattleHud::close);
         this.huds.clear();
         this.failed.clear();
-        this.stages.clear();
         this.fallback.shutdown();
     }
 
@@ -146,13 +145,13 @@ public class HudUi implements BattleUi, Listener {
     }
 
     /**
-     * The battle's stage, laid in front of the player the first time their HUD opens and kept for the battle, so
-     * coming back to it ({@code /combat}) films the same place. Null for a still camera.
+     * The battle's stage (shared with the creatures, see {@link BattleStages}) for the camera to film. Null for a
+     * still camera.
      */
     private @Nullable BattleStage stage(Player player, UUID battleId, PokeBattleConfiguration.@Nullable Camera camera) {
         if (camera == null || !camera.enabled())
             return null;
-        return this.stages.computeIfAbsent(battleId, _ -> new BattleStage(player.getLocation(), camera));
+        return this.plugin.stages().stage(player, battleId, this.plugin.configuration());
     }
 
     private @Nullable BattleHud active(Player player, UUID battleId) {

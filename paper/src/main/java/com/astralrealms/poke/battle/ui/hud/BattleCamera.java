@@ -12,6 +12,7 @@ import com.astralrealms.astralHologram.api.hud.HudView;
 import com.astralrealms.astralHologram.configuration.Easing;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.ui.BattleCue;
+import com.astralrealms.poke.battle.ui.BattleStage;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 

@@ -47,7 +47,10 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
      * @param status  display name, empty when healthy
      * @param statusId the status as Showdown names it (brn, par, ...), empty when healthy
      */
-    public record Creature(String name, int level, int hp, int maxHp, String status, String statusId) {
+    /**
+     * @param species its species id ("" when nobody is there), for the creature standing on the stage
+     */
+    public record Creature(String name, int level, int hp, int maxHp, String status, String statusId, String species) {
     }
 
     /**
@@ -74,21 +77,21 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             return null;
         SpeciesRegistry registry = PokeCoreAPI.get().species();
 
-        Creature ally = new Creature("", 0, 0, 0, "", "");
+        Creature ally = new Creature("", 0, 0, 0, "", "", "");
         ChoiceRequest.TeamMember active = request.active().orElse(null);
         if (active != null) {
             Battle.Ally member = battle.ally(active.label()).orElse(null);
             if (member != null)
-                ally = creature(Names.ally(locale, member), member.pokemon().level(), active.condition(), true,
-                        locale);
+                ally = creature(Names.ally(locale, member), member.pokemon().species(), member.pokemon().level(),
+                        active.condition(), true, locale);
         }
 
-        Creature foe = new Creature("", 0, 0, 0, "", "");
+        Creature foe = new Creature("", 0, 0, 0, "", "", "");
         String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
         Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
         if (opponent != null)
-            foe = creature(Names.foe(locale, opponent), opponent.creature().level(),
-                    battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
+            foe = creature(Names.foe(locale, opponent), opponent.creature().species(),
+                    opponent.creature().level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
 
         List<Move> moves = new ArrayList<>();
         for (ChoiceRequest.MoveOption option : request.moves()) {
@@ -127,12 +130,12 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     /**
      * @param exact the player's own creature (exact HP); the opponent's is only known as a percentage
      */
-    static Creature creature(String name, int level, @Nullable Condition condition, boolean exact,
-                                     @Nullable Locale locale) {
+    static Creature creature(String name, String species, int level, @Nullable Condition condition, boolean exact,
+                             @Nullable Locale locale) {
         if (condition == null)
-            return new Creature(name, level, 0, 0, "", "");
+            return new Creature(name, level, 0, 0, "", "", species);
         return new Creature(name, level, exact ? condition.hp() : condition.percent(),
-                exact ? condition.maxHp() : 100, status(condition, locale), statusId(condition));
+                exact ? condition.maxHp() : 100, status(condition, locale), statusId(condition), species);
     }
 
     private static String statusId(@Nullable Condition condition) {

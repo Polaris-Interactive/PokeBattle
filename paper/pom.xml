@@ -47,6 +47,13 @@
             <version>1.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
+        <!-- pokeentities/api (optional at runtime: the battle's creatures on stage) -->
+        <dependency>
+            <groupId>com.astralrealms</groupId>
+            <artifactId>pokeentities-api</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
         <!-- pokebattle/api (shaded: the plugin jar carries the API it implements) -->
         <dependency>
             <groupId>com.astralrealms</groupId>
