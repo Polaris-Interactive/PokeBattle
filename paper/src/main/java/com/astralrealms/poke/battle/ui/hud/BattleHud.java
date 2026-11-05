@@ -60,6 +60,7 @@ final class BattleHud {
     private static final String BACK = "back";
     private static final String NEXT = "next";
     private static final double HOVER_GROWTH = 1.08;
+    private static final double FLAT = 0.05;
 
     enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS }
 
@@ -174,8 +175,9 @@ final class BattleHud {
             }
             double scale = element.scale() > 0 ? element.scale() : 1;
             boolean item = ITEMS.contains(id) || id.startsWith(FRAME);
+            // Items are flat art: squashing the model's depth keeps it from reading as a 3D block.
             ComponentDefinition.Builder component = item
-                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY)).scale(scale)
+                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY)).scale(scale, scale, scale * FLAT)
                     : ComponentDefinition.text(id, "")
                             .scale(scale)
                             .seeThrough(true)
