@@ -13,10 +13,11 @@ class HudArtTest {
 
     @Test
     void eachImageHasItsOwnCharacterInTheBattleFont() {
-        Set<Character> glyphs = Set.of(HudArt.FIGHT, HudArt.SWITCH, HudArt.BAG, HudArt.RUN, HudArt.TURN);
-        assertThat(glyphs).hasSize(5);
+        Set<Character> glyphs = Set.of(HudArt.FIGHT, HudArt.SWITCH, HudArt.BAG, HudArt.RUN, HudArt.TURN,
+                HudArt.INFO_ALLY, HudArt.INFO_FOE, HudArt.LOG, HudArt.LIST_BUTTON);
+        assertThat(glyphs).hasSize(9);
         assertThat(glyphs.stream().map(c -> (int) c).collect(Collectors.toSet()))
-                .allMatch(code -> code >= 0xE900 && code <= 0xE90B);
+                .allMatch(code -> code >= 0xE900 && code <= 0xE90F);
     }
 
     @Test
@@ -25,5 +26,13 @@ class HudArtTest {
         assertThat(glyph.content()).isEqualTo(String.valueOf(HudArt.FIGHT));
         assertThat(glyph.font()).isEqualTo(HudArt.FONT);
         assertThat(HudArt.FONT.asString()).isEqualTo("pokesmp:battle_hud");
+    }
+
+    @Test
+    void aStatusHasItsStripAndHealthyHasNone() {
+        assertThat(HudArt.status("brn")).isNotNull();
+        assertThat(((TextComponent) HudArt.status("par")).content()).isEqualTo("");
+        assertThat(HudArt.status("")).isNull();
+        assertThat(HudArt.status("unknown")).isNull();
     }
 }

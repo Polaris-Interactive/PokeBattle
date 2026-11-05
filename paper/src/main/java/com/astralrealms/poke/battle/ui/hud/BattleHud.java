@@ -49,8 +49,11 @@ import net.kyori.adventure.text.Component;
  */
 final class BattleHud {
 
-    private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint");
+    private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
+            "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status");
     private static final String BUTTON = "button-";
+    /** The strip behind a list button, drawn in the element of the same number. */
+    private static final String FRAME = "frame-";
     private static final String BACK = "back";
     private static final String NEXT = "next";
     private static final double HOVER_GROWTH = 1.08;
@@ -162,7 +165,7 @@ final class BattleHud {
             String id = entry.getKey();
             PokeBattleConfiguration.Element element = entry.getValue();
             boolean clickable = this.buttons.contains(id) || id.equals(BACK) || id.equals(NEXT);
-            if (!clickable && !DISPLAYS.contains(id)) {
+            if (!clickable && !DISPLAYS.contains(id) && !id.startsWith(FRAME)) {
                 this.ui.plugin().getSLF4JLogger().warn("Unknown battle HUD element '{}' in config.yml, ignored", id);
                 continue;
             }
@@ -430,6 +433,9 @@ final class BattleHud {
     // ---- Drawing ----
 
     private void render() {
+        this.set("ally-frame", List.of(HudArt.glyph(HudArt.INFO_ALLY)));
+        this.set("foe-frame", List.of(HudArt.glyph(HudArt.INFO_FOE)));
+        this.set("log-frame", List.of(HudArt.glyph(HudArt.LOG)));
         this.renderField();
         this.renderLog();
         this.renderTimer();
@@ -442,7 +448,7 @@ final class BattleHud {
                 new PlaceholderContainer()
                         .registerDirect("name", foe.name())
                         .registerDirect("level", foe.level())
-                        .registerDirect("status", this.status(foe.status()))
+                        .registerDirect("status", this.cardStatus(foe))
                         .registerDirect("percent", foe.hp())
                         .registerDirect("bar", HealthBar.render(foe.hp(), foe.maxHp(), this.config.bar())))));
         ChoiceView.Creature ally = this.field.ally();
@@ -450,10 +456,24 @@ final class BattleHud {
                 new PlaceholderContainer()
                         .registerDirect("name", ally.name())
                         .registerDirect("level", ally.level())
-                        .registerDirect("status", this.status(ally.status()))
+                        .registerDirect("status", this.cardStatus(ally))
                         .registerDirect("hp", ally.hp())
                         .registerDirect("max", ally.maxHp())
                         .registerDirect("bar", HealthBar.render(ally.hp(), ally.maxHp(), this.config.bar())))));
+        this.set("ally-status", this.strip(ally));
+        this.set("foe-status", this.strip(foe));
+    }
+
+    /**
+     * The status as text, unless the card draws its strip instead.
+     */
+    private Object cardStatus(ChoiceView.Creature creature) {
+        return HudArt.status(creature.statusId()) == null ? this.status(creature.status()) : "";
+    }
+
+    private List<Component> strip(ChoiceView.Creature creature) {
+        Component strip = HudArt.status(creature.statusId());
+        return !FieldView.present(creature) || strip == null ? List.of() : List.of(strip);
     }
 
     private void renderLog() {
@@ -504,6 +524,10 @@ final class BattleHud {
             if (entry != null)
                 this.set(button, List.of(entry.label()));
             this.visible(button, entry != null);
+            // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
+            String frame = FRAME + button.substring(BUTTON.length());
+            this.set(frame, List.of(HudArt.glyph(HudArt.LIST_BUTTON)));
+            this.visible(frame, entry != null && menu != Menu.MAIN && menu != Menu.NONE);
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);

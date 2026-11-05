@@ -43,9 +43,11 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     }
 
     /**
-     * @param hp exact HP for the player's creature, a percentage for the opponent
+     * @param hp      exact HP for the player's creature, a percentage for the opponent
+     * @param status  display name, empty when healthy
+     * @param statusId the status as Showdown names it (brn, par, ...), empty when healthy
      */
-    public record Creature(String name, int level, int hp, int maxHp, String status) {
+    public record Creature(String name, int level, int hp, int maxHp, String status, String statusId) {
     }
 
     /**
@@ -72,7 +74,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             return null;
         SpeciesRegistry registry = PokeCoreAPI.get().species();
 
-        Creature ally = new Creature("", 0, 0, 0, "");
+        Creature ally = new Creature("", 0, 0, 0, "", "");
         ChoiceRequest.TeamMember active = request.active().orElse(null);
         if (active != null) {
             Battle.Ally member = battle.ally(active.label()).orElse(null);
@@ -81,7 +83,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
                         locale);
         }
 
-        Creature foe = new Creature("", 0, 0, 0, "");
+        Creature foe = new Creature("", 0, 0, 0, "", "");
         String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
         Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
         if (opponent != null)
@@ -128,9 +130,15 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     static Creature creature(String name, int level, @Nullable Condition condition, boolean exact,
                                      @Nullable Locale locale) {
         if (condition == null)
-            return new Creature(name, level, 0, 0, "");
+            return new Creature(name, level, 0, 0, "", "");
         return new Creature(name, level, exact ? condition.hp() : condition.percent(),
-                exact ? condition.maxHp() : 100, status(condition, locale));
+                exact ? condition.maxHp() : 100, status(condition, locale), statusId(condition));
+    }
+
+    private static String statusId(@Nullable Condition condition) {
+        if (condition == null || condition.status().isEmpty() || condition.fainted())
+            return "";
+        return condition.status();
     }
 
     private static String status(@Nullable Condition condition, @Nullable Locale locale) {

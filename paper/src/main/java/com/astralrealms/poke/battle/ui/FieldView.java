@@ -16,7 +16,7 @@ import com.astralrealms.poke.battle.model.Names;
  */
 public record FieldView(UUID battleId, int turn, ChoiceView.Creature ally, ChoiceView.Creature foe) {
 
-    private static final ChoiceView.Creature NOBODY = new ChoiceView.Creature("", 0, 0, 0, "");
+    private static final ChoiceView.Creature NOBODY = new ChoiceView.Creature("", 0, 0, 0, "", "");
 
     /**
      * Must run under the battle's monitor.

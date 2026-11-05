@@ -103,18 +103,32 @@ hud:
   # Laid out like a handheld battle screen: the creatures' cards in the top corners, the turn between them, the menu
   # as a grid bottom left, the log bottom right.
   elements:
-    ally:   { position: { yaw: -36, pitch: -24 }, scale: 0.3, background: true }
-    foe:    { position: { yaw: 36, pitch: -24 }, scale: 0.3, background: true }
+    # Each card and the log sit on their frame: the frame element (`*-frame`) is drawn a little behind its text.
+    ally:   { position: { yaw: -36, pitch: -24 }, scale: 0.3, background: false }
+    foe:    { position: { yaw: 36, pitch: -24 }, scale: 0.3, background: false }
+    ally-frame: { position: { yaw: -36, pitch: -24 }, scale: 0.3, background: false, depth: 2.05 }
+    foe-frame:  { position: { yaw: 36, pitch: -24 }, scale: 0.3, background: false, depth: 2.05 }
+    # The status strip under the creature's name, drawn only while it has a status.
+    ally-status: { position: { yaw: -36, pitch: -21.5 }, scale: 0.3, background: false }
+    foe-status:  { position: { yaw: 36, pitch: -21.5 }, scale: 0.3, background: false }
     timer:  { position: { yaw: 0, pitch: -27 }, scale: 0.35, background: false }
     hint:   { position: { yaw: 0, pitch: -23 }, scale: 0.28, background: false }
     prompt: { position: { yaw: -29.5, pitch: 8.5 }, scale: 0.32, background: false }
-    button-1: { position: { yaw: -38, pitch: 12 }, scale: 0.32, background: true }
-    button-2: { position: { yaw: -21, pitch: 12 }, scale: 0.32, background: true }
-    button-3: { position: { yaw: -38, pitch: 15.5 }, scale: 0.32, background: true }
-    button-4: { position: { yaw: -21, pitch: 15.5 }, scale: 0.32, background: true }
-    button-5: { position: { yaw: -38, pitch: 19 }, scale: 0.32, background: true }
-    button-6: { position: { yaw: -21, pitch: 19 }, scale: 0.32, background: true }
+    # Action buttons are their art (no background); list buttons get a strip from frame-N, behind the same slot.
+    button-1: { position: { yaw: -38, pitch: 12 }, scale: 0.32, background: false }
+    button-2: { position: { yaw: -21, pitch: 12 }, scale: 0.32, background: false }
+    button-3: { position: { yaw: -38, pitch: 15.5 }, scale: 0.32, background: false }
+    button-4: { position: { yaw: -21, pitch: 15.5 }, scale: 0.32, background: false }
+    button-5: { position: { yaw: -38, pitch: 19 }, scale: 0.32, background: false }
+    button-6: { position: { yaw: -21, pitch: 19 }, scale: 0.32, background: false }
+    frame-1: { position: { yaw: -38, pitch: 12 }, scale: 0.32, background: false, depth: 2.05 }
+    frame-2: { position: { yaw: -21, pitch: 12 }, scale: 0.32, background: false, depth: 2.05 }
+    frame-3: { position: { yaw: -38, pitch: 15.5 }, scale: 0.32, background: false, depth: 2.05 }
+    frame-4: { position: { yaw: -21, pitch: 15.5 }, scale: 0.32, background: false, depth: 2.05 }
+    frame-5: { position: { yaw: -38, pitch: 19 }, scale: 0.32, background: false, depth: 2.05 }
+    frame-6: { position: { yaw: -21, pitch: 19 }, scale: 0.32, background: false, depth: 2.05 }
     back:   { position: { yaw: -38, pitch: 22.5 }, scale: 0.28, background: true }
     next:   { position: { yaw: -21, pitch: 22.5 }, scale: 0.28, background: true }
     info:   { position: { yaw: 32, pitch: 3 }, scale: 0.26, background: true }
-    log:    { position: { yaw: 32, pitch: 15 }, scale: 0.22, background: true }
+    log:    { position: { yaw: 32, pitch: 15 }, scale: 0.22, background: false }
+    log-frame: { position: { yaw: 32, pitch: 15 }, scale: 0.45, background: false, depth: 2.05 }
