@@ -3,26 +3,18 @@ package com.astralrealms.poke.battle.ui.hud;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 
 import net.kyori.adventure.key.Key;
-import net.kyori.adventure.text.TextComponent;
 
 class HudArtTest {
 
     @Test
-    void theActionButtonsAreDistinctGlyphsOfTheBattleFont() {
-        Set<Character> glyphs = Set.of(HudArt.FIGHT, HudArt.SWITCH, HudArt.BAG, HudArt.RUN);
-        assertThat(glyphs).hasSize(4);
-        assertThat(glyphs.stream().map(c -> (int) c).collect(Collectors.toSet()))
-                .allMatch(code -> code >= 0xE900 && code <= 0xE903);
-
-        TextComponent glyph = (TextComponent) HudArt.glyph(HudArt.FIGHT);
-        assertThat(glyph.content()).isEqualTo(String.valueOf(HudArt.FIGHT));
-        assertThat(glyph.font()).isEqualTo(HudArt.FONT);
-        assertThat(HudArt.FONT.asString()).isEqualTo("pokesmp:battle_hud");
+    void theActionButtonsHaveTheirOwnArt() {
+        Set<Key> models = Set.of(HudArt.FRAME_FIGHT, HudArt.FRAME_SWITCH, HudArt.FRAME_BAG, HudArt.FRAME_RUN);
+        assertThat(models).hasSize(4);
+        assertThat(models).allMatch(key -> key.namespace().equals("pokesmp") && key.value().startsWith("hud_action_"));
     }
 
     @Test

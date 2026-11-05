@@ -95,8 +95,14 @@ target-fainted: "<red>K.O."
 # Battle HUD (AstralHologram). Dialog texts above are reused for the move, team, bag and target buttons and the menu
 # titles. %bar%: the health bar (hud.bar in config.yml); %status%: dialog-status, empty when healthy.
 # Cards and buttons are text: a resource-pack font glyph (<font:...>) can draw a frame or an icon behind them.
-hud-foe: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%<newline>%bar%<newline><gray>%percent% %"
-hud-ally: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%<newline>%bar%<newline><white>%hp%</white><gray>/%max% PV"
+hud-foe-name: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%"
+hud-foe-hp: "<gray>%percent% %"
+hud-ally-name: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%"
+hud-ally-hp: "<white>%hp%</white><gray>/%max% PV"
+hud-fight-label: "<white>Attaque"
+hud-team-label: "<white>Équipe"
+hud-bag-label: "<white>Sac"
+hud-run-label: "<white>Fuite"
 hud-timer: "<gray>Tour <white>%turn%</white> · <white>%seconds%</white> s"
 hud-turn: "<gray>Tour <white>%turn%"
 hud-prompt: "<white>Que doit faire %ally% ?"

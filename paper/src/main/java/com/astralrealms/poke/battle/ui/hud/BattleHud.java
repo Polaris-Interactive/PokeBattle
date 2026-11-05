@@ -51,7 +51,8 @@ import net.kyori.adventure.text.Component;
 final class BattleHud {
 
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
-            "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon");
+            "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon",
+            "ally-hp", "foe-hp", "ally-bar", "foe-bar");
     /** Art drawn as items (see {@link HudArt}); every other element is text. */
     private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
             "turn-icon");
@@ -68,7 +69,11 @@ final class BattleHud {
     /**
      * A button: {@code action} null when it cannot be used, {@code info} shown while it is hovered.
      */
-    private record Entry(Component label, @Nullable Runnable action, @Nullable Component info) {
+    private record Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame) {
+
+        Entry(Component label, @Nullable Runnable action, @Nullable Component info) {
+            this(label, action, info, null);
+        }
     }
 
     private final HudUi ui;
@@ -307,16 +312,19 @@ final class BattleHud {
             case NONE -> {
             }
             case MAIN -> {
-                entries.add(new Entry(HudArt.glyph(HudArt.FIGHT), () -> this.show(Menu.MOVES), null));
+                entries.add(new Entry(PokeBattleMessages.HUD_FIGHT_LABEL.component(), () -> this.show(Menu.MOVES),
+                        null, HudArt.FRAME_FIGHT));
                 if (!view.switchable().isEmpty() && !view.trapped())
-                    entries.add(new Entry(HudArt.glyph(HudArt.SWITCH), () -> this.show(Menu.TEAM), null));
+                    entries.add(new Entry(PokeBattleMessages.HUD_TEAM_LABEL.component(), () -> this.show(Menu.TEAM),
+                            null, HudArt.FRAME_SWITCH));
                 if (view.actions().capture())
                     entries.add(new Entry(PokeBattleMessages.HUD_BALL_BUTTON.component(), () -> this.show(Menu.BALLS),
                             null));
                 if (view.actions().bag())
-                    entries.add(new Entry(HudArt.glyph(HudArt.BAG), () -> this.show(Menu.BAG), null));
+                    entries.add(new Entry(PokeBattleMessages.HUD_BAG_LABEL.component(), () -> this.show(Menu.BAG),
+                            null, HudArt.FRAME_BAG));
                 if (view.actions().flee())
-                    entries.add(new Entry(HudArt.glyph(HudArt.RUN),
+                    entries.add(new Entry(PokeBattleMessages.HUD_RUN_LABEL.component(),
                             () -> this.handler().choose(this.player, view, "run"), null));
             }
             case MOVES -> {
@@ -454,24 +462,32 @@ final class BattleHud {
 
     private void renderField() {
         ChoiceView.Creature foe = this.field.foe();
-        this.set("foe", !FieldView.present(foe) ? List.of() : List.of(PokeBattleMessages.HUD_FOE.component(
-                new PlaceholderContainer()
-                        .registerDirect("name", foe.name())
-                        .registerDirect("level", foe.level())
-                        .registerDirect("status", this.cardStatus(foe))
-                        .registerDirect("percent", foe.hp())
-                        .registerDirect("bar", HealthBar.render(foe.hp(), foe.maxHp(), this.config.bar())))));
+        this.card("foe", foe, PokeBattleMessages.HUD_FOE_NAME, PokeBattleMessages.HUD_FOE_HP);
         ChoiceView.Creature ally = this.field.ally();
-        this.set("ally", !FieldView.present(ally) ? List.of() : List.of(PokeBattleMessages.HUD_ALLY.component(
-                new PlaceholderContainer()
-                        .registerDirect("name", ally.name())
-                        .registerDirect("level", ally.level())
-                        .registerDirect("status", this.cardStatus(ally))
-                        .registerDirect("hp", ally.hp())
-                        .registerDirect("max", ally.maxHp())
-                        .registerDirect("bar", HealthBar.render(ally.hp(), ally.maxHp(), this.config.bar())))));
+        this.card("ally", ally, PokeBattleMessages.HUD_ALLY_NAME, PokeBattleMessages.HUD_ALLY_HP);
         this.setItem("ally-status", this.strip(ally));
         this.setItem("foe-status", this.strip(foe));
+    }
+
+    /**
+     * One card: its name and level, its HP (the percentage for the opponent) and its bar, each in its own element.
+     */
+    private void card(String id, ChoiceView.Creature creature, PokeBattleMessages name, PokeBattleMessages hp) {
+        if (!FieldView.present(creature)) {
+            this.set(id, List.of());
+            this.set(id + "-hp", List.of());
+            this.set(id + "-bar", List.of());
+            return;
+        }
+        this.set(id, List.of(name.component(new PlaceholderContainer()
+                .registerDirect("name", creature.name())
+                .registerDirect("level", creature.level())
+                .registerDirect("status", this.cardStatus(creature)))));
+        this.set(id + "-hp", List.of(hp.component(new PlaceholderContainer()
+                .registerDirect("hp", creature.hp())
+                .registerDirect("max", creature.maxHp())
+                .registerDirect("percent", creature.hp()))));
+        this.set(id + "-bar", List.of(HealthBar.render(creature.hp(), creature.maxHp(), this.config.bar())));
     }
 
     /**
@@ -537,7 +553,7 @@ final class BattleHud {
             this.visible(button, entry != null);
             // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
             String frame = FRAME + button.substring(BUTTON.length());
-            this.setItem(frame, entry != null && menu != Menu.MAIN && menu != Menu.NONE ? HudArt.FRAME_LIST : null);
+            this.setItem(frame, entry == null ? null : entry.frame() != null ? entry.frame() : HudArt.FRAME_LIST);
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);
