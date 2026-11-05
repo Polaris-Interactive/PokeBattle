@@ -50,7 +50,10 @@ import net.kyori.adventure.text.Component;
 final class BattleHud {
 
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
-            "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status");
+            "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon");
+    /** Art drawn as items (see {@link HudArt}); every other element is text. */
+    private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
+            "turn-icon");
     private static final String BUTTON = "button-";
     /** The strip behind a list button, drawn in the element of the same number. */
     private static final String FRAME = "frame-";
@@ -170,10 +173,13 @@ final class BattleHud {
                 continue;
             }
             double scale = element.scale() > 0 ? element.scale() : 1;
-            ComponentDefinition.Builder component = ComponentDefinition.text(id, "")
-                    .scale(scale)
-                    .seeThrough(true)
-                    .transparentBackground(!element.background());
+            boolean item = ITEMS.contains(id) || id.startsWith(FRAME);
+            ComponentDefinition.Builder component = item
+                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY)).scale(scale)
+                    : ComponentDefinition.text(id, "")
+                            .scale(scale)
+                            .seeThrough(true)
+                            .transparentBackground(!element.background());
             if (clickable)
                 component.interaction(interaction -> interaction
                         .hoverBackground(hover)
@@ -433,9 +439,10 @@ final class BattleHud {
     // ---- Drawing ----
 
     private void render() {
-        this.set("ally-frame", List.of(HudArt.glyph(HudArt.INFO_ALLY)));
-        this.set("foe-frame", List.of(HudArt.glyph(HudArt.INFO_FOE)));
-        this.set("log-frame", List.of(HudArt.glyph(HudArt.LOG)));
+        this.setItem("ally-frame", HudArt.FRAME_ALLY);
+        this.setItem("foe-frame", HudArt.FRAME_FOE);
+        this.setItem("log-frame", HudArt.FRAME_LOG);
+        this.setItem("turn-icon", HudArt.TURN_ICON);
         this.renderField();
         this.renderLog();
         this.renderTimer();
@@ -460,20 +467,22 @@ final class BattleHud {
                         .registerDirect("hp", ally.hp())
                         .registerDirect("max", ally.maxHp())
                         .registerDirect("bar", HealthBar.render(ally.hp(), ally.maxHp(), this.config.bar())))));
-        this.set("ally-status", this.strip(ally));
-        this.set("foe-status", this.strip(foe));
+        this.setItem("ally-status", this.strip(ally));
+        this.setItem("foe-status", this.strip(foe));
     }
 
     /**
      * The status as text, unless the card draws its strip instead.
      */
     private Object cardStatus(ChoiceView.Creature creature) {
-        return HudArt.status(creature.statusId()) == null ? this.status(creature.status()) : "";
+        return this.strip(creature) == null ? this.status(creature.status()) : "";
     }
 
-    private List<Component> strip(ChoiceView.Creature creature) {
-        Component strip = HudArt.status(creature.statusId());
-        return !FieldView.present(creature) || strip == null ? List.of() : List.of(strip);
+    /**
+     * The status strip of a card, or null when it has none (or nobody is on the card).
+     */
+    private @Nullable Key strip(ChoiceView.Creature creature) {
+        return FieldView.present(creature) ? HudArt.statusItem(creature.statusId()) : null;
     }
 
     private void renderLog() {
@@ -492,8 +501,7 @@ final class BattleHud {
         } else {
             line = PokeBattleMessages.HUD_TURN.component(placeholders);
         }
-        this.set("timer", List.of(Component.text().append(HudArt.glyph(HudArt.TURN)).append(Component.space())
-                .append(line).build()));
+        this.set("timer", List.of(line));
     }
 
     private void renderMenu() {
@@ -526,8 +534,7 @@ final class BattleHud {
             this.visible(button, entry != null);
             // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
             String frame = FRAME + button.substring(BUTTON.length());
-            this.set(frame, List.of(HudArt.glyph(HudArt.LIST_BUTTON)));
-            this.visible(frame, entry != null && menu != Menu.MAIN && menu != Menu.NONE);
+            this.setItem(frame, entry != null && menu != Menu.MAIN && menu != Menu.NONE ? HudArt.FRAME_LIST : null);
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);
@@ -550,6 +557,24 @@ final class BattleHud {
             return;
         this.drawn.put(id, lines);
         view.element(id).ifPresent(element -> element.text(lines));
+    }
+
+    /**
+     * Sets an item element's model, or hides it for null. Like {@link #set}, nothing is sent when nothing changed.
+     */
+    private void setItem(String id, @Nullable Key model) {
+        HudView view = this.view;
+        if (view == null || Objects.equals(this.drawn.get(id), model))
+            return;
+        this.drawn.put(id, model);
+        view.element(id).ifPresent(element -> {
+            if (model == null) {
+                element.visible(false);
+            } else {
+                element.item(HudArt.item(model));
+                element.visible(true);
+            }
+        });
     }
 
     private void visible(String id, boolean visible) {
