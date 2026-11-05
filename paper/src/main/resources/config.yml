@@ -158,8 +158,8 @@ hud:
     frame-4: { position: { yaw: -21, pitch: 16.8 }, scale: 0.6, background: false, depth: 2.05 }
     frame-5: { position: { yaw: -38, pitch: 21.8 }, scale: 0.6, background: false, depth: 2.05 }
     frame-6: { position: { yaw: -21, pitch: 21.8 }, scale: 0.6, background: false, depth: 2.05 }
-    back:   { position: { yaw: -38, pitch: 26 }, scale: 0.28, background: true }
-    next:   { position: { yaw: -21, pitch: 26 }, scale: 0.28, background: true }
+    back:   { position: { yaw: -38, pitch: 24.5 }, scale: 0.28, background: true }
+    next:   { position: { yaw: -21, pitch: 24.5 }, scale: 0.28, background: true }
     info:   { position: { yaw: 32, pitch: 3 }, scale: 0.26, background: true }
     log:    { position: { yaw: 32, pitch: 15 }, scale: 0.19, background: false }
     log-frame: { position: { yaw: 32, pitch: 12.5 }, scale: 0.9, background: false, depth: 2.05 }
