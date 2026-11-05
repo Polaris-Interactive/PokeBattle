@@ -48,6 +48,7 @@ import com.astralrealms.poke.battle.protocol.ChoiceRequest;
 import com.astralrealms.poke.battle.protocol.Condition;
 import com.astralrealms.poke.battle.protocol.ProtocolLine;
 import com.astralrealms.poke.battle.render.BattleLogRenderer;
+import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
@@ -312,11 +313,15 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Player player = Bukkit.getPlayer(battle.playerId());
         BattleLogRenderer renderer = new BattleLogRenderer(battle, player == null ? null : player.locale());
         List<Component> log = new ArrayList<>();
+        List<BattleCue> cues = new ArrayList<>();
         for (String raw : update.lines()) {
             ProtocolLine line = ProtocolLine.parse(raw);
             if (line == null)
                 continue;
             battle.tracker().accept(line);
+            BattleCue cue = BattleCue.of(line);
+            if (cue != null)
+                cues.add(cue);
             if (player != null) {
                 Component rendered = renderer.render(line);
                 if (rendered != null)
@@ -325,7 +330,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         }
         if (player != null) {
             FieldView field = FieldView.of(battle, player.locale());
-            this.withUi(battle.playerId(), (ui, viewer) -> ui.update(viewer, field, log));
+            this.withUi(battle.playerId(), (ui, viewer) -> ui.update(viewer, field, log, cues));
         }
     }
 

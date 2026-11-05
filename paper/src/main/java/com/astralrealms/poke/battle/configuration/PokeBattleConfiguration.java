@@ -60,19 +60,59 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      *
      * @param closeable          whether sneaking leaves the HUD ({@code /combat} brings it back)
      * @param depth              blocks from the eye, for elements that set none
-     * @param lookYaw            how far the view may turn from the centre, each way
+     * @param cursor             the cursor the mouse steers (the camera itself is locked)
      * @param chatLog            whether the battle log also goes to the chat
      * @param logLines           log lines shown in the HUD
      * @param closeDelay         how long the HUD stays after the battle ended
+     * @param camera             null for a still camera, where the player stood
      * @param elements           where things go: {@code foe}, {@code ally}, {@code prompt}, {@code timer}, {@code log},
-     *                           {@code info}, the menu buttons {@code button-1}... (as many as wanted), {@code back} and
-     *                           {@code next}. An element left out is not drawn
+     *                           {@code info}, {@code hint}, the menu buttons {@code button-1}... (as many as wanted),
+     *                           {@code back} and {@code next}. An element left out is not drawn
      */
     @ConfigSerializable
-    public record Hud(boolean enabled, boolean closeable, double depth, float lookYaw, float lookPitch,
-                      boolean chatLog, int logLines, Duration closeDelay, String hoverBackground,
-                      String disabledBackground, String hoverSound, String clickSound, Bar bar,
+    public record Hud(boolean enabled, boolean closeable, double depth, Cursor cursor, boolean chatLog,
+                      int logLines, Duration closeDelay, String hoverBackground, String disabledBackground,
+                      String hoverSound, String clickSound, Bar bar, @Nullable Camera camera,
                       Map<String, Element> elements) {
+    }
+
+    /**
+     * @param range       how far from the centre it may go, in degrees each way
+     * @param smoothing   ticks the client takes to glide it to each new position (0 to 3)
+     */
+    @ConfigSerializable
+    public record Cursor(String text, float scale, Position range, float sensitivity, int smoothing) {
+    }
+
+    /**
+     * The camera moving around the stage as the battle goes. Places are in blocks from where the battle started:
+     * {@code forward} the way the player looked, {@code right} (left when negative), {@code up} from their feet.
+     *
+     * @param ally        where the player's creature stands
+     * @param foe         where the opponent stands
+     * @param lookHeight  blocks above a creature's feet a shot looks at
+     * @param maxSequence the longest run of shots after one update; what does not fit is skipped
+     * @param shots       by {@code idle} (while choosing) and by cue ({@code ally-move}, {@code foe-faint}...); a cue
+     *                    without a shot leaves the camera where it is
+     */
+    @ConfigSerializable
+    public record Camera(boolean enabled, Point ally, Point foe, double lookHeight, Duration maxSequence,
+                         Map<String, Shot> shots) {
+    }
+
+    @ConfigSerializable
+    public record Point(double forward, double right, double up) {
+    }
+
+    /**
+     * Where the camera goes and what it looks at.
+     *
+     * @param lookAt {@code ally}, {@code foe}, or {@code center} (between them)
+     * @param glide  ticks to get there, 0 to cut
+     * @param hold   ticks it stays before the next shot
+     */
+    @ConfigSerializable
+    public record Shot(Point from, String lookAt, int glide, int hold) {
     }
 
     /**

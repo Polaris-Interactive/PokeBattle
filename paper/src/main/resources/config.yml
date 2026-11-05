@@ -44,44 +44,77 @@ hud:
   closeable: false
   # Blocks from the eye, for elements that set no depth.
   depth: 2.0
-  # How far the view may turn from the centre, in degrees each way.
-  look-yaw: 35
-  look-pitch: 24
+  # The cursor the mouse steers; the mouse no longer turns the view. `range`: how far from the centre it may go, in degrees
+  # each way (keep every button inside it). `smoothing`: ticks to glide to each position, 0 to 3.
+  cursor:
+    text: "<white>●"
+    scale: 0.3
+    range: { yaw: 42, pitch: 26 }
+    sensitivity: 1.0
+    smoothing: 1
   # Whether the battle log also goes to the chat (the HUD shows its last lines).
   chat-log: true
-  log-lines: 3
+  log-lines: 4
   # How long the HUD stays once the battle is over.
-  close-delay: 2s
+  close-delay: 3s
   # #AARRGGBB behind a hovered button, and behind one that cannot be used.
-  hover-background: "#E026D971"
+  hover-background: "#E0505A64"
   disabled-background: "#60202020"
   # Sound keys, empty for none.
   hover-sound: "minecraft:ui.button.click"
   click-sound: ""
   # Health bars: `length` symbols, coloured high above 50 %, medium above 20 %, low below.
   bar:
-    length: 20
+    length: 24
     symbol: "|"
     high: "#26D971"
     medium: "#F2C94C"
     low: "#EB5757"
     empty: "#3A3A3A"
+  # The camera follows the battle: a shot for what happens (a move, a switch, a K.O., a capture, the end), then back
+  # to `idle` where the player chooses; the menu shows once it is back. Places are in blocks from where the battle
+  # started: `forward` the way the player looked, `right` (left when negative), `up` from their feet. The HUD moves with
+  # the camera. Remove this block, or `enabled: false`, for a still camera where the player stands.
+  camera:
+    enabled: true
+    # Where the creatures stand (GDD: 6 blocks apart).
+    ally: { forward: 3, right: -0.8, up: 0 }
+    foe: { forward: 8.8, right: 0.8, up: 0 }
+    # Blocks above a creature's feet a shot looks at.
+    look-height: 0.9
+    # GDD: a camera run lasts at most 6 s. Shots that would go past it are skipped; F skips the rest anyway.
+    max-sequence: 6s
+    # `look-at`: ally, foe or center. `glide`: ticks to get there (0 cuts). `hold`: ticks before the next shot.
+    shots:
+      # Over the shoulder of the player's creature, the opponent across: where the menu is used.
+      idle:        { from: { forward: 0, right: 2.2, up: 2.2 }, look-at: center, glide: 20, hold: 0 }
+      ally-move:   { from: { forward: 0.5, right: -2.2, up: 1.8 }, look-at: foe, glide: 12, hold: 25 }
+      foe-move:    { from: { forward: 11.5, right: 2.2, up: 2.0 }, look-at: ally, glide: 12, hold: 25 }
+      ally-switch: { from: { forward: 5.5, right: -3.2, up: 1.4 }, look-at: ally, glide: 15, hold: 25 }
+      foe-switch:  { from: { forward: 6, right: 3.6, up: 1.6 }, look-at: foe, glide: 15, hold: 25 }
+      ally-faint:  { from: { forward: 4.5, right: -3, up: 2.6 }, look-at: ally, glide: 15, hold: 25 }
+      foe-faint:   { from: { forward: 6.5, right: 3, up: 2.6 }, look-at: foe, glide: 15, hold: 25 }
+      capture:     { from: { forward: 5, right: 2, up: 2 }, look-at: foe, glide: 15, hold: 30 }
+      end:         { from: { forward: 6, right: -6.5, up: 3.5 }, look-at: center, glide: 30, hold: 30 }
   # Where each element goes, in degrees right (yaw) and down (pitch) from the centre of view. Place them in game:
   # /hologram hud edit while the HUD is open prints these blocks; paste them here, then /pokebattle reload (applies
-  # to the next HUD opened). Menu buttons are button-1, button-2... : add or remove some to change how many entries a
-  # page holds.
+  # to the next HUD opened). Menu buttons are button-1, button-2... in reading order: add or remove some to change
+  # how many entries a page holds.
+  # Laid out like a handheld battle screen: the creatures' cards in the top corners, the turn between them, the menu
+  # as a grid bottom left, the log bottom right.
   elements:
-    timer:  { position: { yaw: 0, pitch: -20 }, scale: 0.5, background: false }
-    foe:    { position: { yaw: 20, pitch: -15 }, scale: 0.55, background: true }
-    ally:   { position: { yaw: -20, pitch: -3 }, scale: 0.55, background: true }
-    log:    { position: { yaw: -20, pitch: 11 }, scale: 0.4, background: true }
-    prompt: { position: { yaw: 22, pitch: -4 }, scale: 0.5, background: false }
-    info:   { position: { yaw: 0, pitch: 4 }, scale: 0.4, background: true }
-    button-1: { position: { yaw: 22, pitch: 0 }, scale: 0.45, background: true }
-    button-2: { position: { yaw: 22, pitch: 4 }, scale: 0.45, background: true }
-    button-3: { position: { yaw: 22, pitch: 8 }, scale: 0.45, background: true }
-    button-4: { position: { yaw: 22, pitch: 12 }, scale: 0.45, background: true }
-    button-5: { position: { yaw: 22, pitch: 16 }, scale: 0.45, background: true }
-    button-6: { position: { yaw: 22, pitch: 20 }, scale: 0.45, background: true }
-    back:   { position: { yaw: 16, pitch: 24 }, scale: 0.4, background: true }
-    next:   { position: { yaw: 28, pitch: 24 }, scale: 0.4, background: true }
+    ally:   { position: { yaw: -36, pitch: -24 }, scale: 0.3, background: true }
+    foe:    { position: { yaw: 36, pitch: -24 }, scale: 0.3, background: true }
+    timer:  { position: { yaw: 0, pitch: -27 }, scale: 0.35, background: false }
+    hint:   { position: { yaw: 0, pitch: -23 }, scale: 0.28, background: false }
+    prompt: { position: { yaw: -29.5, pitch: 8.5 }, scale: 0.32, background: false }
+    button-1: { position: { yaw: -38, pitch: 12 }, scale: 0.32, background: true }
+    button-2: { position: { yaw: -21, pitch: 12 }, scale: 0.32, background: true }
+    button-3: { position: { yaw: -38, pitch: 15.5 }, scale: 0.32, background: true }
+    button-4: { position: { yaw: -21, pitch: 15.5 }, scale: 0.32, background: true }
+    button-5: { position: { yaw: -38, pitch: 19 }, scale: 0.32, background: true }
+    button-6: { position: { yaw: -21, pitch: 19 }, scale: 0.32, background: true }
+    back:   { position: { yaw: -38, pitch: 22.5 }, scale: 0.28, background: true }
+    next:   { position: { yaw: -21, pitch: 22.5 }, scale: 0.28, background: true }
+    info:   { position: { yaw: 32, pitch: 3 }, scale: 0.26, background: true }
+    log:    { position: { yaw: 32, pitch: 15 }, scale: 0.22, background: true }

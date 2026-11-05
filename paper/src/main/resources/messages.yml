@@ -92,15 +92,23 @@ target-title: "<green>Sur qui utiliser %item%<green> ?"
 target-button: "<white>%name%</white> <gray>N.%level% · %hp%/%max% PV %status%"
 target-fainted: "<red>K.O."
 
-# Battle HUD (AstralHologram). Dialog texts above are reused for the buttons and the menu titles.
-# %bar%: the health bar (hud.bar in config.yml); %status%: dialog-status, empty when healthy.
-hud-foe: "<white>%name%</white> <gray>N.%level%</gray> %status%<newline>%bar% <gray>%percent% %"
-hud-ally: "<white>%name%</white> <gray>N.%level%</gray> %status%<newline>%bar% <white>%hp%</white><gray>/%max% PV"
+# Battle HUD (AstralHologram). Dialog texts above are reused for the move, team, bag and target buttons and the menu
+# titles. %bar%: the health bar (hud.bar in config.yml); %status%: dialog-status, empty when healthy.
+# Cards and buttons are text: a resource-pack font glyph (<font:...>) can draw a frame or an icon behind them.
+hud-foe: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%<newline>%bar%<newline><gray>%percent% %"
+hud-ally: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%<newline>%bar%<newline><white>%hp%</white><gray>/%max% PV"
 hud-timer: "<gray>Tour <white>%turn%</white> · <white>%seconds%</white> s"
 hud-turn: "<gray>Tour <white>%turn%"
 hud-prompt: "<white>Que doit faire %ally% ?"
-hud-moves-title: "<red>Quelle capacité ?"
+hud-moves-title: "<white>Quelle capacité ?"
 hud-waiting: "<gray>En attente..."
-hud-fight-button: "<red>Attaque"
+# The main menu, one colour per action
+hud-fight-button: "<white> Attaque   </white><#EB5757>⚔ ▌"
+hud-team-button: "<white> Équipe    </white><#26D971>⟳ ▌"
+hud-ball-button: "<white> Capture   </white><#F2C94C>◓ ▌"
+hud-bag-button: "<white> Sac       </white><#BB6BD9>✚ ▌"
+hud-run-button: "<white> Fuite     </white><#2D9CDB>➜ ▌"
 hud-next-button: "<gray>Suivant ›"
+# While the camera follows the turn; F skips it
+hud-skip-hint: "<gray>[<white>F</white>] Passer"
 hud-closed: "<gray>Tapez <white>/combat</white> pour revenir au combat."

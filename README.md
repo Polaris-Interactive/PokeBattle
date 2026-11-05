@@ -43,11 +43,17 @@ or a local `mvn install`).
 
 ## Battle HUD (AstralHologram)
 
-With AstralHologram on the server (optional dependency), a Java player plays the battle in a mouse HUD opened where
-they stand, looking level: the opponent and their creature with health bars, the turn and its timer, the last log
-lines, and a column of buttons (Attaque, Équipe, Ball, Sac, Fuite, then the moves, team, balls, bag and targets,
-paged with **Suivant**, **Retour** to go back). Hovering a move shows its type, category, power and accuracy. The
-HUD closes `hud.close-delay` after the battle ends.
+With AstralHologram on the server (optional dependency), a Java player plays the battle in a mouse HUD laid out like
+a handheld battle screen: their creature's card top left and the opponent's top right (health bars), the turn and
+its timer between them, a grid of buttons bottom left (Attaque, Équipe, Capture, Sac, Fuite, then the moves, team,
+balls, bag and targets, paged with **Suivant**, **Retour** to go back) and the last log lines bottom right. Hovering a
+move shows its type, category, power and accuracy. The HUD closes `hud.close-delay` after the battle ends.
+
+The camera follows the battle (`hud.camera`). The stage is laid in front of where the player stood when the battle
+started: the two creatures' spots, 6 blocks apart. Each update plays a shot per cue (a move from either side, a switch,
+a K.O., a capture, the end), then the camera goes back to `idle`, over the shoulder of the player's creature, and only
+then does the menu show. A run lasts at most `max-sequence` (GDD: 6 s), and **F** skips it. The HUD glides with the
+camera, so it stays on screen.
 
 - Built in code (`ui/hud`): texts are `messages.yml` entries (`hud-*`, plus the dialog's button texts), placement
   and looks are `hud` in `config.yml`. `/hologram hud edit` while the HUD is open prints `position:` blocks that

@@ -17,6 +17,7 @@ import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
+import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
@@ -44,6 +45,7 @@ public class HudUi implements BattleUi, Listener {
     private final BattleUi fallback;
     private final Map<UUID, BattleHud> huds = new HashMap<>();
     private final Set<UUID> failed = new HashSet<>();
+    private final Map<UUID, BattleStage> stages = new HashMap<>();
 
     public HudUi(PokeBattle plugin, ChoiceDialogs.Handler handler, BattleUi fallback) {
         this.plugin = plugin;
@@ -68,16 +70,16 @@ public class HudUi implements BattleUi, Listener {
     }
 
     @Override
-    public void update(Player player, FieldView field, List<Component> log) {
+    public void update(Player player, FieldView field, List<Component> log, List<BattleCue> cues) {
         BattleHud hud = this.active(player, field.battleId());
         if (hud == null) {
-            this.fallback.update(player, field, log);
+            this.fallback.update(player, field, log, cues);
             return;
         }
         PokeBattleConfiguration.Hud config = this.plugin.configuration().hud();
         if (config != null && config.chatLog())
             log.forEach(player::sendMessage);
-        hud.update(field, log);
+        hud.update(field, log, cues);
     }
 
     @Override
@@ -99,6 +101,7 @@ public class HudUi implements BattleUi, Listener {
     @Override
     public void close(Player player, UUID battleId) {
         this.failed.remove(battleId);
+        this.stages.remove(battleId);
         this.fallback.close(player, battleId);
         BattleHud hud = this.active(player, battleId);
         if (hud == null)
@@ -118,6 +121,7 @@ public class HudUi implements BattleUi, Listener {
         List.copyOf(this.huds.values()).forEach(BattleHud::close);
         this.huds.clear();
         this.failed.clear();
+        this.stages.clear();
         this.fallback.shutdown();
     }
 
@@ -133,11 +137,22 @@ public class HudUi implements BattleUi, Listener {
         BattleHud previous = this.huds.remove(player.getUniqueId());
         if (previous != null)
             previous.close();
-        hud = new BattleHud(this, player, field, this.plugin.configuration().hud(),
-                this.plugin.configuration().battle().turnTimerSeconds());
+        PokeBattleConfiguration.Hud config = this.plugin.configuration().hud();
+        hud = new BattleHud(this, player, field, config, this.plugin.configuration().battle().turnTimerSeconds(),
+                this.stage(player, field.battleId(), config.camera()));
         this.huds.put(player.getUniqueId(), hud);
         hud.open();
         return hud;
+    }
+
+    /**
+     * The battle's stage, laid in front of the player the first time their HUD opens and kept for the battle, so
+     * coming back to it ({@code /combat}) films the same place. Null for a still camera.
+     */
+    private @Nullable BattleStage stage(Player player, UUID battleId, PokeBattleConfiguration.@Nullable Camera camera) {
+        if (camera == null || !camera.enabled())
+            return null;
+        return this.stages.computeIfAbsent(battleId, _ -> new BattleStage(player.getLocation(), camera));
     }
 
     private @Nullable BattleHud active(Player player, UUID battleId) {

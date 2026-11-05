@@ -102,7 +102,12 @@ public enum PokeBattleMessages implements MessageEnum {
     HUD_MOVES_TITLE,
     HUD_WAITING,
     HUD_FIGHT_BUTTON,
+    HUD_TEAM_BUTTON,
+    HUD_BALL_BUTTON,
+    HUD_BAG_BUTTON,
+    HUD_RUN_BUTTON,
     HUD_NEXT_BUTTON,
+    HUD_SKIP_HINT,
     HUD_CLOSED,
     ;
 

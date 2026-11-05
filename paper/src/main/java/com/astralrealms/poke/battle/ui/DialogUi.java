@@ -27,7 +27,7 @@ public class DialogUi implements BattleUi {
     }
 
     @Override
-    public void update(Player player, FieldView field, List<Component> log) {
+    public void update(Player player, FieldView field, List<Component> log, List<BattleCue> cues) {
         log.forEach(player::sendMessage);
     }
 

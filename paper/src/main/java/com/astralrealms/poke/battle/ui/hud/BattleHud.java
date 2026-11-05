@@ -20,13 +20,15 @@ import com.astralrealms.astralHologram.api.hologram.ComponentDefinition;
 import com.astralrealms.astralHologram.api.hud.HudDefinition;
 import com.astralrealms.astralHologram.api.hud.HudOpenOptions;
 import com.astralrealms.astralHologram.api.hud.HudView;
+import com.astralrealms.astralHologram.configuration.CursorSettings;
 import com.astralrealms.astralHologram.configuration.HudInput;
-import com.astralrealms.astralHologram.configuration.LookRange;
+import com.astralrealms.astralHologram.configuration.HudKey;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.service.BattleBag;
+import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
@@ -42,10 +44,12 @@ import net.kyori.adventure.text.Component;
  * <p>
  * Texts are set from code on the HUD's elements, so nothing is resolved by AstralHologram itself. Everything runs on
  * the player's thread; the HUD is drawn once AstralHologram has opened it, and what happened before is drawn then.
+ * <p>
+ * With a {@link BattleCamera}, the menu waits for the camera to come back to rest after the turn's shots.
  */
 final class BattleHud {
 
-    private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info");
+    private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint");
     private static final String BUTTON = "button-";
     private static final String BACK = "back";
     private static final String NEXT = "next";
@@ -67,6 +71,7 @@ final class BattleHud {
     private final List<String> buttons;
     private final Deque<Component> log = new ArrayDeque<>();
     private final Map<String, Object> drawn = new HashMap<>();
+    private final @Nullable BattleCamera camera;
 
     private @Nullable HudView view;
     private @Nullable ScheduledTask ticker;
@@ -80,7 +85,11 @@ final class BattleHud {
     private BattleBag.@Nullable Entry item;
     private long deadline;
 
-    BattleHud(HudUi ui, Player player, FieldView field, PokeBattleConfiguration.Hud config, int turnTimerSeconds) {
+    /**
+     * @param stage null for a still camera
+     */
+    BattleHud(HudUi ui, Player player, FieldView field, PokeBattleConfiguration.Hud config, int turnTimerSeconds,
+              @Nullable BattleStage stage) {
         this.ui = ui;
         this.player = player;
         this.battleId = field.battleId();
@@ -93,6 +102,7 @@ final class BattleHud {
                 .filter(id -> id.startsWith(BUTTON) && number(id) > 0)
                 .sorted(Comparator.comparingInt(BattleHud::number))
                 .toList();
+        this.camera = stage == null ? null : new BattleCamera(ui.plugin(), player, stage, this::renderMenu);
     }
 
     Player player() {
@@ -128,18 +138,24 @@ final class BattleHud {
                     this.ticker = this.player.getScheduler()
                             .runAtFixedRate(this.ui.plugin(), _ -> this.renderTimer(), null, 20L, 20L);
                     this.render();
+                    if (this.camera != null)
+                        this.camera.attach(view);
                 });
     }
 
     private HudDefinition definition() {
         int hover = HealthBar.argb(this.config.hoverBackground());
         int disabled = HealthBar.argb(this.config.disabledBackground());
+        PokeBattleConfiguration.Cursor cursor = this.config.cursor();
         HudDefinition.Builder builder = HudDefinition.builder(HudUi.HUD_ID)
                 .input(HudInput.MOUSE)
-                .lookRange(new LookRange(this.config.lookYaw(), this.config.lookPitch()))
+                .cursor(new CursorSettings(cursor.text(), cursor.scale(), this.config.depth() * 0.9,
+                        (float) cursor.range().yaw(), (float) cursor.range().pitch(), cursor.sensitivity(),
+                        cursor.smoothing()))
                 .closeable(this.config.closeable())
                 .returnToOrigin(true)
                 .depth(this.config.depth())
+                .onKey(HudKey.SWAP_HANDS, _ -> this.skip())
                 .onClose((_, reason) -> this.onClosed(reason));
 
         for (Map.Entry<String, PokeBattleConfiguration.Element> entry : this.config.elements().entrySet()) {
@@ -174,6 +190,8 @@ final class BattleHud {
     void close() {
         this.closed = true;
         this.stopTicker();
+        if (this.camera != null)
+            this.camera.stop();
         HudView view = this.view;
         this.view = null;
         if (view != null && view.open())
@@ -184,6 +202,8 @@ final class BattleHud {
         boolean ours = this.closed;
         this.closed = true;
         this.stopTicker();
+        if (this.camera != null)
+            this.camera.stop();
         this.view = null;
         if (!ours)
             this.ui.closed(this, reason);
@@ -198,7 +218,7 @@ final class BattleHud {
 
     // ---- What the battle says ----
 
-    void update(FieldView field, List<Component> lines) {
+    void update(FieldView field, List<Component> lines, List<BattleCue> cues) {
         this.field = field;
         for (Component line : lines) {
             this.log.addLast(line);
@@ -208,6 +228,18 @@ final class BattleHud {
         this.renderField();
         this.renderLog();
         this.renderTimer();
+        if (this.camera != null && !cues.isEmpty()) {
+            this.camera.play(cues);
+            this.renderMenu();
+        }
+    }
+
+    /**
+     * F: the camera skips the rest of its shots.
+     */
+    private void skip() {
+        if (this.camera != null && !this.closed)
+            this.camera.skip();
     }
 
     void choose(ChoiceView view) {
@@ -266,15 +298,15 @@ final class BattleHud {
                 entries.add(new Entry(PokeBattleMessages.HUD_FIGHT_BUTTON.component(), () -> this.show(Menu.MOVES),
                         null));
                 if (!view.switchable().isEmpty() && !view.trapped())
-                    entries.add(new Entry(PokeBattleMessages.TEAM_BUTTON.component(), () -> this.show(Menu.TEAM),
+                    entries.add(new Entry(PokeBattleMessages.HUD_TEAM_BUTTON.component(), () -> this.show(Menu.TEAM),
                             null));
                 if (view.actions().capture())
-                    entries.add(new Entry(PokeBattleMessages.BALL_BUTTON.component(), () -> this.show(Menu.BALLS),
+                    entries.add(new Entry(PokeBattleMessages.HUD_BALL_BUTTON.component(), () -> this.show(Menu.BALLS),
                             null));
                 if (view.actions().bag())
-                    entries.add(new Entry(PokeBattleMessages.BAG_BUTTON.component(), () -> this.show(Menu.BAG), null));
+                    entries.add(new Entry(PokeBattleMessages.HUD_BAG_BUTTON.component(), () -> this.show(Menu.BAG), null));
                 if (view.actions().flee())
-                    entries.add(new Entry(PokeBattleMessages.RUN_BUTTON.component(),
+                    entries.add(new Entry(PokeBattleMessages.HUD_RUN_BUTTON.component(),
                             () -> this.handler().choose(this.player, view, "run"), null));
             }
             case MOVES -> {
@@ -367,7 +399,7 @@ final class BattleHud {
     }
 
     private void click(String id) {
-        if (this.closed || this.choice == null)
+        if (this.closed || this.choice == null || this.camera != null && this.camera.busy())
             return;
         this.sound(this.config.clickSound());
         switch (id) {
@@ -445,8 +477,14 @@ final class BattleHud {
     }
 
     private void renderMenu() {
+        if (this.closed)
+            return;
+        boolean moving = this.camera != null && this.camera.busy();
+        this.set("hint", moving ? List.of(PokeBattleMessages.HUD_SKIP_HINT.component()) : List.of());
+        this.visible("hint", moving);
+        Menu menu = moving ? Menu.NONE : this.menu;
         ChoiceView view = this.choice;
-        this.set("prompt", List.of(switch (this.menu) {
+        this.set("prompt", List.of(switch (menu) {
             case NONE -> PokeBattleMessages.HUD_WAITING.component();
             case MAIN -> PokeBattleMessages.HUD_PROMPT.component(new PlaceholderContainer()
                     .registerDirect("ally", this.field.ally().name()));
@@ -462,15 +500,15 @@ final class BattleHud {
         }));
 
         for (String button : this.buttons) {
-            Entry entry = this.entryAt(button);
+            Entry entry = moving ? null : this.entryAt(button);
             if (entry != null)
                 this.set(button, List.of(entry.label()));
             this.visible(button, entry != null);
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
-        this.visible(BACK, this.back() != null);
+        this.visible(BACK, !moving && this.back() != null);
         this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component()));
-        this.visible(NEXT, this.pages() > 1);
+        this.visible(NEXT, !moving && this.pages() > 1);
         this.set("info", List.of());
 
         // Disabled looks are decided on a redraw

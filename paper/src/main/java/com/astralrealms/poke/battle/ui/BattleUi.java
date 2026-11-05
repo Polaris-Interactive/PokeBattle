@@ -20,9 +20,9 @@ public interface BattleUi {
     void open(Player player, FieldView field);
 
     /**
-     * The field changed; {@code log} is what happened, in order.
+     * The field changed; {@code log} is what happened, in order, and {@code cues} what of it is worth showing.
      */
-    void update(Player player, FieldView field, List<Component> log);
+    void update(Player player, FieldView field, List<Component> log, List<BattleCue> cues);
 
     /**
      * A choice to make.
