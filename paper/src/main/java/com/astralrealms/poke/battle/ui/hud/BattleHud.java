@@ -564,7 +564,8 @@ final class BattleHud {
      */
     private void setItem(String id, @Nullable Key model) {
         HudView view = this.view;
-        if (view == null || Objects.equals(this.drawn.get(id), model))
+        // Elements start visible, so the first call must send the hide too: an empty cache is not "nothing to do".
+        if (view == null || this.drawn.containsKey(id) && Objects.equals(this.drawn.get(id), model))
             return;
         this.drawn.put(id, model);
         view.element(id).ifPresent(element -> {
