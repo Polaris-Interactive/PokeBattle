@@ -38,7 +38,9 @@ final class BattleCamera {
     private boolean stopped;
 
     /**
-     * @param onRest run when a run of shots is over (or skipped) and the camera is back on {@code idle}
+     * @param onRest run when a run of shots is over (or skipped) and the camera has landed on {@code idle}:
+     *               elements shown during a glide would not follow it as smoothly, and could not be
+     *               clicked before it lands anyway
      */
     BattleCamera(Plugin plugin, Player player, BattleStage stage, Runnable onRest) {
         this.plugin = plugin;
@@ -128,8 +130,24 @@ final class BattleCamera {
 
     private void rest(int glide) {
         PokeBattleConfiguration.Shot idle = this.stage.camera().shots().get(IDLE);
-        if (idle != null)
-            this.move(idle, glide);
+        if (idle == null || glide <= 0) {
+            if (idle != null)
+                this.move(idle, 0);
+            this.settle();
+            return;
+        }
+        this.move(idle, glide);
+        // Shots queued while it glides back play from where it is
+        this.next = this.player.getScheduler().runDelayed(this.plugin, _ -> {
+            this.next = null;
+            if (this.queue.isEmpty())
+                this.settle();
+            else
+                this.playNext();
+        }, null, glide);
+    }
+
+    private void settle() {
         this.resting = true;
         this.onRest.run();
     }
