@@ -295,18 +295,16 @@ final class BattleHud {
             case NONE -> {
             }
             case MAIN -> {
-                entries.add(new Entry(PokeBattleMessages.HUD_FIGHT_BUTTON.component(), () -> this.show(Menu.MOVES),
-                        null));
+                entries.add(new Entry(HudArt.glyph(HudArt.FIGHT), () -> this.show(Menu.MOVES), null));
                 if (!view.switchable().isEmpty() && !view.trapped())
-                    entries.add(new Entry(PokeBattleMessages.HUD_TEAM_BUTTON.component(), () -> this.show(Menu.TEAM),
-                            null));
+                    entries.add(new Entry(HudArt.glyph(HudArt.SWITCH), () -> this.show(Menu.TEAM), null));
                 if (view.actions().capture())
                     entries.add(new Entry(PokeBattleMessages.HUD_BALL_BUTTON.component(), () -> this.show(Menu.BALLS),
                             null));
                 if (view.actions().bag())
-                    entries.add(new Entry(PokeBattleMessages.HUD_BAG_BUTTON.component(), () -> this.show(Menu.BAG), null));
+                    entries.add(new Entry(HudArt.glyph(HudArt.BAG), () -> this.show(Menu.BAG), null));
                 if (view.actions().flee())
-                    entries.add(new Entry(PokeBattleMessages.HUD_RUN_BUTTON.component(),
+                    entries.add(new Entry(HudArt.glyph(HudArt.RUN),
                             () -> this.handler().choose(this.player, view, "run"), null));
             }
             case MOVES -> {
@@ -467,13 +465,15 @@ final class BattleHud {
             return;
         PlaceholderContainer placeholders = new PlaceholderContainer()
                 .registerDirect("turn", Math.max(1, this.field.turn()));
+        Component line;
         if (this.deadline > 0) {
             long seconds = Math.max(0, (this.deadline - System.currentTimeMillis() + 999) / 1000);
-            this.set("timer", List.of(PokeBattleMessages.HUD_TIMER.component(placeholders
-                    .registerDirect("seconds", seconds))));
+            line = PokeBattleMessages.HUD_TIMER.component(placeholders.registerDirect("seconds", seconds));
         } else {
-            this.set("timer", List.of(PokeBattleMessages.HUD_TURN.component(placeholders)));
+            line = PokeBattleMessages.HUD_TURN.component(placeholders);
         }
+        this.set("timer", List.of(Component.text().append(HudArt.glyph(HudArt.TURN)).append(Component.space())
+                .append(line).build()));
     }
 
     private void renderMenu() {

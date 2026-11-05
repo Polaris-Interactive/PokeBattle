@@ -103,11 +103,7 @@ hud-prompt: "<white>Que doit faire %ally% ?"
 hud-moves-title: "<white>Quelle capacité ?"
 hud-waiting: "<gray>En attente..."
 # The main menu, one colour per action
-hud-fight-button: "<white> Attaque   </white><#EB5757>⚔ ▌"
-hud-team-button: "<white> Équipe    </white><#26D971>⟳ ▌"
 hud-ball-button: "<white> Capture   </white><#F2C94C>◓ ▌"
-hud-bag-button: "<white> Sac       </white><#BB6BD9>✚ ▌"
-hud-run-button: "<white> Fuite     </white><#2D9CDB>➜ ▌"
 hud-next-button: "<gray>Suivant ›"
 # While the camera follows the turn; F skips it
 hud-skip-hint: "<gray>[<white>F</white>] Passer"
