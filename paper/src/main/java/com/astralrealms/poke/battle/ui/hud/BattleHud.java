@@ -20,6 +20,7 @@ import com.astralrealms.astralHologram.api.hologram.ComponentDefinition;
 import com.astralrealms.astralHologram.api.hud.HudDefinition;
 import com.astralrealms.astralHologram.api.hud.HudOpenOptions;
 import com.astralrealms.astralHologram.api.hud.HudView;
+import com.astralrealms.astralHologram.configuration.BillboardType;
 import com.astralrealms.astralHologram.configuration.CursorSettings;
 import com.astralrealms.astralHologram.configuration.HudInput;
 import com.astralrealms.astralHologram.configuration.HudKey;
@@ -184,7 +185,10 @@ final class BattleHud {
             boolean item = ITEMS.contains(id) || id.startsWith(FRAME);
             // Items are flat art: squashing the model's depth keeps it from reading as a 3D block.
             ComponentDefinition.Builder component = item
-                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY)).scale(scale, scale, scale * FLAT)
+                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY))
+                            .scale(scale, scale, scale * FLAT)
+                            // Billboarded, a flat item shows its mirrored back; fixed, the HUD turns its front to the eye
+                            .billboard(BillboardType.FIXED)
                     : ComponentDefinition.text(id, "")
                             .scale(scale)
                             .seeThrough(true)
@@ -354,7 +358,7 @@ final class BattleHud {
                     PlaceholderContainer placeholders = new PlaceholderContainer()
                             .registerDirect("move", move.name())
                             .registerDirect("pp", move.pp())
-                            .registerDirect("max_pp", move.maxPp())
+                            .registerDirect("maxpp", move.maxPp())
                             .registerDirect("type", move.type())
                             .registerDirect("category", move.category())
                             .registerDirect("power", move.power() > 0 ? Integer.toString(move.power()) : "—")
