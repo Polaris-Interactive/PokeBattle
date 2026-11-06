@@ -24,6 +24,7 @@ import com.astralrealms.astralHologram.configuration.BillboardType;
 import com.astralrealms.astralHologram.configuration.CursorSettings;
 import com.astralrealms.astralHologram.configuration.HudInput;
 import com.astralrealms.astralHologram.configuration.HudKey;
+import com.astralrealms.astralHologram.configuration.TextAlignment;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
@@ -40,6 +41,8 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.format.TextColor;
 
 /**
  * One player's battle HUD: the two creatures, the turn and its timer, the last log lines, and the menu (actions,
@@ -54,10 +57,12 @@ final class BattleHud {
 
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
             "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon",
-            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon");
+            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon", "info-frame");
     /** Art drawn as items (see {@link HudArt}); every other element is text. */
     private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
-            "turn-icon", "ally-icon", "foe-icon");
+            "turn-icon", "ally-icon", "foe-icon", "info-frame");
+    /** Text read line by line rather than as a label: its lines line up on the left. */
+    private static final Set<String> LEFT_ALIGNED = Set.of("info", "log");
     private static final String BUTTON = "button-";
     /** The strip behind a list button, drawn in the element of the same number. */
     private static final String FRAME = "frame-";
@@ -192,7 +197,8 @@ final class BattleHud {
                     : ComponentDefinition.text(id, "")
                             .scale(scale)
                             .seeThrough(true)
-                            .transparentBackground(!element.background());
+                            .transparentBackground(!element.background())
+                            .alignment(LEFT_ALIGNED.contains(id) ? TextAlignment.LEFT : TextAlignment.CENTER);
             if (clickable)
                 component.interaction(interaction -> interaction
                         .hoverBackground(hover)
@@ -367,13 +373,16 @@ final class BattleHud {
                             ? PokeBattleMessages.MOVE_BUTTON_DISABLED
                             : PokeBattleMessages.MOVE_BUTTON).component(placeholders),
                             move.disabled() ? null : () -> this.handler().choose(this.player, view, "move " + move.index()),
-                            PokeBattleMessages.MOVE_TOOLTIP.component(placeholders)));
+                            PokeBattleMessages.HUD_TOOLTIP_MOVE.component(placeholders
+                                    .registerDirect("icon", HudArt.typeIcon(move.typeId()))
+                                    .registerDirect("pp", pp(move.pp(), move.maxPp())))));
                 }
             }
             case TEAM -> {
                 for (ChoiceView.Member member : view.switchable())
                     entries.add(new Entry(PokeBattleMessages.MEMBER_BUTTON.component(this.member(member, false)),
-                            () -> this.handler().choose(this.player, view, "switch " + member.position()), null));
+                            () -> this.handler().choose(this.player, view, "switch " + member.position()),
+                            this.memberTooltip(member)));
             }
             case BALLS -> {
                 List<BattleBag.Entry> balls = this.handler().bag().balls(this.player);
@@ -470,7 +479,7 @@ final class BattleHud {
         if (entered)
             this.sound(this.config.hoverSound());
         Entry entry = entered ? this.entryAt(id) : null;
-        this.set("info", entry == null || entry.info() == null ? List.of() : List.of(entry.info()));
+        this.tooltip(entry == null ? null : entry.info());
 
         // A usable button lights up: its art's second state
         Entry under = this.entryAt(id);
@@ -492,6 +501,7 @@ final class BattleHud {
         this.setItem("foe-frame", HudArt.FRAME_FOE);
         this.setItem("log-frame", HudArt.FRAME_LOG);
         this.setItem("turn-icon", HudArt.TURN_ICON);
+        this.setItem("info-frame", null);
         this.renderField();
         this.renderLog();
         this.renderTimer();
@@ -599,7 +609,7 @@ final class BattleHud {
         this.visible(BACK, !moving && this.back() != null);
         this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component()));
         this.visible(NEXT, !moving && this.pages() > 1);
-        this.set("info", List.of());
+        this.tooltip(null);
 
         // Disabled looks are decided on a redraw
         HudView hud = this.view;
@@ -644,6 +654,41 @@ final class BattleHud {
             return;
         this.drawn.put(key, visible);
         view.element(id).ifPresent(element -> element.visible(visible));
+    }
+
+    /**
+     * The tooltip on its panel, or neither.
+     */
+    private void tooltip(@Nullable Component info) {
+        this.set("info", info == null ? List.of() : List.of(info));
+        this.setItem("info-frame", info == null ? null : HudArt.TOOLTIP);
+    }
+
+    /**
+     * A team member's moves with their type and PP, then its ability and Speed; null when nothing is known of it.
+     */
+    private @Nullable Component memberTooltip(ChoiceView.Member member) {
+        if (member.moves().isEmpty())
+            return null;
+        List<Component> lines = new ArrayList<>();
+        for (ChoiceView.MemberMove move : member.moves())
+            lines.add(PokeBattleMessages.HUD_TOOLTIP_MEMBER_MOVE.component(new PlaceholderContainer()
+                    .registerDirect("icon", HudArt.typeIcon(move.typeId()))
+                    .registerDirect("move", move.name())
+                    .registerDirect("pp", pp(move.pp(), move.maxPp()))));
+        return PokeBattleMessages.HUD_TOOLTIP_MEMBER.component(new PlaceholderContainer()
+                .registerDirect("moves", Component.join(JoinConfiguration.newlines(), lines))
+                .registerDirect("ability", member.ability().isEmpty() ? "—" : member.ability())
+                .registerDirect("speed", member.speed() > 0 ? Integer.toString(member.speed()) : "—"));
+    }
+
+    /**
+     * PP left over the most, green while more than half is left, then yellow, then red under a quarter.
+     */
+    private static Component pp(int pp, int max) {
+        double ratio = max <= 0 ? 1 : (double) pp / max;
+        String colour = ratio > 0.5 ? "#5BE37D" : ratio > 0.25 ? "#F2C94C" : "#EB5757";
+        return Component.text(pp + "/" + max, TextColor.fromHexString(colour));
     }
 
     // ---- Helpers ----

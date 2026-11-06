@@ -111,6 +111,9 @@ public enum PokeBattleMessages implements MessageEnum {
     HUD_NEXT_BUTTON,
     HUD_SKIP_HINT,
     HUD_CLOSED,
+    HUD_TOOLTIP_MOVE,
+    HUD_TOOLTIP_MEMBER_MOVE,
+    HUD_TOOLTIP_MEMBER,
     ;
 
     @Setter

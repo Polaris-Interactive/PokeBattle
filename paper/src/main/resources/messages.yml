@@ -114,3 +114,8 @@ hud-next-button: "<gray>Suivant ›"
 # While the camera follows the turn; F skips it
 hud-skip-hint: "<gray>[<white>F</white>] Passer"
 hud-closed: "<gray>Tapez <white>/combat</white> pour revenir au combat."
+# The tooltip of a hovered move: %icon% is its type's badge, %pp% its PP coloured by what is left.
+hud-tooltip-move: "%icon% <white>%move%</white>  %pp%<newline><#4FA59B>━━━━━━━━━━━━<newline><gray>Type : <white>%type%<newline><gray>Catégorie : <white>%category%<newline><gray>Puissance : <white>%power%<newline><gray>Précision : <white>%accuracy%"
+# The tooltip of a hovered team member: one line per move (hud-tooltip-member-move), then its ability and Speed.
+hud-tooltip-member-move: "%icon% <white>%move%</white>  %pp%"
+hud-tooltip-member: "%moves%<newline><#4FA59B>━━━━━━━━━━━━<newline><#7FD7D0>Talent : <white>%ability%<newline><#F2C94C>⚡ Vitesse : <white>%speed%"

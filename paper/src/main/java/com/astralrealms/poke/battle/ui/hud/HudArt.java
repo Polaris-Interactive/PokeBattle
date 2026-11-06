@@ -1,5 +1,6 @@
 package com.astralrealms.poke.battle.ui.hud;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -11,6 +12,8 @@ import org.jetbrains.annotations.Nullable;
 
 import lombok.experimental.UtilityClass;
 import net.kyori.adventure.key.Key;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Battle HUD art, from {@code assets/battle-hud} and shipped in the {@code pokesmp} resource pack as flat item models
@@ -36,6 +39,9 @@ public class HudArt {
     /** List buttons (moves, team, bag): a plain strip behind the label. */
     public static final Key FRAME_LIST = Key.key("pokesmp", "hud_frame_list");
 
+    /** The tooltip's panel, behind its text. */
+    public static final Key TOOLTIP = Key.key("pokesmp", "hud_tooltip");
+
     /** The turn marker in front of the turn and timer line. */
     public static final Key TURN_ICON = Key.key("pokesmp", "hud_turn");
 
@@ -48,6 +54,23 @@ public class HudArt {
             "slp", Key.key("pokesmp", "hud_status_slp"),
             "frz", Key.key("pokesmp", "hud_status_frz"),
             "fnt", Key.key("pokesmp", "hud_status_fnt"));
+
+    /** The type badges' font: one glyph per type, from U+E920 in this order (the pack's battle_hud.yml). */
+    private static final Key TYPE_FONT = Key.key("pokesmp", "hud_types");
+    private static final List<String> TYPES = List.of("normal", "fire", "water", "electric", "grass", "ice", "fighting",
+            "poison", "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy");
+    private static final char FIRST_TYPE_GLYPH = '\uE920';
+
+    /**
+     * A type's badge, to draw inline in text; empty for an unknown type.
+     */
+    public static Component typeIcon(String typeId) {
+        int index = TYPES.indexOf(typeId);
+        if (index < 0)
+            return Component.empty();
+        // White leaves the glyph's own colours alone
+        return Component.text(String.valueOf((char) (FIRST_TYPE_GLYPH + index)), NamedTextColor.WHITE).font(TYPE_FONT);
+    }
 
     /** Art with a second state for a hovered button ({@code <model>_hover}). */
     private static final Set<Key> HOVERABLE = Set.of(FRAME_FIGHT, FRAME_SWITCH, FRAME_BAG, FRAME_RUN,
