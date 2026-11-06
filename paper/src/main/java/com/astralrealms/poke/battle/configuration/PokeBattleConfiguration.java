@@ -105,14 +105,34 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param cueSpacing the least time a beat the creatures play takes, so moments come one after the other
      * @param faintLinger how long a fainted creature stays before it goes
      * @param closeDelay how long the creatures stay after the battle ended
+     * @param moves      the effects a creature's moves play on stage; null for none
      */
     @ConfigSerializable
     public record Creatures(boolean enabled, Map<String, List<String>> animations, Duration cueSpacing,
-                            Duration faintLinger, Duration closeDelay) {
+                            Duration faintLinger, Duration closeDelay, @Nullable MoveEffects moves) {
 
         public List<String> animations(String moment) {
             List<String> names = this.animations == null ? null : this.animations.get(moment);
             return names == null ? List.of() : names;
+        }
+    }
+
+    /**
+     * A move's effect on stage: an AstralSkill skill cast by the attacking creature towards the other one. The skills
+     * are content (poke-content), found by id.
+     *
+     * @param skills the skill ids to try, first found plays: {@code {move}} is the move id, {@code {type}} and
+     *               {@code {category}} its type and category ids
+     * @param height   blocks above a creature's feet the effect leaves from and aims at
+     * @param statUp   the skill a creature casts when one of its stats rises; empty for none
+     * @param statDown the skill a creature casts when one of its stats falls; empty for none
+     */
+    @ConfigSerializable
+    public record MoveEffects(boolean enabled, List<String> skills, double height, @Nullable String statUp,
+                              @Nullable String statDown) {
+
+        public List<String> skills() {
+            return this.skills == null ? List.of() : this.skills;
         }
     }
 

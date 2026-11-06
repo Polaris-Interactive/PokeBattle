@@ -328,14 +328,14 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 log.add(rendered);
             BattleCue cue = BattleCue.of(line);
             if (cue != null) {
-                beats.add(new BattleBeat(cue, FieldView.of(battle, player.locale()), log));
+                beats.add(new BattleBeat(cue, BattleCue.move(line), FieldView.of(battle, player.locale()), log));
                 log.clear();
             }
         }
         if (player == null)
             return;
         if (!log.isEmpty() || beats.isEmpty())
-            beats.add(new BattleBeat(null, FieldView.of(battle, player.locale()), log));
+            beats.add(new BattleBeat(null, null, FieldView.of(battle, player.locale()), log));
         this.withUi(battle.playerId(), (ui, viewer) -> beats.forEach(beat -> ui.update(viewer, beat)));
     }
 

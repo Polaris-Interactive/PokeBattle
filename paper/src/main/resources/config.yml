@@ -61,6 +61,18 @@ creatures:
   faint-linger: 3s
   # How long the creatures stay after the battle ended.
   close-delay: 3s
+  # What a move looks like on stage (needs AstralSkill and the move skills from poke-content): the attacking creature
+  # casts the first of these skills that exists, aimed at the other creature. {move} is the move id (ember), {type}
+  # and {category} its type and category (fire, special). A skill reads the distance to the target as
+  # %move-distance% (blocks).
+  moves:
+    enabled: true
+    skills: ["move-{move}", "move-{type}-{category}"]
+    # Blocks above a creature's feet the effect leaves from and aims at.
+    height: 0.7
+    # The skills a creature casts when one of its stats rises or falls (Growl, Smokescreen...), empty for none.
+    stat-up: "move-fx-stat-up"
+    stat-down: "move-fx-stat-down"
 
 hud:
   # The battle drawn in front of the player with AstralHologram (Java players). false, without AstralHologram, or

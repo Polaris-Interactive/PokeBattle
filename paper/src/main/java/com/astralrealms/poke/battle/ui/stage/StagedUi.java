@@ -35,12 +35,17 @@ public class StagedUi implements BattleUi {
     private final PokeBattle plugin;
     private final BattleUi ui;
     private final @Nullable CreatureActors actors;
+    private final @Nullable MoveEffects effects;
     private final Map<UUID, Scene> scenes = new HashMap<>();
 
-    public StagedUi(PokeBattle plugin, BattleUi ui, @Nullable CreatureActors actors) {
+    /**
+     * @param effects what moves look like between the creatures; null for none (AstralSkill missing)
+     */
+    public StagedUi(PokeBattle plugin, BattleUi ui, @Nullable CreatureActors actors, @Nullable MoveEffects effects) {
         this.plugin = plugin;
         this.ui = ui;
         this.actors = actors;
+        this.effects = effects;
     }
 
     @Override
@@ -79,10 +84,14 @@ public class StagedUi implements BattleUi {
         switch (beat.cue()) {
             case ALLY_SWITCH -> scene.enter(Side.ALLY, field.ally());
             case FOE_SWITCH -> scene.enter(Side.FOE, field.foe());
-            case ALLY_MOVE -> scene.animate(Side.ALLY, "move");
-            case FOE_MOVE -> scene.animate(Side.FOE, "move");
+            case ALLY_MOVE -> scene.attack(Side.ALLY, beat.move());
+            case FOE_MOVE -> scene.attack(Side.FOE, beat.move());
             case ALLY_DAMAGE -> scene.animate(Side.ALLY, "damage");
             case FOE_DAMAGE -> scene.animate(Side.FOE, "damage");
+            case ALLY_BOOST -> scene.stat(Side.ALLY, true);
+            case FOE_BOOST -> scene.stat(Side.FOE, true);
+            case ALLY_UNBOOST -> scene.stat(Side.ALLY, false);
+            case FOE_UNBOOST -> scene.stat(Side.FOE, false);
             case ALLY_FAINT -> scene.faint(Side.ALLY);
             case FOE_FAINT -> scene.faint(Side.FOE);
             case CAPTURE -> scene.leave(Side.FOE, 0);
@@ -199,6 +208,32 @@ public class StagedUi implements BattleUi {
             for (String animation : config.animations(moment))
                 if (this.actors.animate(actor.entity(), animation))
                     return;
+        }
+
+        /**
+         * The side's creature uses a move: it plays its move animation and the move's effect towards the other side's
+         * creature (none for a move that is not shown, or with nobody facing it).
+         */
+        void attack(Side side, @Nullable String move) {
+            this.animate(side, "move");
+            Actor attacker = this.standing.get(side);
+            Actor target = this.standing.get(side == Side.ALLY ? Side.FOE : Side.ALLY);
+            if (move != null && effects != null && shown(attacker) && shown(target))
+                effects.play(attacker.entity(), target.entity(), move);
+        }
+
+        /**
+         * A stat of the side's creature rose ({@code up}) or fell.
+         */
+        void stat(Side side, boolean up) {
+            Actor creature = this.standing.get(side);
+            Actor facing = this.standing.get(side == Side.ALLY ? Side.FOE : Side.ALLY);
+            if (effects != null && shown(creature) && shown(facing))
+                effects.stat(creature.entity(), facing.entity(), up);
+        }
+
+        private static boolean shown(@Nullable Actor actor) {
+            return actor != null && actor.entity().isValid();
         }
 
         void faint(Side side) {

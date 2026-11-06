@@ -47,6 +47,19 @@
             <version>1.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
+        <!-- astral/skill (optional at runtime: what moves look like on stage) -->
+        <dependency>
+            <groupId>com.astralrealms</groupId>
+            <artifactId>skill</artifactId>
+            <version>1.2-SNAPSHOT</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <!-- pokeentities/api (optional at runtime: the battle's creatures on stage) -->
         <dependency>
             <groupId>com.astralrealms</groupId>
