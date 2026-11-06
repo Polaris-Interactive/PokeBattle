@@ -214,11 +214,11 @@ public class StagedUi implements BattleUi {
          *
          * @return the animation played, null for none
          */
-        @Nullable String animate(Side side, String moment, String fallback) {
+        @Nullable String animate(Side side, String moment, String fallback, @Nullable String move) {
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
             if (config == null)
                 return null;
-            return this.animate(side, config.animations(moment).isEmpty() ? fallback : moment);
+            return this.animate(side, config.animations(moment).isEmpty() ? fallback : moment, move);
         }
 
         /**
@@ -227,25 +227,38 @@ public class StagedUi implements BattleUi {
          * @return the animation played, null for none
          */
         @Nullable String animate(Side side, String moment) {
+            return this.animate(side, moment, null);
+        }
+
+        /**
+         * As {@link #animate(Side, String)}; {@code {move}} in an animation name stands for the move's id, so a model
+         * can have an animation of its own for a move ({@code vinewhip}). Names left with a placeholder are skipped.
+         */
+        @Nullable String animate(Side side, String moment, @Nullable String move) {
             Actor actor = this.standing.get(side);
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
             if (actor == null || config == null || !actor.entity().isValid())
                 return null;
-            for (String animation : config.animations(moment))
+            for (String candidate : config.animations(moment)) {
+                String animation = move == null ? candidate : candidate.replace("{move}", move);
+                if (animation.contains("{"))
+                    continue;
                 if (this.actors.animate(actor.entity(), animation))
                     return animation;
+            }
             return null;
         }
 
         /**
-         * The side's creature uses a move: it plays the animation of the move's category ({@code move-physical},
-         * {@code move-special}, {@code move-status}, else {@code move}), and the move's effect leaves towards the other
+         * The side's creature uses a move: it plays the first animation its model has from the move's category list
+         * ({@code move-physical}, {@code move-special}, {@code move-status}, else {@code move}; {@code {move}} there is
+         * the move's own animation, {@code vinewhip}), and the move's effect leaves towards the other
          * side's creature when the animation reaches its release marker (at once without one).
          */
         void attack(Side side, @Nullable String move) {
             MoveData data = move == null ? null : PokeCoreAPI.get().species().findMove(move).orElse(null);
             String moment = data == null ? "move" : "move-" + data.category().name().toLowerCase(Locale.ROOT);
-            String animation = this.animate(side, moment, "move");
+            String animation = this.animate(side, moment, "move", move);
             Actor attacker = this.standing.get(side);
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
             if (move == null || effects == null || config == null || !shown(attacker))

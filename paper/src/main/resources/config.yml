@@ -53,11 +53,12 @@ creatures:
     # Looped for as long as the creature stands on stage (its battle stance); without one, its own idle.
     stance: [battle_idle]
     switch: [cry]
-    # A move plays its category's list (move-physical, move-special, move-status), else `move`.
-    move: [physical, special, status, cry]
-    move-physical: [physical, special, cry]
-    move-special: [special, physical, cry]
-    move-status: [status, cry, special]
+    # A move plays its category's list (move-physical, move-special, move-status), else `move`. {move} is the move's id:
+    # a model's own animation for that move (vinewhip, protect...) plays first when it has one.
+    move: ["{move}", physical, special, status, cry]
+    move-physical: ["{move}", physical, special, cry]
+    move-special: ["{move}", special, physical, cry]
+    move-status: ["{move}", status, cry, special]
     damage: [damage, recoil]
     faint: [death, faint]
   # The least time a moment the creatures play takes (an attack, a hit, a faint), so they come one after the other.
