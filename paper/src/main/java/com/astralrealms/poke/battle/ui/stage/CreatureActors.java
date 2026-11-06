@@ -1,5 +1,8 @@
 package com.astralrealms.poke.battle.ui.stage;
 
+import java.time.Duration;
+import java.util.Optional;
+
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -23,6 +26,14 @@ public interface CreatureActors {
      * @return false when the model has no such animation
      */
     boolean animate(Entity creature, String animation);
+
+    /**
+     * When {@code marker} comes in the creature's {@code animation}, from its start ({@code release}: the moment an
+     * attack lets go).
+     *
+     * @return empty when the animation has no such marker
+     */
+    Optional<Duration> marker(Entity creature, String animation, String marker);
 
     void remove(Entity creature);
 }

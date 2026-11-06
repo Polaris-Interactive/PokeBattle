@@ -51,12 +51,18 @@ creatures:
   # By moment, the model animations to try; the first one the model has plays. BetterModel plays idle and walk itself.
   animations:
     switch: [cry]
+    # A move plays its category's list (move-physical, move-special, move-status), else `move`.
     move: [physical, special, status, cry]
+    move-physical: [physical, special, cry]
+    move-special: [special, physical, cry]
+    move-status: [status, cry, special]
     damage: [damage, recoil]
     faint: [death, faint]
   # The least time a moment the creatures play takes (an attack, a hit, a faint), so they come one after the other.
   # A camera shot longer than this sets the pace instead.
   cue-spacing: 1s
+  # The same for a move: its wind-up (up to the release marker), then its effect reaching the target.
+  move-spacing: 2s
   # How long a fainted creature stays (its faint animation) before it goes.
   faint-linger: 3s
   # How long the creatures stay after the battle ended.
@@ -73,6 +79,9 @@ creatures:
     # The skills a creature casts when one of its stats rises or falls (Growl, Smokescreen...), empty for none.
     stat-up: "move-fx-stat-up"
     stat-down: "move-fx-stat-down"
+    # The effect leaves when the move's animation reaches this marker: a `pokesmp:<name>` timeline keyframe, written by
+    # the model installer at the animation's strike (or placed by hand in Blockbench). Without one it leaves at once.
+    release-marker: "release"
 
 hud:
   # The battle drawn in front of the player with AstralHologram (Java players). false, without AstralHologram, or

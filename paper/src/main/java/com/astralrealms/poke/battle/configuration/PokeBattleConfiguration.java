@@ -105,11 +105,14 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param cueSpacing the least time a beat the creatures play takes, so moments come one after the other
      * @param faintLinger how long a fainted creature stays before it goes
      * @param closeDelay how long the creatures stay after the battle ended
+     * @param moveSpacing the least time a move takes instead of {@code cueSpacing} (its wind-up and effect); null
+     *                    for {@code cueSpacing}
      * @param moves      the effects a creature's moves play on stage; null for none
      */
     @ConfigSerializable
     public record Creatures(boolean enabled, Map<String, List<String>> animations, Duration cueSpacing,
-                            Duration faintLinger, Duration closeDelay, @Nullable MoveEffects moves) {
+                            @Nullable Duration moveSpacing, Duration faintLinger, Duration closeDelay,
+                            @Nullable MoveEffects moves) {
 
         public List<String> animations(String moment) {
             List<String> names = this.animations == null ? null : this.animations.get(moment);
@@ -126,10 +129,12 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param height   blocks above a creature's feet the effect leaves from and aims at
      * @param statUp   the skill a creature casts when one of its stats rises; empty for none
      * @param statDown the skill a creature casts when one of its stats falls; empty for none
+     * @param releaseMarker the model animation marker ({@code pokesmp:<name>} timeline keyframe) the effect waits
+     *                      for; empty or absent from the animation: the effect leaves with the animation's start
      */
     @ConfigSerializable
     public record MoveEffects(boolean enabled, List<String> skills, double height, @Nullable String statUp,
-                              @Nullable String statDown) {
+                              @Nullable String statDown, @Nullable String releaseMarker) {
 
         public List<String> skills() {
             return this.skills == null ? List.of() : this.skills;

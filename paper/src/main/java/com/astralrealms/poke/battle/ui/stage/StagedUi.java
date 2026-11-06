@@ -2,6 +2,7 @@ package com.astralrealms.poke.battle.ui.stage;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,6 +19,8 @@ import com.astralrealms.poke.battle.ui.BattleStage;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
+import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.species.MoveData;
 
 
 /**
@@ -65,8 +68,13 @@ public class StagedUi implements BattleUi {
         PokeBattleConfiguration.Creatures config = this.plugin.configuration().creatures();
         if (beat.cue() == null || config == null || this.scene(player, beat.field().battleId()) == null)
             return pace;
-        // A moment the creatures play gets its time even where nothing else is shown (the dialog, a cue without a shot)
-        return beat.cue() == BattleCue.END ? pace : pace.with(new Pace(0, ticks(config.cueSpacing())));
+        // A moment the creatures play gets its time even where nothing else is shown (the dialog, a cue without a shot);
+        // a move longer, so its effect lands before the hit shows
+        if (beat.cue() == BattleCue.END)
+            return pace;
+        boolean move = beat.cue() == BattleCue.ALLY_MOVE || beat.cue() == BattleCue.FOE_MOVE;
+        Duration spacing = move && config.moveSpacing() != null ? config.moveSpacing() : config.cueSpacing();
+        return pace.with(new Pace(0, ticks(spacing)));
     }
 
     @Override
@@ -198,28 +206,62 @@ public class StagedUi implements BattleUi {
         }
 
         /**
-         * Plays the first of the moment's animations ({@code creatures.animations}) the model has.
+         * Plays the first of the moment's animations ({@code creatures.animations}) the model has, falling back to
+         * {@code fallback}'s when the moment lists none.
+         *
+         * @return the animation played, null for none
          */
-        void animate(Side side, String moment) {
-            Actor actor = this.standing.get(side);
+        @Nullable String animate(Side side, String moment, String fallback) {
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
-            if (actor == null || config == null || !actor.entity().isValid())
-                return;
-            for (String animation : config.animations(moment))
-                if (this.actors.animate(actor.entity(), animation))
-                    return;
+            if (config == null)
+                return null;
+            return this.animate(side, config.animations(moment).isEmpty() ? fallback : moment);
         }
 
         /**
-         * The side's creature uses a move: it plays its move animation and the move's effect towards the other side's
-         * creature (none for a move that is not shown, or with nobody facing it).
+         * Plays the first of the moment's animations ({@code creatures.animations}) the model has.
+         *
+         * @return the animation played, null for none
+         */
+        @Nullable String animate(Side side, String moment) {
+            Actor actor = this.standing.get(side);
+            PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
+            if (actor == null || config == null || !actor.entity().isValid())
+                return null;
+            for (String animation : config.animations(moment))
+                if (this.actors.animate(actor.entity(), animation))
+                    return animation;
+            return null;
+        }
+
+        /**
+         * The side's creature uses a move: it plays the animation of the move's category ({@code move-physical},
+         * {@code move-special}, {@code move-status}, else {@code move}), and the move's effect leaves towards the other
+         * side's creature when the animation reaches its release marker (at once without one).
          */
         void attack(Side side, @Nullable String move) {
-            this.animate(side, "move");
+            MoveData data = move == null ? null : PokeCoreAPI.get().species().findMove(move).orElse(null);
+            String moment = data == null ? "move" : "move-" + data.category().name().toLowerCase(Locale.ROOT);
+            String animation = this.animate(side, moment, "move");
             Actor attacker = this.standing.get(side);
-            Actor target = this.standing.get(side == Side.ALLY ? Side.FOE : Side.ALLY);
-            if (move != null && effects != null && shown(attacker) && shown(target))
-                effects.play(attacker.entity(), target.entity(), move);
+            PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
+            if (move == null || effects == null || config == null || !shown(attacker))
+                return;
+            String marker = config.moves() == null ? null : config.moves().releaseMarker();
+            Duration release = animation == null || marker == null || marker.isBlank() ? Duration.ZERO
+                    : this.actors.marker(attacker.entity(), animation, marker).orElse(Duration.ZERO);
+            Entity entity = attacker.entity();
+            Runnable play = () -> {
+                // Looked up when it plays: the target may have changed or gone meanwhile
+                Actor target = this.standing.get(side == Side.ALLY ? Side.FOE : Side.ALLY);
+                if (entity.isValid() && shown(target))
+                    effects.play(entity, target.entity(), move);
+            };
+            long delay = ticks(release);
+            if (delay <= 0)
+                play.run();
+            else
+                entity.getScheduler().runDelayed(plugin, _ -> play.run(), null, delay);
         }
 
         /**
