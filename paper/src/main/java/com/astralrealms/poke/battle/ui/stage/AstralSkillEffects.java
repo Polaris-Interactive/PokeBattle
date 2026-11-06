@@ -72,7 +72,15 @@ public class AstralSkillEffects implements MoveEffects {
                 .toVector3d();
         PlaceholderContainer container = new PlaceholderContainer()
                 .registerDirect("move-distance", (float) distance);
-        return skills.tryCastAtPos(caster, caster.getUniqueId(), skill, from, direction, container);
+        try {
+            // castAtPos, not tryCastAtPos: the servers' AstralSkill builds do not all have the latter
+            skills.castAtPos(caster, caster.getUniqueId(), skill, from, direction, container);
+            return true;
+        } catch (RuntimeException | LinkageError e) {
+            // An effect never stops the battle from going on
+            this.plugin.getSLF4JLogger().warn("Could not play skill {}: {}", skill, e.toString());
+            return false;
+        }
     }
 
     /**
