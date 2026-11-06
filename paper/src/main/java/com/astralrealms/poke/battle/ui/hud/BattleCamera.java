@@ -1,9 +1,5 @@
 package com.astralrealms.poke.battle.ui.hud;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.List;
-
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.Nullable;
@@ -13,13 +9,13 @@ import com.astralrealms.astralHologram.configuration.Easing;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.BattleStage;
+import com.astralrealms.poke.battle.ui.BattleUi;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 
 /**
- * Moves a battle HUD's seat around the stage: a shot for each cue of an update, one after the other, then back to
- * {@code idle} where the player chooses. A run of shots lasts at most {@code max-sequence} (GDD: 6 s) and can be
- * skipped; the HUD glides with the camera, so it stays on screen.
+ * Moves a battle HUD's seat around the stage: the shot of each beat as the timeline plays it, then back to
+ * {@code idle} where the player chooses. The HUD glides with the camera, so it stays on screen.
  * <p>
  * Player's thread only, like the HUD.
  */
@@ -31,17 +27,16 @@ final class BattleCamera {
     private final Player player;
     private final BattleStage stage;
     private final Runnable onRest;
-    private final Deque<PokeBattleConfiguration.Shot> queue = new ArrayDeque<>();
 
     private @Nullable HudView view;
-    private @Nullable ScheduledTask next;
+    private PokeBattleConfiguration.@Nullable Shot current;
+    private @Nullable ScheduledTask landing;
     private boolean resting;
     private boolean stopped;
 
     /**
-     * @param onRest run when a run of shots is over (or skipped) and the camera has landed on {@code idle}:
-     *               elements shown during a glide would not follow it as smoothly, and could not be
-     *               clicked before it lands anyway
+     * @param onRest run when the camera has landed on {@code idle}: elements shown during a glide would not follow
+     *               it as smoothly, and could not be clicked before it lands anyway
      */
     BattleCamera(Plugin plugin, Player player, BattleStage stage, Runnable onRest) {
         this.plugin = plugin;
@@ -51,55 +46,65 @@ final class BattleCamera {
     }
 
     /**
-     * Whether shots are playing or waiting: the menu waits for the camera to rest.
+     * Whether it is away from {@code idle} or on its way back: the menu waits for it to rest.
      */
     boolean busy() {
         return !this.resting;
     }
 
     /**
-     * The HUD is open: plays what came before it, or settles on {@code idle}.
+     * The HUD is open: the camera jumps to where it should be by now.
      */
     void attach(HudView view) {
         this.view = view;
-        this.playNext();
+        PokeBattleConfiguration.Shot at = this.current != null ? this.current : this.shot(IDLE);
+        if (at != null)
+            this.move(at, 0);
+        if (this.current == null && !this.resting && this.landing == null)
+            this.rest();
     }
 
     /**
-     * Queues a shot for each cue that has one, as long as the run stays within {@code max-sequence}.
+     * The beat's time: the shot's glide before the field changes (the camera gets there), its hold after. A cue
+     * without a shot leaves the camera where it is and takes no time.
      */
-    void play(List<BattleCue> cues) {
-        long budget = this.stage.camera().maxSequence().toMillis() / 50 - this.queued();
-        boolean added = false;
-        for (BattleCue cue : cues) {
-            PokeBattleConfiguration.Shot shot = this.stage.camera().shots().get(cue.key());
-            if (shot == null)
-                continue;
-            long length = Math.max(0, shot.glide()) + Math.max(0, shot.hold());
-            if (length > budget)
-                break;
-            budget -= length;
-            this.queue.addLast(shot);
-            added = true;
-        }
-        if (!added)
-            return;
-        // Resting, nothing is scheduled; otherwise the shot playing (or the opening HUD) picks the queue up
-        boolean wasResting = this.resting;
-        this.resting = false;
-        if (wasResting)
-            this.playNext();
+    BattleUi.Pace pace(@Nullable BattleCue cue) {
+        PokeBattleConfiguration.Shot shot = this.shot(cue);
+        return shot == null ? BattleUi.Pace.NONE : new BattleUi.Pace(shot.glide(), shot.hold());
     }
 
     /**
-     * Drops what is left of the run and goes back to {@code idle} at once.
+     * Heads for the cue's shot, if it has one.
      */
-    void skip() {
-        if (this.resting || this.stopped)
+    void cue(@Nullable BattleCue cue) {
+        PokeBattleConfiguration.Shot shot = this.shot(cue);
+        if (shot == null || this.stopped)
             return;
-        this.queue.clear();
         this.cancel();
-        this.rest(0);
+        this.resting = false;
+        this.current = shot;
+        this.move(shot, Math.max(0, shot.glide()));
+    }
+
+    /**
+     * Back to {@code idle}; the menu shows once it lands.
+     */
+    void rest() {
+        if (this.resting || this.stopped || this.landing != null)
+            return;
+        this.current = null;
+        PokeBattleConfiguration.Shot idle = this.shot(IDLE);
+        int glide = idle == null ? 0 : Math.max(0, idle.glide());
+        if (idle != null)
+            this.move(idle, glide);
+        if (glide == 0) {
+            this.settle();
+            return;
+        }
+        this.landing = this.player.getScheduler().runDelayed(this.plugin, _ -> {
+            this.landing = null;
+            this.settle();
+        }, null, glide);
     }
 
     /**
@@ -107,50 +112,21 @@ final class BattleCamera {
      */
     void stop() {
         this.stopped = true;
-        this.queue.clear();
         this.cancel();
-    }
-
-    private void playNext() {
-        this.next = null;
-        if (this.stopped || this.view == null)
-            return;
-        PokeBattleConfiguration.Shot shot = this.queue.pollFirst();
-        if (shot == null) {
-            if (!this.resting) {
-                PokeBattleConfiguration.Shot idle = this.stage.camera().shots().get(IDLE);
-                this.rest(idle == null ? 0 : Math.max(0, idle.glide()));
-            }
-            return;
-        }
-        this.resting = false;
-        this.move(shot, Math.max(0, shot.glide()));
-        long ticks = Math.max(1, Math.max(0, shot.glide()) + Math.max(0, shot.hold()));
-        this.next = this.player.getScheduler().runDelayed(this.plugin, _ -> this.playNext(), null, ticks);
-    }
-
-    private void rest(int glide) {
-        PokeBattleConfiguration.Shot idle = this.stage.camera().shots().get(IDLE);
-        if (idle == null || glide <= 0) {
-            if (idle != null)
-                this.move(idle, 0);
-            this.settle();
-            return;
-        }
-        this.move(idle, glide);
-        // Shots queued while it glides back play from where it is
-        this.next = this.player.getScheduler().runDelayed(this.plugin, _ -> {
-            this.next = null;
-            if (this.queue.isEmpty())
-                this.settle();
-            else
-                this.playNext();
-        }, null, glide);
     }
 
     private void settle() {
         this.resting = true;
         this.onRest.run();
+    }
+
+    private PokeBattleConfiguration.@Nullable Shot shot(@Nullable BattleCue cue) {
+        return cue == null ? null : this.shot(cue.key());
+    }
+
+    private PokeBattleConfiguration.@Nullable Shot shot(String key) {
+        PokeBattleConfiguration.Camera camera = this.stage.camera();
+        return camera == null ? null : camera.shots().get(key);
     }
 
     private void move(PokeBattleConfiguration.Shot shot, int glide) {
@@ -159,16 +135,10 @@ final class BattleCamera {
             view.moveSeat(this.stage.eye(shot), glide, Easing.EASE_IN_OUT);
     }
 
-    private long queued() {
-        return this.queue.stream()
-                .mapToLong(shot -> Math.max(0, shot.glide()) + Math.max(0, shot.hold()))
-                .sum();
-    }
-
     private void cancel() {
-        if (this.next != null) {
-            this.next.cancel();
-            this.next = null;
+        if (this.landing != null) {
+            this.landing.cancel();
+            this.landing = null;
         }
     }
 }

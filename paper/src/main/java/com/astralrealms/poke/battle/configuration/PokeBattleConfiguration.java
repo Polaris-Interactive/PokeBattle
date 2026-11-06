@@ -102,7 +102,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      *
      * @param animations by moment ({@code switch}, {@code move}, {@code damage}, {@code faint}): the model
      *                   animations to try, first found plays
-     * @param cueSpacing time between two moments of one update, so they play in order
+     * @param cueSpacing the least time a beat the creatures play takes, so moments come one after the other
      * @param faintLinger how long a fainted creature stays before it goes
      * @param closeDelay how long the creatures stay after the battle ended
      */
@@ -120,7 +120,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * The camera moving around the stage as the battle goes (see {@link Stage} for places).
      *
      * @param lookHeight  blocks above a creature's feet a shot looks at
-     * @param maxSequence the longest run of shots after one update; what does not fit is skipped
+     * @param maxSequence the longest run of beats; what does not fit shows at once
      * @param shots       by {@code idle} (while choosing) and by cue ({@code ally-move}, {@code foe-faint}...); a cue
      *                    without a shot leaves the camera where it is
      */

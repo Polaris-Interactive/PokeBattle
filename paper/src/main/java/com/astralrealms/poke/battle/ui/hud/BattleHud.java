@@ -28,8 +28,9 @@ import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.service.BattleBag;
-import com.astralrealms.poke.battle.ui.BattleCue;
+import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleStage;
+import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
@@ -235,9 +236,26 @@ final class BattleHud {
 
     // ---- What the battle says ----
 
-    void update(FieldView field, List<Component> lines, List<BattleCue> cues) {
-        this.field = field;
-        for (Component line : lines) {
+    BattleUi.Pace pace(BattleBeat beat) {
+        return this.camera == null ? BattleUi.Pace.NONE : this.camera.pace(beat.cue());
+    }
+
+    /**
+     * A beat starts: the camera heads for its shot (the menu hides while it is away).
+     */
+    void cue(BattleBeat beat) {
+        if (this.camera == null)
+            return;
+        this.camera.cue(beat.cue());
+        this.renderMenu();
+    }
+
+    /**
+     * The beat shows: its field (cards, HP, bars) and its log lines.
+     */
+    void update(BattleBeat beat) {
+        this.field = beat.field();
+        for (Component line : beat.log()) {
             this.log.addLast(line);
             while (this.log.size() > Math.max(0, this.config.logLines()))
                 this.log.removeFirst();
@@ -245,24 +263,28 @@ final class BattleHud {
         this.renderField();
         this.renderLog();
         this.renderTimer();
-        if (this.camera != null && !cues.isEmpty()) {
-            this.camera.play(cues);
-            this.renderMenu();
-        }
     }
 
     /**
-     * F: the camera skips the rest of its shots.
+     * Every beat has played: the camera goes back to {@code idle}, where the menu shows.
+     */
+    void idle() {
+        if (this.camera != null)
+            this.camera.rest();
+    }
+
+    /**
+     * F: what is still to play shows at once.
      */
     private void skip() {
-        if (this.camera != null && !this.closed)
-            this.camera.skip();
+        if (!this.closed)
+            this.ui.plugin().ui().skip(this.player);
     }
 
     void choose(ChoiceView view) {
         this.choice = view;
         this.field = FieldView.of(view);
-        this.deadline = this.turnTimerSeconds > 0 ? System.currentTimeMillis() + this.turnTimerSeconds * 1000L : 0;
+        this.deadline = this.turnTimerSeconds > 0 ? view.askedAt() + this.turnTimerSeconds * 1000L : 0;
         this.renderField();
         this.renderTimer();
         this.show(view.forceSwitch() ? Menu.TEAM : Menu.MAIN);

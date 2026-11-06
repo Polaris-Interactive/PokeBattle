@@ -48,6 +48,7 @@ import com.astralrealms.poke.battle.protocol.ChoiceRequest;
 import com.astralrealms.poke.battle.protocol.Condition;
 import com.astralrealms.poke.battle.protocol.ProtocolLine;
 import com.astralrealms.poke.battle.render.BattleLogRenderer;
+import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
@@ -312,26 +313,30 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         Player player = Bukkit.getPlayer(battle.playerId());
         BattleLogRenderer renderer = new BattleLogRenderer(battle, player == null ? null : player.locale());
+        // One beat per cue, with the field right after it, so the UI shows each moment in turn
+        List<BattleBeat> beats = new ArrayList<>();
         List<Component> log = new ArrayList<>();
-        List<BattleCue> cues = new ArrayList<>();
         for (String raw : update.lines()) {
             ProtocolLine line = ProtocolLine.parse(raw);
             if (line == null)
                 continue;
             battle.tracker().accept(line);
+            if (player == null)
+                continue;
+            Component rendered = renderer.render(line);
+            if (rendered != null)
+                log.add(rendered);
             BattleCue cue = BattleCue.of(line);
-            if (cue != null)
-                cues.add(cue);
-            if (player != null) {
-                Component rendered = renderer.render(line);
-                if (rendered != null)
-                    log.add(rendered);
+            if (cue != null) {
+                beats.add(new BattleBeat(cue, FieldView.of(battle, player.locale()), log));
+                log.clear();
             }
         }
-        if (player != null) {
-            FieldView field = FieldView.of(battle, player.locale());
-            this.withUi(battle.playerId(), (ui, viewer) -> ui.update(viewer, field, log, cues));
-        }
+        if (player == null)
+            return;
+        if (!log.isEmpty() || beats.isEmpty())
+            beats.add(new BattleBeat(null, FieldView.of(battle, player.locale()), log));
+        this.withUi(battle.playerId(), (ui, viewer) -> beats.forEach(beat -> ui.update(viewer, beat)));
     }
 
     private void onRequest(Battle battle, BattleRequestPacket packet) {

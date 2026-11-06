@@ -1,12 +1,9 @@
 package com.astralrealms.poke.battle.ui;
 
-import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
 import org.bukkit.entity.Player;
-
-import net.kyori.adventure.text.Component;
 
 /**
  * The battle in the chat, choices in a dialog. Works for every player, without AstralHologram.
@@ -27,8 +24,8 @@ public class DialogUi implements BattleUi {
     }
 
     @Override
-    public void update(Player player, FieldView field, List<Component> log, List<BattleCue> cues) {
-        log.forEach(player::sendMessage);
+    public void update(Player player, BattleBeat beat) {
+        beat.log().forEach(player::sendMessage);
     }
 
     @Override

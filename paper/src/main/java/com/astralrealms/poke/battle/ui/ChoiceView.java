@@ -23,10 +23,12 @@ import com.astralrealms.poke.core.species.SpeciesRegistry;
  * @param switchable members a switch can send in
  * @param team       every member in request order, fainted ones included (bag targets)
  * @param actions    what the player may do besides moves and switches this turn
+ * @param askedAt    when it was asked (epoch ms): the turn timer counts from there, not from when the UI shows it
+ *                   (after the turn's beats have played)
  */
 public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch, boolean trapped, Creature ally,
                          Creature foe, List<Move> moves, List<Member> switchable, List<Member> team,
-                         Actions actions) {
+                         Actions actions, long askedAt) {
 
     public ChoiceView {
         moves = List.copyOf(moves);
@@ -124,7 +126,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             actions = new Actions(options.capture() && options.wildRoll() != null, options.bag(), options.flee());
         }
         return new ChoiceView(battle.id(), request.rqid(), battle.tracker().turn(), request.forceSwitch(),
-                request.trapped(), ally, foe, moves, switchable, team, actions);
+                request.trapped(), ally, foe, moves, switchable, team, actions, System.currentTimeMillis());
     }
 
     /**

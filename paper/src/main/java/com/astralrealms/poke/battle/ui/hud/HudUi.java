@@ -17,15 +17,13 @@ import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
-import com.astralrealms.poke.battle.ui.BattleCue;
+import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleStage;
 import com.astralrealms.poke.battle.ui.BattleStages;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
-
-import net.kyori.adventure.text.Component;
 
 /**
  * The battle drawn in front of the player with an AstralHologram HUD, built in code from {@code hud} in
@@ -71,16 +69,39 @@ public class HudUi implements BattleUi, Listener {
     }
 
     @Override
-    public void update(Player player, FieldView field, List<Component> log, List<BattleCue> cues) {
-        BattleHud hud = this.active(player, field.battleId());
+    public Pace pace(Player player, BattleBeat beat) {
+        BattleHud hud = this.active(player, beat.field().battleId());
+        return hud == null ? this.fallback.pace(player, beat) : hud.pace(beat);
+    }
+
+    @Override
+    public void cue(Player player, BattleBeat beat) {
+        BattleHud hud = this.active(player, beat.field().battleId());
+        if (hud == null)
+            this.fallback.cue(player, beat);
+        else
+            hud.cue(beat);
+    }
+
+    @Override
+    public void update(Player player, BattleBeat beat) {
+        BattleHud hud = this.active(player, beat.field().battleId());
         if (hud == null) {
-            this.fallback.update(player, field, log, cues);
+            this.fallback.update(player, beat);
             return;
         }
         PokeBattleConfiguration.Hud config = this.plugin.configuration().hud();
         if (config != null && config.chatLog())
-            log.forEach(player::sendMessage);
-        hud.update(field, log, cues);
+            beat.log().forEach(player::sendMessage);
+        hud.update(beat);
+    }
+
+    @Override
+    public void idle(Player player) {
+        BattleHud hud = this.huds.get(player.getUniqueId());
+        if (hud != null && !hud.closed())
+            hud.idle();
+        this.fallback.idle(player);
     }
 
     @Override

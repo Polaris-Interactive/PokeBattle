@@ -54,8 +54,9 @@ creatures:
     move: [physical, special, status, cry]
     damage: [damage, recoil]
     faint: [death, faint]
-  # Time between two moments of one update, so an attack, the hit and a faint play one after the other.
-  cue-spacing: 1500ms
+  # The least time a moment the creatures play takes (an attack, a hit, a faint), so they come one after the other.
+  # A camera shot longer than this sets the pace instead.
+  cue-spacing: 1s
   # How long a fainted creature stays (its faint animation) before it goes.
   faint-linger: 3s
   # How long the creatures stay after the battle ended.
@@ -97,14 +98,16 @@ hud:
     low: "#EB5757"
     empty: "#3A3A3A"
   # The camera follows the battle: a shot for what happens (a move, a switch, a K.O., a capture, the end), then back
-  # to `idle` where the player chooses; the menu shows once it is back. Places are in blocks from where the battle
+  # to `idle` where the player chooses; the menu shows once it is back. Shots keep clear of blocks: an eye with a block between it
+  # and what it looks at rises up to 4 blocks, else comes in front of the block. Places are in blocks from where the battle
   # started: `forward` the way the player looked, `right` (left when negative), `up` from their feet. The HUD moves with
   # the camera. Remove this block, or `enabled: false`, for a still camera where the player stands.
   camera:
     enabled: true
     # Blocks above a creature's feet a shot looks at.
     look-height: 0.9
-    # GDD: a camera run lasts at most 6 s. Shots that would go past it are skipped; F skips the rest anyway.
+    # GDD: a camera run lasts at most 6 s. Each moment shows when its shot lands (the HP bars, the log, the creatures);
+    # what would go past this shows at once, and F shows the rest at once anyway.
     max-sequence: 6s
     # `look-at`: ally, foe or center. `glide`: ticks to get there (0 cuts). `hold`: ticks before the next shot.
     shots:
