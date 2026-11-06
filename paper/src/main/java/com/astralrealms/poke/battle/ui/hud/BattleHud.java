@@ -347,7 +347,7 @@ final class BattleHud {
                             null, HudArt.FRAME_BAG));
                 if (view.actions().flee())
                     entries.add(new Entry(PokeBattleMessages.HUD_RUN_LABEL.component(),
-                            () -> this.handler().choose(this.player, view, "run"), null));
+                            () -> this.handler().choose(this.player, view, "run"), null, HudArt.FRAME_RUN));
             }
             case MOVES -> {
                 for (ChoiceView.Move move : view.moves()) {
@@ -467,6 +467,18 @@ final class BattleHud {
             this.sound(this.config.hoverSound());
         Entry entry = entered ? this.entryAt(id) : null;
         this.set("info", entry == null || entry.info() == null ? List.of() : List.of(entry.info()));
+
+        // A usable button lights up: its art's second state
+        Entry under = this.entryAt(id);
+        boolean moving = this.camera != null && this.camera.busy();
+        if (under != null && under.action() != null && !moving && this.buttons.contains(id)) {
+            Key art = this.art(under);
+            this.setItem(FRAME + id.substring(BUTTON.length()), entered ? HudArt.hover(art) : art);
+        }
+    }
+
+    private Key art(Entry entry) {
+        return entry.frame() != null ? entry.frame() : HudArt.FRAME_LIST;
     }
 
     // ---- Drawing ----
@@ -577,7 +589,7 @@ final class BattleHud {
             this.visible(button, entry != null);
             // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
             String frame = FRAME + button.substring(BUTTON.length());
-            this.setItem(frame, entry == null ? null : entry.frame() != null ? entry.frame() : HudArt.FRAME_LIST);
+            this.setItem(frame, entry == null ? null : this.art(entry));
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);

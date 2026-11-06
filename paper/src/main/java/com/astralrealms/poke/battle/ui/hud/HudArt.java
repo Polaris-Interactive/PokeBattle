@@ -2,6 +2,7 @@ package com.astralrealms.poke.battle.ui.hud;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -47,6 +48,17 @@ public class HudArt {
             "slp", Key.key("pokesmp", "hud_status_slp"),
             "frz", Key.key("pokesmp", "hud_status_frz"),
             "fnt", Key.key("pokesmp", "hud_status_fnt"));
+
+    /** Art with a second state for a hovered button ({@code <model>_hover}). */
+    private static final Set<Key> HOVERABLE = Set.of(FRAME_FIGHT, FRAME_SWITCH, FRAME_BAG, FRAME_RUN,
+            FRAME_LIST);
+
+    /**
+     * A button's art as it looks hovered, or the art itself when it has no hover state.
+     */
+    public static Key hover(Key art) {
+        return HOVERABLE.contains(art) ? Key.key(art.namespace(), art.value() + "_hover") : art;
+    }
 
     /**
      * The status strip for a Showdown status id, or null when there is none to draw.
