@@ -137,13 +137,13 @@ hud:
     # The cards hug the top corners: the frame (`*-frame`, the art), the species in its portrait slot (outer edge),
     # the name and level, the health bar with the HP drawn over it, and the status strip under the card.
     ally-frame:     { position: { yaw: -43.9, pitch: -22.7 }, scale: 0.744, background: false, depth: 2.06 }
-    ally-icon:      { position: { yaw: -49.0, pitch: -20.8 }, scale: 0.192, background: false, depth: 2.04 }
+    ally-icon:      { position: { yaw: -49.0, pitch: -20.8 }, scale: 0.129, background: false, depth: 2.04 }
     ally:           { position: { yaw: -42.2, pitch: -24.0 }, scale: 0.154, background: false }
     ally-bar:       { position: { yaw: -42.2, pitch: -22.3 }, scale: 0.135, background: false }
     ally-hp:        { position: { yaw: -42.2, pitch: -22.4 }, scale: 0.102, background: false, depth: 1.97 }
     ally-status:    { position: { yaw: -42.2, pitch: -19.9 }, scale: 0.438, background: false, depth: 2.05 }
     foe-frame:      { position: { yaw: 43.9, pitch: -22.7 }, scale: 0.744, background: false, depth: 2.06 }
-    foe-icon:       { position: { yaw: 49.0, pitch: -20.8 }, scale: 0.192, background: false, depth: 2.04 }
+    foe-icon:       { position: { yaw: 49.0, pitch: -20.8 }, scale: 0.129, background: false, depth: 2.04 }
     foe:            { position: { yaw: 42.2, pitch: -24.0 }, scale: 0.154, background: false }
     foe-bar:        { position: { yaw: 42.2, pitch: -22.3 }, scale: 0.135, background: false }
     foe-hp:         { position: { yaw: 42.2, pitch: -22.4 }, scale: 0.102, background: false, depth: 1.97 }
@@ -154,21 +154,21 @@ hud:
     hint:           { position: { yaw: 0.0, pitch: -29.1 }, scale: 0.159, background: false }
     # The menu: 2 columns x 3 rows bottom left, in reading order. A button is its art (`frame-N`: the action's art,
     # or a strip for lists) with its label over it; hovered, the art shows its second state.
-    prompt:         { position: { yaw: -40.7, pitch: 10.4 }, scale: 0.169, background: false }
-    frame-1:        { position: { yaw: -46.3, pitch: 12.1 }, scale: 0.516, background: false, depth: 2.05 }
-    button-1:       { position: { yaw: -46.6, pitch: 12.5 }, scale: 0.152, background: false }
-    frame-2:        { position: { yaw: -34.1, pitch: 14.4 }, scale: 0.612, background: false, depth: 2.05 }
-    button-2:       { position: { yaw: -34.5, pitch: 14.9 }, scale: 0.181, background: false }
-    frame-3:        { position: { yaw: -46.3, pitch: 16.2 }, scale: 0.507, background: false, depth: 2.05 }
-    button-3:       { position: { yaw: -46.6, pitch: 16.6 }, scale: 0.150, background: false }
-    frame-4:        { position: { yaw: -34.1, pitch: 19.1 }, scale: 0.597, background: false, depth: 2.05 }
-    button-4:       { position: { yaw: -34.5, pitch: 19.7 }, scale: 0.176, background: false }
-    frame-5:        { position: { yaw: -46.3, pitch: 20.1 }, scale: 0.496, background: false, depth: 2.05 }
-    button-5:       { position: { yaw: -46.6, pitch: 20.5 }, scale: 0.146, background: false }
-    frame-6:        { position: { yaw: -34.1, pitch: 23.7 }, scale: 0.579, background: false, depth: 2.05 }
-    button-6:       { position: { yaw: -34.5, pitch: 24.1 }, scale: 0.171, background: false }
-    back:           { position: { yaw: -46.3, pitch: 23.9 }, scale: 0.153, background: true }
-    next:           { position: { yaw: -34.1, pitch: 27.9 }, scale: 0.177, background: true }
+    prompt:         { position: { yaw: -40.7, pitch: 9.7 }, scale: 0.170, background: false }
+    frame-1:        { position: { yaw: -46.5, pitch: 11.3 }, scale: 0.515, background: false, depth: 2.05 }
+    button-1:       { position: { yaw: -46.8, pitch: 11.8 }, scale: 0.152, background: false }
+    frame-2:        { position: { yaw: -33.8, pitch: 13.6 }, scale: 0.617, background: false, depth: 2.05 }
+    button-2:       { position: { yaw: -34.2, pitch: 14.2 }, scale: 0.182, background: false }
+    frame-3:        { position: { yaw: -46.5, pitch: 15.8 }, scale: 0.506, background: false, depth: 2.05 }
+    button-3:       { position: { yaw: -46.8, pitch: 16.2 }, scale: 0.149, background: false }
+    frame-4:        { position: { yaw: -33.8, pitch: 18.8 }, scale: 0.601, background: false, depth: 2.05 }
+    button-4:       { position: { yaw: -34.2, pitch: 19.3 }, scale: 0.177, background: false }
+    frame-5:        { position: { yaw: -46.5, pitch: 20.0 }, scale: 0.494, background: false, depth: 2.05 }
+    button-5:       { position: { yaw: -46.8, pitch: 20.4 }, scale: 0.146, background: false }
+    frame-6:        { position: { yaw: -33.8, pitch: 23.7 }, scale: 0.581, background: false, depth: 2.05 }
+    button-6:       { position: { yaw: -34.2, pitch: 24.2 }, scale: 0.171, background: false }
+    back:           { position: { yaw: -46.5, pitch: 23.8 }, scale: 0.153, background: true }
+    next:           { position: { yaw: -33.8, pitch: 28.0 }, scale: 0.178, background: true }
     # A hovered move's details, right of the menu.
     info:           { position: { yaw: -14.8, pitch: 20.2 }, scale: 0.165, background: true }
     # The log, bottom right, on its panel.
