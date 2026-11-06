@@ -192,8 +192,11 @@ public class StagedUi implements BattleUi {
             this.leave(side, 0);
             Location spot = side == Side.ALLY ? this.stage.ally() : this.stage.foe();
             Entity entity = this.actors.spawn(this.player, creature.species(), spot);
-            if (entity != null)
-                this.standing.put(side, new Actor(creature.species(), entity));
+            if (entity == null)
+                return;
+            this.standing.put(side, new Actor(creature.species(), entity));
+            // Its battle stance, looping under everything else it plays (a once animation goes back to it)
+            this.animate(side, "stance");
         }
 
         /**

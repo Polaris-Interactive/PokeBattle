@@ -50,6 +50,8 @@ creatures:
   enabled: true
   # By moment, the model animations to try; the first one the model has plays. BetterModel plays idle and walk itself.
   animations:
+    # Looped for as long as the creature stands on stage (its battle stance); without one, its own idle.
+    stance: [battle_idle]
     switch: [cry]
     # A move plays its category's list (move-physical, move-special, move-status), else `move`.
     move: [physical, special, status, cry]
