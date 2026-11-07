@@ -192,14 +192,14 @@ hud:
     # The cards hug the top corners: the frame (`*-frame`, the art), the species in its portrait slot (outer edge),
     # the name and level, the health bar with the HP drawn over it, and the status strip under the card.
     ally-frame:     { position: { yaw: -43.9, pitch: -22.7 }, scale: 0.744, background: false, depth: 2.06 }
-    ally-icon:      { position: { yaw: -49.0, pitch: -20.6 }, scale: 0.122, background: false, depth: 2.04 }
+    ally-icon:      { position: { yaw: -49.0, pitch: -20.6 }, scale: 0.15, background: false, depth: 2.04 }
     ally-underlay:  { position: { yaw: -49.0, pitch: -20.6 }, scale: 0.122, background: false, depth: 2.05 }
     ally:           { position: { yaw: -42.2, pitch: -24.0 }, scale: 0.154, background: false }
     ally-bar:       { position: { yaw: -42.2, pitch: -22.3 }, scale: 0.135, background: false }
     ally-hp:        { position: { yaw: -42.2, pitch: -22.4 }, scale: 0.102, background: false, depth: 1.97 }
     ally-status:    { position: { yaw: -42.2, pitch: -19.9 }, scale: 0.438, background: false, depth: 2.05 }
     foe-frame:      { position: { yaw: 43.9, pitch: -22.7 }, scale: 0.744, background: false, depth: 2.06 }
-    foe-icon:       { position: { yaw: 49.0, pitch: -20.6 }, scale: 0.122, background: false, depth: 2.04 }
+    foe-icon:       { position: { yaw: 49.0, pitch: -20.6 }, scale: 0.15, background: false, depth: 2.04 }
     foe-underlay:   { position: { yaw: 49.0, pitch: -20.6 }, scale: 0.122, background: false, depth: 2.05 }
     foe:            { position: { yaw: 42.2, pitch: -24.0 }, scale: 0.154, background: false }
     foe-bar:        { position: { yaw: 42.2, pitch: -22.3 }, scale: 0.135, background: false }

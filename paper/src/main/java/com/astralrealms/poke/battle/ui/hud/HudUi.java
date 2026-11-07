@@ -12,7 +12,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.jetbrains.annotations.Nullable;
 
-import com.astralrealms.astralHologram.api.event.HologramHoverEvent;
+import com.astralrealms.astralHologram.api.event.HudFocusEvent;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
@@ -38,7 +38,6 @@ import com.astralrealms.poke.battle.ui.FieldView;
 public class HudUi implements BattleUi, Listener {
 
     static final String HUD_ID = "pokebattle";
-    private static final String HOLOGRAM_ID = "hud:" + HUD_ID;
 
     private final PokeBattle plugin;
     private final ChoiceDialogs.Handler handler;
@@ -224,12 +223,15 @@ public class HudUi implements BattleUi, Listener {
             PokeBattleMessages.HUD_CLOSED.message(player);
     }
 
+    /**
+     * A HUD element gained or lost the hover: AstralHologram reports HUD elements this way, not as hologram hovers.
+     */
     @EventHandler
-    public void onHover(HologramHoverEvent event) {
-        if (!event.hologram().equals(HOLOGRAM_ID))
+    public void onFocus(HudFocusEvent event) {
+        if (!event.hud().equals(HUD_ID))
             return;
         BattleHud hud = this.huds.get(event.getPlayer().getUniqueId());
         if (hud != null)
-            hud.hover(event.component(), event.entered());
+            hud.hover(event.element(), event.entered());
     }
 }
