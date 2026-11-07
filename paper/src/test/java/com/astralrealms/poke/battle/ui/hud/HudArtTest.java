@@ -26,6 +26,12 @@ class HudArtTest {
     }
 
     @Test
+    void theBackButtonHasAHoverStateAndTheIconSlotsHaveUnderlay() {
+        assertThat(HudArt.hover(HudArt.BACK).asString()).isEqualTo("pokesmp:hud_back_hover");
+        assertThat(HudArt.ICON_UNDERLAY.asString()).isEqualTo("pokesmp:hud_icon_underlay");
+    }
+
+    @Test
     void aStatusHasItsItemAndHealthyHasNone() {
         assertThat(HudArt.statusItem("brn").asString()).isEqualTo("pokesmp:hud_status_brn");
         assertThat(HudArt.statusItem("par").asString()).isEqualTo("pokesmp:hud_status_par");
