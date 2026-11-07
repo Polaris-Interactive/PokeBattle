@@ -69,6 +69,13 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     }
 
     /**
+     * How big the creature standing on a side ({@code ally} or {@code foe}) is, null when unknown or empty.
+     */
+    public @Nullable Body body(String side) {
+        return side.equals("ally") ? this.bodies.ally : this.bodies.foe;
+    }
+
+    /**
      * The creature now standing on a side ({@code ally} or {@code foe}), or null when the side is empty.
      */
     public void body(String side, @Nullable Body body) {
