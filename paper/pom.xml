@@ -67,6 +67,43 @@
             <version>1.0-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
+        <!-- polaris/instances (soft: arenas run on instance servers, asked for through the bridge) -->
+        <dependency>
+            <groupId>com.polaris</groupId>
+            <artifactId>instances-paper</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.polaris</groupId>
+            <artifactId>instances-bridge</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.polaris</groupId>
+            <artifactId>instances-common</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>provided</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>*</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <!-- pokebattle/api (shaded: the plugin jar carries the API it implements) -->
         <dependency>
             <groupId>com.astralrealms</groupId>

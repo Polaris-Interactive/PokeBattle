@@ -64,6 +64,32 @@ or a local `mvn install`).
   - A battle whose end is only settled from Redis (no lines seen by the settling shard) gets the creatures' condition
     but may miss rewards earned in its last lines.
 
+## Arenas (PolarisInstances)
+
+Gyms and ranked battles take place in **arenas**: one instance per battle on an arena server (VoidPaper with
+PolarisInstances and the Poké stack), built from an instance template.
+
+1. **The player's server** (with PolarisInstances-Bridge) asks for an instance of the arena template. The battle
+   travels in the metadata as JSON (`pokebattle.battle`, `ArenaBattle`). Try it with
+   `/pokebattle arena <player> <template> <species> [level]`.
+2. **The arena server** (with PolarisInstances) starts the battle when the player enters the instance. The battle is
+   staged at the template's `arena.stage-spawn` spawn point (default `stage`): the player's side stands there, facing
+   the opponent. Without that spawn point, the battle is laid in front of where the player arrives. A caught creature
+   is recorded as met in the template.
+3. When the battle ends, the arena closes after `arena.return-delay` and the player goes back to their server. If they
+   leave mid-battle, the battle is re-attached wherever they join next, like any other.
+
+The arena server rolls the wild opponent itself, so its roll can be redeemed there. Trainer, gym and ranked battles
+will add their own fields to `ArenaBattle`. A template only needs:
+
+```yaml
+schematics:
+  - { file: arena.schem, position: [0, 64, 0] }
+spawns:
+  default: { x: 0.5, y: 65, z: -6.5, yaw: 0, pitch: 0 }
+  stage: { x: 0.5, y: 65, z: -3.5, yaw: 0, pitch: 0 }
+```
+
 ## Battle HUD (AstralHologram)
 
 With AstralHologram on the server (optional dependency), a Java player plays the battle in a mouse HUD laid out like

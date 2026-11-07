@@ -15,10 +15,29 @@ import com.astralrealms.poke.battle.model.RewardCalculator;
  */
 @ConfigSerializable
 public record PokeBattleConfiguration(Settings settings, Start start, Battle battle, @Nullable Recovery recovery,
-                                      Rewards rewards, Dialog dialog, Stage stage, @Nullable Creatures creatures,
-                                      @Nullable Hud hud) {
+                                      @Nullable Arena arena, Rewards rewards, Dialog dialog, Stage stage,
+                                      @Nullable Creatures creatures, @Nullable Hud hud) {
 
     private static final Recovery DEFAULT_RECOVERY = new Recovery(Duration.ofSeconds(2));
+    private static final Arena DEFAULT_ARENA = new Arena("stage", Duration.ofSeconds(3));
+
+    /**
+     * The {@code arena} section, or its defaults when an older config has none.
+     */
+    public Arena arenaOrDefault() {
+        return this.arena == null ? DEFAULT_ARENA : this.arena;
+    }
+
+    /**
+     * Battles in arenas: instances run by PolarisInstances on instance servers.
+     *
+     * @param stageSpawn  the arena template's spawn point the battle is staged at (where the player's side stands,
+     *                    facing the opponent); without it, the battle is laid in front of the arrival spawn
+     * @param returnDelay after the battle ends, how long before the arena closes and the player goes back
+     */
+    @ConfigSerializable
+    public record Arena(String stageSpawn, Duration returnDelay) {
+    }
 
     /**
      * The {@code recovery} section, or its defaults when an older config has none.

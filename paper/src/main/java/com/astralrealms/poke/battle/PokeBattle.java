@@ -2,10 +2,14 @@ package com.astralrealms.poke.battle;
 
 import java.util.concurrent.TimeUnit;
 
+import org.jetbrains.annotations.Nullable;
+
 import com.astralrealms.core.cache.CacheService;
 import com.astralrealms.core.messaging.MessagingService;
 import com.astralrealms.core.paper.AstralPaperAPI;
 import com.astralrealms.core.paper.plugin.AstralPaperPlugin;
+import com.astralrealms.poke.battle.arena.ArenaBattles;
+import com.astralrealms.poke.battle.arena.ArenaRequests;
 import com.astralrealms.poke.battle.command.BattleCommand;
 import com.astralrealms.poke.battle.command.PokeBattleCommand;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
@@ -49,6 +53,8 @@ public final class PokeBattle extends AstralPaperPlugin {
 
     // Services
     private BattleServiceImpl battles;
+    /** Sends players to arenas, null without PolarisInstances-Bridge. */
+    private @Nullable ArenaRequests arenas;
 
     @Override
     public void onEnable() {
@@ -89,6 +95,11 @@ public final class PokeBattle extends AstralPaperPlugin {
 
         // Listeners
         this.registerListeners(new BattleConnectionListener(this.battles));
+        // Arenas: PolarisInstances' types are only loaded when it is there
+        if (this.getServer().getPluginManager().isPluginEnabled("PolarisInstances"))
+            this.registerListeners(new ArenaBattles(this));
+        if (this.getServer().getPluginManager().isPluginEnabled("PolarisInstances-Bridge"))
+            this.arenas = new ArenaRequests(this);
 
         // Tasks: recover the battles of dead workers, settle ends this server missed
         long checkInterval = this.configuration.recoveryOrDefault().checkInterval().toMillis();

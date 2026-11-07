@@ -155,7 +155,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
         UUID battleId = UuidV7.generate();
         Battle.Options options = new Battle.Options(true, true, true, request.wild(), request.captureFlags(),
-                player.getWorld().getName());
+                request.place() != null ? request.place() : player.getWorld().getName());
         Battle battle = new Battle(battleId, request.format(), playerId, allies,
                 List.of(new Battle.Foe(Battle.label(0), request.wild().creature())), options);
         BattleStartPacket packet;
@@ -169,6 +169,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         if (this.byPlayer.putIfAbsent(playerId, battleId) != null)
             return CompletableFuture.completedFuture(BattleStartResult.ALREADY_IN_BATTLE);
         this.battles.put(battleId, battle);
+        if (request.stage() != null)
+            this.plugin.stages().place(battleId, request.stage(), this.plugin.configuration());
 
         PokeBattleConfiguration configuration = this.plugin.configuration();
         return this.locks.acquire(playerId, battleId, configuration.battle().lockTtl())

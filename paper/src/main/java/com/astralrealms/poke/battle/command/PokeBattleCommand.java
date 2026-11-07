@@ -1,5 +1,6 @@
 package com.astralrealms.poke.battle.command;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.command.CommandSender;
@@ -7,6 +8,8 @@ import org.bukkit.entity.Player;
 
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.PokeBattle;
+import com.astralrealms.poke.battle.arena.ArenaBattle;
+import com.astralrealms.poke.battle.arena.ArenaRequests;
 import com.astralrealms.poke.battle.api.model.BattleRequest;
 import com.astralrealms.poke.battle.api.model.BattleStartResult;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
@@ -51,6 +54,26 @@ public class PokeBattleCommand extends BaseCommand {
         this.plugin.battles()
                 .start(BattleRequest.wild(player, PokeCoreAPI.get().creation().sign(creature)))
                 .thenAccept(result -> report(player, result));
+    }
+
+    @Subcommand("arena")
+    @Description("Send a player to battle a freshly rolled creature in an arena (an instance on an arena server)")
+    @Syntax("<player> <template> <species> [level]")
+    @CommandCompletion("@players @nothing @species @nothing")
+    public void onArena(CommandSender sender, OnlinePlayer target, String template, String species,
+                        @Default("5") int level) {
+        ArenaRequests arenas = this.plugin.arenas();
+        if (arenas == null) {
+            PokeBattleMessages.ARENA_UNAVAILABLE.message(sender);
+            return;
+        }
+        if (PokeCoreAPI.get().species().findSpecies(species).isEmpty()) {
+            PokeBattleMessages.UNKNOWN_SPECIES.message(sender, new PlaceholderContainer()
+                    .registerDirect("species", species));
+            return;
+        }
+        arenas.request(target.getPlayer(), template,
+                new ArenaBattle(BattleRequest.WILD_FORMAT, species, null, level, Set.of()));
     }
 
     @Subcommand("abort")

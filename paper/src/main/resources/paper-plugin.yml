@@ -30,3 +30,13 @@ dependencies:
       load: BEFORE
       required: false
       join-classpath: true
+    # Arena servers: battles started in an instance
+    PolarisInstances:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    # Servers that send players to arenas
+    PolarisInstances-Bridge:
+      load: BEFORE
+      required: false
+      join-classpath: true

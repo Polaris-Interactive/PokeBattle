@@ -22,6 +22,14 @@ battle:
   # After asking a worker to stop a battle, how long to wait for its end before releasing the players anyway.
   end-timeout: 15s
 
+arena:
+  # Battles in arenas (PolarisInstances instances on instance servers). The arena template's spawn point the battle is
+  # staged at: the player's side stands there, facing the opponent. Without it, the battle is laid in front of where
+  # the player arrives.
+  stage-spawn: stage
+  # After the battle ends, how long before the arena closes and the player goes back to their server.
+  return-delay: 3s
+
 recovery:
   # How often this server checks that the workers of its battles still beat. A dead worker's battles are replayed on
   # another one and resume where they were. Keep it below the workers' HEARTBEAT_TTL_SECONDS (5 s).
