@@ -1,6 +1,5 @@
 package com.astralrealms.poke.battle.arena;
 
-import java.util.List;
 import java.util.Map;
 
 import org.bukkit.entity.Player;
@@ -33,7 +32,7 @@ public class ArenaRequests {
         }
         PokeBattleMessages.ARENA_REQUESTING.message(player);
         PolarisInstancesBridgeAPI.get()
-                .request(InstanceRequest.of(template, List.of(player.getUniqueId()))
+                .request(InstanceRequest.forPlayer(template, player.getUniqueId())
                         .withMetadata(Map.of(ArenaBattle.METADATA_KEY, battle.toJson())))
                 .whenComplete((ticket, throwable) -> {
                     if (throwable != null) {
