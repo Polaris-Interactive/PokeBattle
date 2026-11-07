@@ -57,12 +57,15 @@ import net.kyori.adventure.text.format.TextColor;
  */
 final class BattleHud {
 
+    /** The back button's art, behind its label. */
+    private static final String BACK_FRAME = "back-frame";
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
             "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon",
-            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon", "info-frame");
+            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon", "info-frame",
+            "ally-underlay", "foe-underlay", BACK_FRAME);
     /** Art drawn as items (see {@link HudArt}); every other element is text. */
     private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
-            "turn-icon", "ally-icon", "foe-icon", "info-frame");
+            "turn-icon", "ally-icon", "foe-icon", "info-frame", "ally-underlay", "foe-underlay", BACK_FRAME);
     /** Text read line by line rather than as a label: its lines line up on the left. */
     private static final Set<String> LEFT_ALIGNED = Set.of("info", "log");
     private static final String BUTTON = "button-";
@@ -550,6 +553,10 @@ final class BattleHud {
             Key art = this.art(under);
             this.setItem(FRAME + id.substring(BUTTON.length()), entered ? HudArt.hover(art) : art);
         }
+
+        // The back button's art lights up the same way
+        if (id.equals(BACK) && !(this.camera != null && this.camera.busy()))
+            this.setItem(BACK_FRAME, entered ? HudArt.hover(HudArt.BACK) : HudArt.BACK);
     }
 
     private Key art(Entry entry) {
@@ -588,9 +595,11 @@ final class BattleHud {
             this.set(id + "-hp", List.of());
             this.set(id + "-bar", List.of());
             this.setItem(id + "-icon", null);
+        this.setItem(id + "-underlay", null);
             return;
         }
         this.setItem(id + "-icon", HudArt.speciesItem(creature.species()));
+        this.setItem(id + "-underlay", HudArt.ICON_UNDERLAY);
         this.set(id, List.of(name.component(new PlaceholderContainer()
                 .registerDirect("name", creature.name())
                 .registerDirect("level", creature.level())
@@ -672,6 +681,8 @@ final class BattleHud {
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);
+        this.setItem(BACK_FRAME, HudArt.BACK);
+        this.visible(BACK_FRAME, !moving && this.back() != null);
         this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component()));
         this.visible(NEXT, !moving && this.pages() > 1);
         this.tooltip(null);

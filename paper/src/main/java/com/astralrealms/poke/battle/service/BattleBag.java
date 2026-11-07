@@ -8,16 +8,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
 
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.core.PokeCoreAPI;
 import com.astralrealms.poke.core.api.service.ItemMappingService;
 import com.astralrealms.poke.core.mechanics.item.ItemEffect;
 
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 
 /**
@@ -41,8 +44,9 @@ public class BattleBag {
      * @param name    the stack's display name
      * @param amount  how many the player carries
      * @param effects what it does, empty for a ball
+     * @param model   the item's own model, the sprite the player sees in the inventory; null without one
      */
-    public record Entry(String itemId, Component name, int amount, List<ItemEffect> effects) {
+    public record Entry(String itemId, Component name, int amount, List<ItemEffect> effects, @Nullable Key model) {
 
         public Entry {
             effects = List.copyOf(effects);
@@ -90,7 +94,7 @@ public class BattleBag {
             }
             Entry known = entries.get(itemId);
             entries.put(itemId, new Entry(itemId, stack.effectiveName(),
-                    stack.getAmount() + (known == null ? 0 : known.amount()), effects));
+                    stack.getAmount() + (known == null ? 0 : known.amount()), effects, model(stack)));
         }
         return List.copyOf(entries.values());
     }
@@ -129,6 +133,12 @@ public class BattleBag {
                 .values()
                 .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
         return true;
+    }
+
+    private static @Nullable Key model(ItemStack stack) {
+        ItemMeta meta = stack.getItemMeta();
+        NamespacedKey model = meta == null ? null : meta.getItemModel();
+        return model == null ? null : Key.key(model.getNamespace(), model.getKey());
     }
 
     static List<ItemEffect> battleEffects(List<ItemEffect> effects) {

@@ -45,6 +45,12 @@ public class HudArt {
     /** The turn marker in front of the turn and timer line. */
     public static final Key TURN_ICON = Key.key("pokesmp", "hud_turn");
 
+    /** The square behind a card's species icon. */
+    public static final Key ICON_UNDERLAY = Key.key("pokesmp", "hud_icon_underlay");
+
+    /** The back button's art, with a second state for a hovered one. */
+    public static final Key BACK = Key.key("pokesmp", "hud_back");
+
     /** The status strip on a card, one per Showdown status id. */
     private static final Map<String, Key> STATUS = Map.of(
             "brn", Key.key("pokesmp", "hud_status_brn"),
@@ -74,7 +80,7 @@ public class HudArt {
 
     /** Art with a second state for a hovered button ({@code <model>_hover}). */
     private static final Set<Key> HOVERABLE = Set.of(FRAME_FIGHT, FRAME_SWITCH, FRAME_BAG, FRAME_RUN,
-            FRAME_LIST);
+            FRAME_LIST, BACK);
 
     /**
      * A button's art as it looks hovered, or the art itself when it has no hover state.

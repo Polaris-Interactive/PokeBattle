@@ -62,7 +62,7 @@ class BattleBagTest {
     }
 
     private static List<Integer> targets(ItemEffect effect, List<ChoiceView.Member> team) {
-        BattleBag.Entry entry = new BattleBag.Entry("x", Component.empty(), 1, List.of(effect));
+        BattleBag.Entry entry = new BattleBag.Entry("x", Component.empty(), 1, List.of(effect), null);
         return BattleBag.targets(entry, team).stream().map(ChoiceView.Member::position).toList();
     }
 }
