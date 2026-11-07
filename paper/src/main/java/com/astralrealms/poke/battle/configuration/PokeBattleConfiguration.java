@@ -18,14 +18,19 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
                                       @Nullable Arena arena, Rewards rewards, Dialog dialog, Stage stage,
                                       @Nullable Creatures creatures, @Nullable Hud hud) {
 
-    private static final Recovery DEFAULT_RECOVERY = new Recovery(null);
-    private static final Arena DEFAULT_ARENA = new Arena(null, null);
+    private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofSeconds(2);
+    private static final String DEFAULT_STAGE_SPAWN = "stage";
+    private static final Duration DEFAULT_RETURN_DELAY = Duration.ofSeconds(3);
 
     /**
-     * The {@code arena} section, or its defaults when an older config has none.
+     * The {@code arena} section, its missing keys at their defaults. Configurate builds the section with null fields
+     * when an older config lacks it, and AstralCore cannot write durations back, so defaults are applied here, not
+     * in the record.
      */
     public Arena arenaOrDefault() {
-        return this.arena == null ? DEFAULT_ARENA : this.arena;
+        Arena section = this.arena;
+        return new Arena(section == null || section.stageSpawn() == null ? DEFAULT_STAGE_SPAWN : section.stageSpawn(),
+                section == null || section.returnDelay() == null ? DEFAULT_RETURN_DELAY : section.returnDelay());
     }
 
     /**
@@ -36,20 +41,17 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param returnDelay after the battle ends, how long before the arena closes and the player goes back
      */
     @ConfigSerializable
-    public record Arena(String stageSpawn, Duration returnDelay) {
-
-        // Configurate builds the record even when the section is absent from an older config: defaults per field
-        public Arena {
-            stageSpawn = stageSpawn == null ? "stage" : stageSpawn;
-            returnDelay = returnDelay == null ? Duration.ofSeconds(3) : returnDelay;
-        }
+    public record Arena(@Nullable String stageSpawn, @Nullable Duration returnDelay) {
     }
 
     /**
-     * The {@code recovery} section, or its defaults when an older config has none.
+     * The {@code recovery} section, its missing keys at their defaults (see {@link #arenaOrDefault()}).
      */
     public Recovery recoveryOrDefault() {
-        return this.recovery == null ? DEFAULT_RECOVERY : this.recovery;
+        Recovery section = this.recovery;
+        return new Recovery(section == null || section.checkInterval() == null
+                ? DEFAULT_CHECK_INTERVAL
+                : section.checkInterval());
     }
 
     /**
@@ -57,12 +59,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      *                      battles are taken over by another worker, see the worker's heartbeat TTL)
      */
     @ConfigSerializable
-    public record Recovery(Duration checkInterval) {
-
-        // Configurate builds the record even when the section is absent from an older config: defaults per field
-        public Recovery {
-            checkInterval = checkInterval == null ? Duration.ofSeconds(2) : checkInterval;
-        }
+    public record Recovery(@Nullable Duration checkInterval) {
     }
 
     @ConfigSerializable
