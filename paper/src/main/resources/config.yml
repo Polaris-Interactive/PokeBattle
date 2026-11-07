@@ -98,6 +98,16 @@ creatures:
     # The effect leaves when the move's animation reaches this marker: a `pokesmp:<name>` timeline keyframe, written by
     # the model installer at the animation's strike (or placed by hand in Blockbench). Without one it leaves at once.
     release-marker: "release"
+  # What a hit shows on the creature that takes it.
+  hit:
+    # Its model flashes red (BetterModel's damage tint).
+    flash: true
+    # The HP it lost rises above it, seen only by the player (hit-damage-ally / hit-damage-foe in messages.yml).
+    numbers: true
+    number-life: 1200ms
+    # Blocks a number rises while it stays, and its size.
+    number-rise: 0.8
+    number-scale: 1.2
 
 hud:
   # The battle drawn in front of the player with AstralHologram (Java players). false, without AstralHologram, or
@@ -212,3 +222,23 @@ hud:
     # The log, bottom right, on its panel.
     log-frame:      { position: { yaw: 41.6, pitch: 19.5 }, scale: 1.008, background: false, depth: 2.05 }
     log:            { position: { yaw: 41.6, pitch: 21.5 }, scale: 0.148, background: false }
+
+# Battles fought where they started (not in an arena): a ring on the ground around the stage, seen only by the player,
+# and a barrier keeping them inside it. A player held by the HUD does not walk anyway; the barrier is for the dialog.
+staging:
+  ring: true
+  # The ring's centre in the stage's frame (as `stage`): between the player and the opponent.
+  centre: { forward: 4.4, right: 0, up: 0 }
+  # Blocks; the barrier is the same circle.
+  radius: 6.5
+  # A particle without extra data (end_rod, happy_villager, wax_on...).
+  particle: end_rod
+  points: 48
+  # How often the ring is drawn again (read at start).
+  interval: 500ms
+  barrier: true
+
+capture:
+  # Onboarding (GDD: the first capture is guaranteed): a ball always catches while the player's Pokédex counts fewer
+  # caught species than this. The starter counts one, hence 2. 0 for never.
+  guaranteed-below: 2

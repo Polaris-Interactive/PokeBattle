@@ -102,6 +102,9 @@ import net.kyori.adventure.text.Component;
  */
 public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
+    /** A capture that cannot fail: every shake, then caught. */
+    private static final CaptureResult GUARANTEED_CAPTURE = new CaptureResult(true, 3);
+
     private static final int MAX_TEAM = 6;
     private static final String WILD_SIDE_NAME = "wild";
     private static final String WILD_AI = "wild";
@@ -550,7 +553,9 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 this.openDialog(battle);
                 return;
             }
-            CaptureResult result = PokeCoreAPI.get().capture().roll(attempt);
+            CaptureResult result = this.guaranteed(player)
+                    ? GUARANTEED_CAPTURE
+                    : PokeCoreAPI.get().capture().roll(attempt);
             this.plugin.debug("Battle {}: {} thrown, {} shakes, caught {}", battle.id(), ball, result.shakes(),
                     result.caught());
             battle.itemNames().put(ball, taken.name());
@@ -624,6 +629,15 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * A throw at the opponent on the field. Its HP is only known as the percentage the player sees: close enough for
      * the formula (the error is under 1 % of the rate).
      */
+    /**
+     * Onboarding (GDD): a ball always catches while the player's Pokédex counts fewer caught species than
+     * {@code capture.guaranteed-below}.
+     */
+    private boolean guaranteed(Player player) {
+        int below = this.plugin.configuration().captureOrDefault().guaranteedBelow();
+        return below > 0 && PokeCoreAPI.get().pokedex().caughtSpecies(player.getUniqueId()) < below;
+    }
+
     private @Nullable CaptureAttempt attempt(Battle battle, String ball) {
         if (PokeCoreAPI.get().capture().ball(ball).isEmpty() || battle.options().wildRoll() == null)
             return null;

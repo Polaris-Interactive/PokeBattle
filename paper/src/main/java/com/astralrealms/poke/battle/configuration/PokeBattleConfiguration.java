@@ -16,11 +16,74 @@ import com.astralrealms.poke.battle.model.RewardCalculator;
 @ConfigSerializable
 public record PokeBattleConfiguration(Settings settings, Start start, Battle battle, @Nullable Recovery recovery,
                                       @Nullable Arena arena, Rewards rewards, Dialog dialog, Stage stage,
-                                      @Nullable Creatures creatures, @Nullable Hud hud) {
+                                      @Nullable Creatures creatures, @Nullable Hud hud, @Nullable Staging staging,
+                                      @Nullable Capture capture) {
 
     private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofSeconds(2);
     private static final String DEFAULT_STAGE_SPAWN = "stage";
     private static final Duration DEFAULT_RETURN_DELAY = Duration.ofSeconds(3);
+    private static final int DEFAULT_GUARANTEED_BELOW = 2;
+    private static final double DEFAULT_RING_RADIUS = 6.5;
+    private static final String DEFAULT_RING_PARTICLE = "end_rod";
+    private static final Duration DEFAULT_RING_INTERVAL = Duration.ofMillis(500);
+    private static final int DEFAULT_RING_POINTS = 48;
+    private static final Point DEFAULT_RING_CENTRE = new Point(4.4, 0, 0);
+    private static final Duration DEFAULT_NUMBER_LIFE = Duration.ofMillis(1200);
+
+    /**
+     * The {@code staging} section, its missing keys at their defaults (see {@link #arenaOrDefault()}).
+     */
+    public Staging stagingOrDefault() {
+        Staging section = this.staging;
+        if (section == null)
+            return new Staging(true, DEFAULT_RING_CENTRE, DEFAULT_RING_RADIUS, DEFAULT_RING_PARTICLE,
+                    DEFAULT_RING_POINTS, DEFAULT_RING_INTERVAL, true);
+        return new Staging(section.ring() == null || section.ring(),
+                section.centre() == null ? DEFAULT_RING_CENTRE : section.centre(),
+                section.radius() == null ? DEFAULT_RING_RADIUS : section.radius(),
+                section.particle() == null ? DEFAULT_RING_PARTICLE : section.particle(),
+                section.points() == null ? DEFAULT_RING_POINTS : section.points(),
+                section.interval() == null ? DEFAULT_RING_INTERVAL : section.interval(),
+                section.barrier() == null || section.barrier());
+    }
+
+    /**
+     * Battles fought where they started (not in an arena): a ring drawn on the ground around the stage, seen only by
+     * the player, and a barrier keeping them inside it. A player held by the HUD does not walk anyway.
+     *
+     * @param ring     whether the ring is drawn
+     * @param centre   the ring's centre in the stage's frame (see {@link Stage})
+     * @param radius   blocks; the barrier is the same circle
+     * @param particle a Bukkit particle name ({@code end_rod}); one without extra data
+     * @param points   particles per ring
+     * @param interval how often the ring is drawn again
+     * @param barrier  whether the player is kept inside the ring
+     */
+    @ConfigSerializable
+    public record Staging(@Nullable Boolean ring, @Nullable Point centre, @Nullable Double radius,
+                          @Nullable String particle, @Nullable Integer points, @Nullable Duration interval,
+                          @Nullable Boolean barrier) {
+    }
+
+    /**
+     * The {@code capture} section, its missing keys at their defaults (see {@link #arenaOrDefault()}).
+     */
+    public Capture captureOrDefault() {
+        Capture section = this.capture;
+        return new Capture(section == null || section.guaranteedBelow() == null
+                ? DEFAULT_GUARANTEED_BELOW
+                : section.guaranteedBelow());
+    }
+
+    /**
+     * @param guaranteedBelow a ball always catches while the player's Pokédex counts fewer caught species than this
+     *                        (onboarding, GDD: the first capture is guaranteed; the starter already counts one, hence
+     *                        2); 0 for never
+     */
+    @ConfigSerializable
+    public record Capture(@Nullable Integer guaranteedBelow) {
+    }
+
 
     /**
      * The {@code arena} section, its missing keys at their defaults. Configurate builds the section with null fields
@@ -157,7 +220,22 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     @ConfigSerializable
     public record Creatures(boolean enabled, Map<String, List<String>> animations, Duration cueSpacing,
                             @Nullable Duration moveSpacing, Duration faintLinger, Duration closeDelay,
-                            @Nullable MoveEffects moves) {
+                            @Nullable MoveEffects moves, @Nullable Hit hit) {
+
+        /**
+         * The {@code hit} section, its missing keys at their defaults.
+         */
+        public Hit hitOrDefault() {
+            Hit section = this.hit;
+            if (section == null)
+                return new Hit(true, true, DEFAULT_NUMBER_LIFE, 0.8, 1.2);
+            return new Hit(section.flash() == null || section.flash(),
+                    section.numbers() == null || section.numbers(),
+                    section.numberLife() == null ? DEFAULT_NUMBER_LIFE : section.numberLife(),
+                    section.numberRise() == null ? 0.8 : section.numberRise(),
+                    section.numberScale() == null ? 1.2 : section.numberScale());
+        }
+
 
         public List<String> animations(String moment) {
             List<String> names = this.animations == null ? null : this.animations.get(moment);
@@ -177,6 +255,21 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param releaseMarker the model animation marker ({@code pokesmp:<name>} timeline keyframe) the effect waits
      *                      for; empty or absent from the animation: the effect leaves with the animation's start
      */
+    /**
+     * What a hit shows on the creature that takes it.
+     *
+     * @param flash       whether its model flashes red (BetterModel's damage tint)
+     * @param numbers     whether the HP it lost rises above it ({@code hit-damage-ally}/{@code hit-damage-foe} in
+     *                    {@code messages.yml}), seen only by the player
+     * @param numberLife  how long a number stays
+     * @param numberRise  blocks a number rises while it stays
+     * @param numberScale its size
+     */
+    @ConfigSerializable
+    public record Hit(@Nullable Boolean flash, @Nullable Boolean numbers, @Nullable Duration numberLife,
+                      @Nullable Double numberRise, @Nullable Double numberScale) {
+    }
+
     @ConfigSerializable
     public record MoveEffects(boolean enabled, List<String> skills, double height, @Nullable String statUp,
                               @Nullable String statDown, @Nullable String releaseMarker) {

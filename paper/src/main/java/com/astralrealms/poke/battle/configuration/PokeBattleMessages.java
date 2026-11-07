@@ -119,6 +119,8 @@ public enum PokeBattleMessages implements MessageEnum {
     HUD_TOOLTIP_MOVE,
     HUD_TOOLTIP_MEMBER_MOVE,
     HUD_TOOLTIP_MEMBER,
+    HIT_DAMAGE_ALLY,
+    HIT_DAMAGE_FOE,
     ;
 
     @Setter

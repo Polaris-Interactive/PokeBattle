@@ -39,6 +39,7 @@ public class StagedUi implements BattleUi {
     private final BattleUi ui;
     private final @Nullable CreatureActors actors;
     private final @Nullable MoveEffects effects;
+    private final @Nullable HitFeedback hits;
     private final Map<UUID, Scene> scenes = new HashMap<>();
 
     /**
@@ -49,6 +50,7 @@ public class StagedUi implements BattleUi {
         this.ui = ui;
         this.actors = actors;
         this.effects = effects;
+        this.hits = actors == null ? null : new HitFeedback(plugin, actors);
     }
 
     @Override
@@ -60,6 +62,7 @@ public class StagedUi implements BattleUi {
         // A creature already out (coming back with /combat, a battle shown after a reload) stands there at once
         scene.sync(Side.ALLY, field.ally());
         scene.sync(Side.FOE, field.foe());
+        scene.seen(field);
     }
 
     @Override
@@ -94,8 +97,8 @@ public class StagedUi implements BattleUi {
             case FOE_SWITCH -> scene.enter(Side.FOE, field.foe());
             case ALLY_MOVE -> scene.attack(Side.ALLY, beat.move());
             case FOE_MOVE -> scene.attack(Side.FOE, beat.move());
-            case ALLY_DAMAGE -> scene.animate(Side.ALLY, "damage");
-            case FOE_DAMAGE -> scene.animate(Side.FOE, "damage");
+            case ALLY_DAMAGE -> scene.hit(Side.ALLY, field.ally());
+            case FOE_DAMAGE -> scene.hit(Side.FOE, field.foe());
             case ALLY_BOOST -> scene.stat(Side.ALLY, true);
             case FOE_BOOST -> scene.stat(Side.FOE, true);
             case ALLY_UNBOOST -> scene.stat(Side.ALLY, false);
@@ -106,6 +109,7 @@ public class StagedUi implements BattleUi {
             case END -> {
             }
         }
+        scene.seen(field);
     }
 
     @Override
@@ -173,6 +177,8 @@ public class StagedUi implements BattleUi {
         private final BattleStage stage;
         private final CreatureActors actors;
         private final Map<Side, Actor> standing = new HashMap<>();
+        /** Each side's HP as last shown, to tell how much a hit took. */
+        private final Map<Side, Integer> hp = new HashMap<>();
 
         Scene(Player player, BattleStage stage, CreatureActors actors) {
             this.player = player;
@@ -292,6 +298,27 @@ public class StagedUi implements BattleUi {
 
         private static boolean shown(@Nullable Actor actor) {
             return actor != null && actor.entity().isValid();
+        }
+
+        /**
+         * The side's creature took a hit: its damage animation, its red flash and the HP it lost ({@code creature},
+         * the side after the hit, against the HP last shown).
+         */
+        void hit(Side side, ChoiceView.Creature creature) {
+            this.animate(side, "damage");
+            Actor actor = this.standing.get(side);
+            Integer before = this.hp.get(side);
+            if (hits != null && shown(actor))
+                hits.hit(this.player, actor.entity(), side == Side.ALLY,
+                        before == null ? 0 : before - creature.hp());
+        }
+
+        /**
+         * The field as shown after a beat: the HP the next hit is measured from (a heal or a switch in between counts).
+         */
+        void seen(FieldView field) {
+            this.hp.put(Side.ALLY, field.ally().hp());
+            this.hp.put(Side.FOE, field.foe().hp());
         }
 
         void faint(Side side) {

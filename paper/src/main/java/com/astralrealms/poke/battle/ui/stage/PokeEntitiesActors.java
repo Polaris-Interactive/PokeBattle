@@ -48,4 +48,9 @@ public class PokeEntitiesActors implements CreatureActors {
     public void remove(Entity creature) {
         PokeEntitiesAPI.get().creatures().remove(creature.getUniqueId());
     }
+
+    @Override
+    public void flash(Entity creature) {
+        PokeEntitiesAPI.get().creatures().flash(creature);
+    }
 }

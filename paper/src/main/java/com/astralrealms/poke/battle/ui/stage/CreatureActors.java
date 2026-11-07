@@ -36,4 +36,9 @@ public interface CreatureActors {
     Optional<Duration> marker(Entity creature, String animation, String marker);
 
     void remove(Entity creature);
+
+    /**
+     * Flashes the creature red for a moment, as when it is hurt.
+     */
+    void flash(Entity creature);
 }

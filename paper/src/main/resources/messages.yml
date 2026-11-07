@@ -124,3 +124,7 @@ hud-tooltip-move: "%icon% <white>%move%</white>  %pp%<newline><#4FA59B>━━━
 # The tooltip of a hovered team member: one line per move (hud-tooltip-member-move), then its ability and Speed.
 hud-tooltip-member-move: "%icon% <white>%move%</white>  %pp%"
 hud-tooltip-member: "%moves%<newline><#4FA59B>━━━━━━━━━━━━<newline><#7FD7D0>Talent : <white>%ability%<newline><#F2C94C>⚡ Vitesse : <white>%speed%"
+# The HP a creature lost, rising above it on stage (creatures.hit.numbers): the player's creature in HP, the opponent's
+# in percent (the simulator only tells its HP as a percentage).
+hit-damage-ally: "<bold><#FF5555>-%amount%"
+hit-damage-foe: "<bold><#FF5555>-%amount% %"

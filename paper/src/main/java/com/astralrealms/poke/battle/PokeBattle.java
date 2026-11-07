@@ -15,6 +15,7 @@ import com.astralrealms.poke.battle.command.PokeBattleCommand;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.listener.BattleConnectionListener;
+import com.astralrealms.poke.battle.listener.StagingListener;
 import com.astralrealms.poke.battle.network.BattleTransport;
 import com.astralrealms.poke.battle.network.PokeBattleExchanges;
 import com.astralrealms.poke.battle.network.PokeBattlePacketRegistry;
@@ -95,6 +96,9 @@ public final class PokeBattle extends AstralPaperPlugin {
 
         // Listeners
         this.registerListeners(new BattleConnectionListener(this.battles));
+        StagingListener staging = new StagingListener(this);
+        this.registerListeners(staging);
+        staging.start();
         // Arenas: PolarisInstances' types are only loaded when it is there
         if (this.getServer().getPluginManager().isPluginEnabled("PolarisInstances"))
             this.registerListeners(new ArenaBattles(this));
