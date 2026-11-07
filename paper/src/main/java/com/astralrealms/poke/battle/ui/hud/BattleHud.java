@@ -760,8 +760,9 @@ final class BattleHud {
      * The tooltip on its panel, or neither.
      */
     private void tooltip(@Nullable Component info) {
+        // The text carries its own background, sized to what it says; a fixed art frame would clip longer details
         this.set("info", info == null ? List.of() : List.of(info));
-        this.setItem("info-frame", info == null ? null : HudArt.TOOLTIP);
+        this.setItem("info-frame", null);
     }
 
     /**
