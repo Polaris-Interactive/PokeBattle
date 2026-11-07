@@ -83,19 +83,24 @@ class BattleStageTest {
     }
 
     @Test
-    void anEyeRisesOverABigCreatureInTheWay() {
+    void anEyeSwingsOutOfABigCreaturesShadow() {
         BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
         // Behind the ally, looking at the middle: a 4-block ally stands across the line
         stage.body("ally", new BattleStage.Body(4, 2));
         Location eye = stage.eye(shot(0, -1, 1, "center"));
-        Location target = stage.target("center");
 
-        // Where the line from the middle to the eye enters the ally's box (its far side, z = 3), it passes over its head
-        double share = (target.getZ() - 3) / (target.getZ() - eye.getZ());
-        double height = target.getY() + share * (eye.getY() - target.getY());
-        assertThat(height).isGreaterThan(4);
-        // And not much more than it needs
-        assertThat(height).isLessThan(4 + 0.5);
+        // Never under the ally's nametag (4 blocks up), and it still sees past the ally rather than through it
+        assertThat(eye.getY()).isGreaterThanOrEqualTo(4 + 0.5 - 1.0E-6);
+        assertThat(eye.getX()).isNotCloseTo(1, within(0.1));
+    }
+
+    @Test
+    void aShotBesideABigCreatureStaysAboveItsNametag() {
+        BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
+        // The ally-move shot: beside and behind a big ally whose nametag is 4.4 blocks up, looking across at the foe
+        stage.body("ally", new BattleStage.Body(4.4, 2.9));
+        Location eye = stage.eye(shot(0.5, -2.2, 1.8, "foe"));
+        assertThat(eye.getY()).isGreaterThanOrEqualTo(4.4 + 0.5 - 1.0E-6);
     }
 
     @Test

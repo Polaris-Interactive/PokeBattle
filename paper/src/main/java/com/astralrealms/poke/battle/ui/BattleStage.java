@@ -39,6 +39,11 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     private static final double EYE_ROOM = 0.4;
     /** How far apart the heights an eye tries are, when it rises over something. */
     private static final double LIFT_STEP = 0.5;
+    /** How far above a creature's nametag an eye stays, at least. */
+    private static final double CLEAR_ABOVE = 0.5;
+    /** How far, in degrees either way, an eye swings around its target to get clear, and the steps it tries. */
+    private static final double MAX_SWING = 90;
+    private static final double SWING_STEP = 5;
     /** Defaults for a camera that sets no {@code reference-size} or {@code max-scale}. */
     private static final double REFERENCE_SIZE = 1.5;
     private static final double MAX_SCALE = 4;
@@ -73,6 +78,16 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
      */
     public @Nullable Body body(String side) {
         return side.equals("ally") ? this.bodies.ally : this.bodies.foe;
+    }
+
+    /**
+     * The height of the nametag of the creature on a side, in world Y, or negative infinity when nobody is there.
+     */
+    private double top(String side) {
+        Body body = this.body(side);
+        if (body == null)
+            return Double.NEGATIVE_INFINITY;
+        return this.spot(side.equals("ally") ? this.spots.ally() : this.spots.foe()).getY() + body.height();
     }
 
     /**
@@ -130,8 +145,10 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     /**
      * The eye of a shot: at {@code from}, turned towards its target, and as many times further from it as the creature
      * it looks at is bigger than {@code reference-size} (both for {@code center}). When blocks or a creature stand
-     * between them (a hill, a tree, a big ally), the eye rises up to {@link #MAX_LIFT} blocks over the tallest creature
-     * (times the push-back) to see over them; failing that, it comes in front of the first block.
+     * between them (a hill, a tree, a big ally), the eye first swings around its target to the nearest side that sees it
+     * (out of a creature's shadow, at the same distance and height); failing that, it rises up to {@link #MAX_LIFT}
+     * blocks over the tallest creature (times the push-back) to see over them, and failing that it comes in front of
+     * the first block.
      */
     public Location eye(PokeBattleConfiguration.Shot shot) {
         String lookAt = shot.lookAt().toLowerCase(Locale.ROOT);
@@ -148,23 +165,32 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
             eye = target.clone().add(eye.toVector().subtract(target.toVector()).multiply(scale));
             eye.setY(Math.max(eye.getY(), height));
         }
+        // Never under a creature's nametag: the eye stays above the higher of the two
+        double nametags = Math.max(this.top("ally"), this.top("foe"));
+        if (nametags > Double.NEGATIVE_INFINITY)
+            eye.setY(Math.max(eye.getY(), nametags + CLEAR_ABOVE));
 
         World world = eye.getWorld();
         List<BoundingBox> creatures = this.obstacles(lookAt, target);
         if (!this.clear(world, creatures, target, eye)) {
-            double tallest = creatures.stream().mapToDouble(BoundingBox::getHeight).max().orElse(0);
-            Location free = null;
-            // Pushed back, the eye has to climb as much more to see over the same creature
-            double limit = (MAX_LIFT + tallest) * scale;
-            for (double lift = LIFT_STEP; lift <= limit + 1.0E-6 && free == null; lift += LIFT_STEP) {
-                Location raised = eye.clone().add(0, lift, 0);
-                if (this.clear(world, creatures, target, raised))
-                    free = raised;
+            Location swung = swing(world, creatures, target, eye);
+            if (swung != null) {
+                eye = swung;
+            } else {
+                double tallest = creatures.stream().mapToDouble(BoundingBox::getHeight).max().orElse(0);
+                Location free = null;
+                // Pushed back, the eye has to climb as much more to see over the same creature
+                double limit = (MAX_LIFT + tallest) * scale;
+                for (double lift = LIFT_STEP; lift <= limit + 1.0E-6 && free == null; lift += LIFT_STEP) {
+                    Location raised = eye.clone().add(0, lift, 0);
+                    if (this.clear(world, creatures, target, raised))
+                        free = raised;
+                }
+                if (free != null)
+                    eye = free;
+                else if (world != null)
+                    eye = inFront(world, target, eye);
             }
-            if (free != null)
-                eye = free;
-            else if (world != null)
-                eye = inFront(world, target, eye);
         }
         Vector direction = target.toVector().subtract(eye.toVector());
         if (direction.lengthSquared() > 1.0E-6)
@@ -261,6 +287,23 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
         RayTraceResult hit = world.rayTraceBlocks(from, line.normalize(), distance + EYE_ROOM,
                 FluidCollisionMode.NEVER, true);
         return hit == null;
+    }
+
+    /**
+     * The eye turned around its target, at the same distance and height, by the smallest angle (up to
+     * {@link #MAX_SWING}, either way) that sees the target. Null when no angle does.
+     */
+    private @Nullable Location swing(@Nullable World world, List<BoundingBox> creatures, Location target,
+                                     Location eye) {
+        Vector offset = eye.toVector().subtract(target.toVector());
+        for (double degrees = SWING_STEP; degrees <= MAX_SWING + 1.0E-6; degrees += SWING_STEP) {
+            for (double sign : new double[]{1, -1}) {
+                Location turned = target.clone().add(offset.clone().rotateAroundY(Math.toRadians(sign * degrees)));
+                if (clear(world, creatures, target, turned))
+                    return turned;
+            }
+        }
+        return null;
     }
 
     /**
