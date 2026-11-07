@@ -27,6 +27,8 @@ public enum PokeBattleMessages implements MessageEnum {
     CHOICE_UNAVAILABLE,
     CHOICE_REFUSED,
     REOPEN_HINT,
+    BATTLE_RECOVERING,
+    BATTLE_RESUMED,
     NO_BALLS,
     NO_BATTLE_ITEMS,
     ITEM_NO_TARGET,

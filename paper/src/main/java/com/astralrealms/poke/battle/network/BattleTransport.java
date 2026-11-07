@@ -9,8 +9,11 @@ import java.util.concurrent.TimeoutException;
 import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.core.messaging.MessagingService;
+import com.astralrealms.core.packet.Packet;
+import com.astralrealms.poke.battle.network.packet.BattleAttachPacket;
 import com.astralrealms.poke.battle.network.packet.BattleChoicePacket;
 import com.astralrealms.poke.battle.network.packet.BattleEndPacket;
+import com.astralrealms.poke.battle.network.packet.BattleRecoverPacket;
 import com.astralrealms.poke.battle.network.packet.BattleStartPacket;
 import com.astralrealms.poke.battle.network.packet.BattleStartReplyPacket;
 
@@ -34,6 +37,21 @@ public class BattleTransport {
      */
     public CompletableFuture<@Nullable BattleStartReplyPacket> start(BattleStartPacket packet, Duration timeout,
                                                                      int attempts) {
+        return this.ask(packet, timeout, attempts);
+    }
+
+    /**
+     * Asks the start queue for a worker to take over a battle whose worker died; answered like a start (refused with
+     * reason {@code ended}, {@code missing} or {@code alive} when there is nothing to recover).
+     *
+     * @return the worker's reply, or null when none answered in time
+     */
+    public CompletableFuture<@Nullable BattleStartReplyPacket> recover(UUID battleId, String shardId, Duration timeout,
+                                                                       int attempts) {
+        return this.ask(new BattleRecoverPacket(battleId, shardId), timeout, attempts);
+    }
+
+    private CompletableFuture<@Nullable BattleStartReplyPacket> ask(Packet packet, Duration timeout, int attempts) {
         return this.messaging.sendWithReply(PokeBattleExchanges.START, packet, timeout)
                 .<BattleStartReplyPacket>thenApply(reply -> {
                     if (reply instanceof BattleStartReplyPacket startReply)
@@ -46,13 +64,20 @@ public class BattleTransport {
                         return CompletableFuture.failedFuture(cause);
                     if (attempts <= 1)
                         return CompletableFuture.completedFuture(null);
-                    return this.start(packet, timeout, attempts - 1);
+                    return this.ask(packet, timeout, attempts - 1);
                 });
     }
 
     public CompletableFuture<Void> choose(String workerId, UUID battleId, String side, int rqid, String choice) {
         return this.messaging.send(PokeBattleExchanges.worker(workerId),
                 new BattleChoicePacket(battleId, side, rqid, choice));
+    }
+
+    /**
+     * Tells the worker this server now shows the battle: it resends it from sequence 0.
+     */
+    public CompletableFuture<Void> attach(String workerId, UUID battleId, String shardId) {
+        return this.messaging.send(PokeBattleExchanges.worker(workerId), new BattleAttachPacket(battleId, shardId));
     }
 
     /**

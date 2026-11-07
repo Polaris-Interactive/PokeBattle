@@ -1,5 +1,7 @@
 package com.astralrealms.poke.battle;
 
+import java.util.concurrent.TimeUnit;
+
 import com.astralrealms.core.cache.CacheService;
 import com.astralrealms.core.messaging.MessagingService;
 import com.astralrealms.core.paper.AstralPaperAPI;
@@ -14,6 +16,7 @@ import com.astralrealms.poke.battle.network.PokeBattleExchanges;
 import com.astralrealms.poke.battle.network.PokeBattlePacketRegistry;
 import com.astralrealms.poke.battle.network.ShardPacketListener;
 import com.astralrealms.poke.battle.service.BattleLocks;
+import com.astralrealms.poke.battle.service.BattleRecords;
 import com.astralrealms.poke.battle.service.BattleServiceImpl;
 import com.astralrealms.poke.battle.ui.BattleStages;
 import com.astralrealms.poke.battle.ui.BattleUi;
@@ -63,7 +66,7 @@ public final class PokeBattle extends AstralPaperPlugin {
         // Services
         String shardId = AstralPaperAPI.serverInformation().id();
         this.battles = new BattleServiceImpl(this, new BattleTransport(this.messaging), new BattleLocks(this.cache),
-                shardId);
+                new BattleRecords(this.cache), shardId);
         this.dialogs = new ChoiceDialogs(this.battles, this.configuration.dialog().moveColumns());
         DialogUi dialogUi = new DialogUi(this::dialogs);
         BattleUi chosen = dialogUi;
@@ -86,6 +89,11 @@ public final class PokeBattle extends AstralPaperPlugin {
 
         // Listeners
         this.registerListeners(new BattleConnectionListener(this.battles));
+
+        // Tasks: recover the battles of dead workers, settle ends this server missed
+        long checkInterval = this.configuration.recoveryOrDefault().checkInterval().toMillis();
+        this.getServer().getAsyncScheduler().runAtFixedRate(this, _ -> this.battles.checkBattles(), checkInterval,
+                checkInterval, TimeUnit.MILLISECONDS);
 
         // Commands
         this.registerAsyncCompletion("species", _ -> PokeCoreAPI.get()

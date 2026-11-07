@@ -41,6 +41,29 @@ or a local `mvn install`).
 5. A player who leaves has `battle.disconnect-grace` to come back to this server, then the battle is aborted (no
    rewards, condition kept). An abort the worker never confirms releases the player after `battle.end-timeout`.
 
+## Recovery and re-attach
+
+- **Only one shard settles a battle:** it claims `settledBy` in the battle's Redis hash first.
+- **The battle's context** (format, player, creature ids, foes, signed roll, options) is saved in Redis
+  (`pokebattle:battle:<id>:context`) before the start, with the lock's TTL.
+- **Dead worker:** every `recovery.check-interval` the shard compares each battle's worker `instance` with that worker's
+  heartbeat. If it is gone, the shard sends `BattleRecoverPacket` to the start queue. Another worker replays the
+  battle, and the shard starts its view over from the resync update (`|polaris-resync|`, sequence 0). An end the shard
+  missed (stored in the hash as `ended`) is settled from Redis.
+- **Server switch, or a stopped shard:** a player who joins with a battle lock gets the battle rebuilt from its context
+  (creatures read back from their storage). The shard records itself in the hash, then:
+  - attaches to the worker (`BattleAttachPacket`, which resends the battle from 0);
+  - recovers it, if its worker is dead;
+  - or settles its stored end.
+  The shard they left lets the battle go once the hash names another shard, instead of aborting it after the grace.
+- **Shutdown no longer aborts battles.** They run on and are re-attached when their players come back. A player who
+  never returns is aborted by the worker after `ABSENT_TURNS` turn timers in a row.
+- **Limits:**
+  - A choice sent just before a worker died can be lost; the new worker asks again. A ball or item spent on it counts
+    as used.
+  - A battle whose end is only settled from Redis (no lines seen by the settling shard) gets the creatures' condition
+    but may miss rewards earned in its last lines.
+
 ## Battle HUD (AstralHologram)
 
 With AstralHologram on the server (optional dependency), a Java player plays the battle in a mouse HUD laid out like
@@ -70,6 +93,5 @@ Admin: `/pokebattle wild <player> <species> [level]`, `/pokebattle abort <player
 Bundle translation keys the battle texts use: `species|move|type|status|stat|ability|item|condition|category.<id>.name`
 (simulator ids; `condition` covers weather, hazards and volatile effects, `category` is `physical|special|status`).
 
-Not there yet: Bedrock forms, staging and effects; re-attach
-after a server switch and recovery on another worker; evolution prompts and choosing which move to forget after a
+Not there yet: Bedrock forms, staging and effects; evolution prompts and choosing which move to forget after a
 battle.

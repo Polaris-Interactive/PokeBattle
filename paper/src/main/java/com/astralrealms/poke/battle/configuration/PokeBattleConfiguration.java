@@ -14,8 +14,26 @@ import com.astralrealms.poke.battle.model.RewardCalculator;
  * {@code config.yml}. Values the GDD leaves open live here with a documented default rather than in code.
  */
 @ConfigSerializable
-public record PokeBattleConfiguration(Settings settings, Start start, Battle battle, Rewards rewards, Dialog dialog,
-                                      Stage stage, @Nullable Creatures creatures, @Nullable Hud hud) {
+public record PokeBattleConfiguration(Settings settings, Start start, Battle battle, @Nullable Recovery recovery,
+                                      Rewards rewards, Dialog dialog, Stage stage, @Nullable Creatures creatures,
+                                      @Nullable Hud hud) {
+
+    private static final Recovery DEFAULT_RECOVERY = new Recovery(Duration.ofSeconds(2));
+
+    /**
+     * The {@code recovery} section, or its defaults when an older config has none.
+     */
+    public Recovery recoveryOrDefault() {
+        return this.recovery == null ? DEFAULT_RECOVERY : this.recovery;
+    }
+
+    /**
+     * @param checkInterval how often this server checks that the workers of its battles still beat (a dead one's
+     *                      battles are taken over by another worker, see the worker's heartbeat TTL)
+     */
+    @ConfigSerializable
+    public record Recovery(Duration checkInterval) {
+    }
 
     @ConfigSerializable
     public record Settings(boolean debug) {

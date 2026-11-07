@@ -31,6 +31,7 @@ import com.astralrealms.poke.battle.api.service.BattleService;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.model.Battle;
+import com.astralrealms.poke.battle.model.BattleContext;
 import com.astralrealms.poke.battle.model.BattleTracker;
 import com.astralrealms.poke.battle.model.Names;
 import com.astralrealms.poke.battle.model.RewardCalculator;
@@ -91,7 +92,10 @@ import net.kyori.adventure.text.Component;
  *     <li><b>Running:</b> worker packets are put back in order per battle, then rendered (log), tracked (field,
  *     defeats) and answered (choice dialog). Choices are checked against the pending request before they leave.</li>
  *     <li><b>End:</b> the worker's final team states and the rewards are written by PokeCore in one transaction,
- *     then the lock is released.</li>
+ *     then the lock is released. Only one shard settles a battle (claimed in Redis).</li>
+ *     <li><b>Recovery:</b> a battle whose worker stops beating is taken over by another worker, which replays it and
+ *     sends it again from sequence 0 (a resync). A player who joins while a battle of theirs runs elsewhere (they
+ *     changed server, or its shard stopped) gets it here: the battle's context is in Redis, the worker resends it.</li>
  * </ul>
  * Packets arrive on messaging threads; a battle's state is only touched under its monitor, and the player only on
  * its own thread.
@@ -102,19 +106,24 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private static final String WILD_SIDE_NAME = "wild";
     private static final String WILD_AI = "wild";
     private static final String RUN = "run";
+    /** First line of a worker update carrying the whole battle again (see the worker's RESYNC_LINE). */
+    private static final String RESYNC_LINE = "|polaris-resync|";
 
     private final PokeBattle plugin;
     private final BattleTransport transport;
     private final BattleLocks locks;
+    private final BattleRecords records;
     private final String shardId;
     private final Map<UUID, Battle> battles = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> byPlayer = new ConcurrentHashMap<>();
     private final BattleBag bag = new BattleBag();
 
-    public BattleServiceImpl(PokeBattle plugin, BattleTransport transport, BattleLocks locks, String shardId) {
+    public BattleServiceImpl(PokeBattle plugin, BattleTransport transport, BattleLocks locks, BattleRecords records,
+                             String shardId) {
         this.plugin = plugin;
         this.transport = transport;
         this.locks = locks;
+        this.records = records;
         this.shardId = shardId;
     }
 
@@ -168,7 +177,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                         this.forget(battle);
                         return CompletableFuture.completedFuture(BattleStartResult.ALREADY_IN_BATTLE);
                     }
-                    return this.transport.start(packet, configuration.start().timeout(), configuration.start().attempts())
+                    // Before a worker can run it: another shard may have to take it over
+                    return this.records.saveContext(BattleContext.of(battle), configuration.battle().lockTtl())
+                            .thenCompose(_ -> this.transport.start(packet, configuration.start().timeout(),
+                                    configuration.start().attempts()))
                             .thenApply(reply -> this.onStartReply(battle, player, reply));
                 })
                 .exceptionally(throwable -> {
@@ -311,6 +323,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private void onUpdate(Battle battle, BattleUpdatePacket update) {
         if (!update.side().equals(Battle.PLAYER_SIDE))
             return;
+        if (!update.lines().isEmpty() && update.lines().getFirst().equals(RESYNC_LINE)) {
+            this.resync(battle, update);
+            return;
+        }
         Player player = Bukkit.getPlayer(battle.playerId());
         BattleLogRenderer renderer = new BattleLogRenderer(battle, player == null ? null : player.locale());
         // One beat per cue, with the field right after it, so the UI shows each moment in turn
@@ -339,6 +355,30 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         this.withUi(battle.playerId(), (ui, viewer) -> beats.forEach(beat -> ui.update(viewer, beat)));
     }
 
+    /**
+     * The whole battle again, from a worker that took it over or because this server took it over: the view starts
+     * over from it, silently, and the player sees where the battle stands. Under the battle's monitor.
+     */
+    private void resync(Battle battle, BattleUpdatePacket update) {
+        battle.restartTracker();
+        for (String raw : update.lines().subList(1, update.lines().size())) {
+            ProtocolLine line = ProtocolLine.parse(raw);
+            if (line != null)
+                battle.tracker().accept(line);
+        }
+        boolean adopted = battle.adopted();
+        battle.adopted(false);
+        Player player = Bukkit.getPlayer(battle.playerId());
+        if (player == null)
+            return;
+        if (adopted) {
+            this.showField(battle);
+            return;
+        }
+        BattleBeat beat = new BattleBeat(null, null, FieldView.of(battle, player.locale()), List.of());
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.update(viewer, beat));
+    }
+
     private void onRequest(Battle battle, BattleRequestPacket packet) {
         if (!packet.side().equals(Battle.PLAYER_SIDE))
             return;
@@ -353,11 +393,13 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         battle.chosen(false);
         // A new request: the item spent on the last choice was used
         battle.spent(null);
-        this.locks.refresh(battle.playerId(), battle.id(), this.plugin.configuration().battle().lockTtl())
+        Duration ttl = this.plugin.configuration().battle().lockTtl();
+        this.locks.refresh(battle.playerId(), battle.id(), ttl)
                 .exceptionally(throwable -> {
                     this.plugin.getSLF4JLogger().warn("Battle {}: lock refresh failed", battle.id(), throwable);
                     return false;
                 });
+        this.records.refreshContext(battle.id(), ttl).exceptionally(_ -> null);
         this.openDialog(battle);
     }
 
@@ -713,15 +755,41 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         return true;
     }
 
-    private void settle(Battle battle, BattleEndedPacket ended) {
-        BattleTracker.Capture capture = battle.tracker().capture();
-        BattleOutcome outcome = switch (ended.result()) {
-            case Battle.PLAYER_SIDE -> capture != null ? BattleOutcome.CAPTURED : BattleOutcome.WON;
+    private static BattleOutcome outcome(Battle battle, BattleEndedPacket ended) {
+        return switch (ended.result()) {
+            case Battle.PLAYER_SIDE -> battle.tracker().capture() != null ? BattleOutcome.CAPTURED : BattleOutcome.WON;
             case "tie" -> BattleOutcome.TIE;
             case "fled" -> BattleOutcome.FLED;
             case "aborted" -> BattleOutcome.ABORTED;
             default -> BattleOutcome.LOST;
         };
+    }
+
+    /**
+     * Settles the battle if this server is the one to: the end may reach two of them (a late packet to the shard the
+     * player left, the record read by the shard they joined). If Redis cannot say, it is settled here: the other path
+     * reads Redis too.
+     */
+    private void settle(Battle battle, BattleEndedPacket ended) {
+        this.records.claimSettlement(battle.id(), this.shardId)
+                .exceptionally(throwable -> {
+                    this.plugin.getSLF4JLogger().warn("Battle {}: settlement claim failed, settling here", battle.id(),
+                            throwable);
+                    return true;
+                })
+                .thenAccept(claimed -> {
+                    if (claimed) {
+                        this.settleClaimed(battle, ended);
+                        return;
+                    }
+                    this.plugin.debug("Battle {} was settled by another server", battle.id());
+                    this.finish(battle, outcome(battle, ended), ended.turns(), false);
+                });
+    }
+
+    private void settleClaimed(Battle battle, BattleEndedPacket ended) {
+        BattleTracker.Capture capture = battle.tracker().capture();
+        BattleOutcome outcome = outcome(battle, ended);
         BattleTeamState team = ended.teams()
                 .stream()
                 .filter(state -> state.slot().equals(Battle.PLAYER_SIDE))
@@ -929,6 +997,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private void finish(Battle battle, BattleOutcome outcome, int turns, boolean settled) {
         this.forget(battle);
         this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
+        this.records.deleteContext(battle.id()).exceptionally(_ -> null);
         this.locks.release(battle.playerId(), battle.id()).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().warn("Battle {}: lock release failed", battle.id(), throwable);
             return false;
@@ -944,6 +1013,15 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         this.forget(battle);
         this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
         this.locks.release(battle.playerId(), battle.id()).exceptionally(_ -> false);
+        this.records.deleteContext(battle.id()).exceptionally(_ -> null);
+    }
+
+    /**
+     * Stops showing a battle that goes on elsewhere (another shard took it over): its lock and records stay.
+     */
+    private void letGo(Battle battle) {
+        this.forget(battle);
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
     }
 
     private void forget(Battle battle) {
@@ -951,10 +1029,151 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         this.byPlayer.remove(battle.playerId(), battle.id());
     }
 
+    // ---- Recovery ----
+
+    /**
+     * Checks the battles this server shows against their records (run every {@code recovery.check-interval}): a dead
+     * worker's battle is recovered, an end this server missed is settled, a battle another server took over is let go.
+     */
+    public void checkBattles() {
+        for (Battle battle : this.battles.values()) {
+            if (battle.state() != Battle.State.RUNNING || battle.recovering() || battle.workerId() == null)
+                continue;
+            this.records.state(battle.id())
+                    .thenAccept(state -> {
+                        switch (state.status()) {
+                            case ALIVE -> {
+                                if (state.shardId() != null && !state.shardId().equals(this.shardId)) {
+                                    this.plugin.debug("Battle {} moved to {}", battle.id(), state.shardId());
+                                    this.letGo(battle);
+                                }
+                            }
+                            case DEAD -> this.recover(battle);
+                            case ENDED -> this.settleFromRecord(battle);
+                            case MISSING -> this.lost(battle);
+                        }
+                    })
+                    .exceptionally(throwable -> {
+                        this.plugin.debug("Battle {}: record check failed ({})", battle.id(), throwable.getMessage());
+                        return null;
+                    });
+        }
+    }
+
+    /**
+     * Asks the start queue for a worker to take the battle over. Until one does, the player cannot choose; a choice
+     * already sent may be lost with the dead worker, the new one asks again.
+     */
+    private void recover(Battle battle) {
+        synchronized (battle) {
+            if (battle.state() != Battle.State.RUNNING || battle.recovering())
+                return;
+            battle.recovering(true);
+            battle.restartSequence();
+            battle.pending(null);
+            battle.chosen(false);
+        }
+        this.plugin.getSLF4JLogger().warn("Battle {}: worker {} is gone, asking another one to take it over",
+                battle.id(), battle.workerId());
+        Player player = Bukkit.getPlayer(battle.playerId());
+        if (player != null)
+            PokeBattleMessages.BATTLE_RECOVERING.message(player);
+
+        PokeBattleConfiguration.Start start = this.plugin.configuration().start();
+        this.transport.recover(battle.id(), this.shardId, start.timeout(), start.attempts())
+                .thenAccept(reply -> this.onRecoverReply(battle, reply))
+                .exceptionally(throwable -> {
+                    this.plugin.getSLF4JLogger().error("Battle {}: recovery failed", battle.id(), throwable);
+                    battle.recovering(false);
+                    return null;
+                });
+    }
+
+    private void onRecoverReply(Battle battle, @Nullable BattleStartReplyPacket reply) {
+        if (reply == null) {
+            // Checked again on the next round
+            this.plugin.getSLF4JLogger().warn("Battle {}: no worker took it over yet", battle.id());
+            battle.recovering(false);
+            return;
+        }
+        if (reply.accepted()) {
+            String abortReason;
+            synchronized (battle) {
+                battle.workerId(reply.workerId());
+                battle.recovering(false);
+                abortReason = battle.abortReason();
+            }
+            this.plugin.getSLF4JLogger().info("Battle {} recovered on worker {}", battle.id(), reply.workerId());
+            Player player = Bukkit.getPlayer(battle.playerId());
+            if (player != null)
+                PokeBattleMessages.BATTLE_RESUMED.message(player);
+            if (abortReason != null)
+                this.abort(battle.id(), abortReason);
+            return;
+        }
+        switch (reply.reason()) {
+            case "ended" -> this.settleFromRecord(battle);
+            // Its worker beats after all (a late heartbeat): it resends the battle from 0, as this view expects now
+            case "alive" -> this.records.state(battle.id()).thenAccept(state -> {
+                synchronized (battle) {
+                    battle.workerId(state.workerId());
+                    battle.recovering(false);
+                }
+                if (state.workerId() != null)
+                    this.transport.attach(state.workerId(), battle.id(), this.shardId);
+            });
+            default -> {
+                this.plugin.getSLF4JLogger().error("Battle {} cannot be recovered: {}", battle.id(), reply.reason());
+                this.lost(battle);
+            }
+        }
+    }
+
+    /**
+     * Settles the end the worker left in Redis, which this server did not receive.
+     */
+    private void settleFromRecord(Battle battle) {
+        this.records.ended(battle.id())
+                .thenAccept(ended -> {
+                    if (ended.isEmpty()) {
+                        this.lost(battle);
+                        return;
+                    }
+                    synchronized (battle) {
+                        if (battle.state() == Battle.State.ENDED)
+                            return;
+                        battle.state(Battle.State.ENDED);
+                        this.cancelDisconnect(battle);
+                    }
+                    this.settle(battle, ended.get());
+                })
+                .exceptionally(throwable -> {
+                    this.plugin.getSLF4JLogger().error("Battle {}: reading its end failed", battle.id(), throwable);
+                    return null;
+                });
+    }
+
+    /**
+     * The battle is gone with no end to settle (its records expired, or no worker can replay it): the player is
+     * released and the creatures keep their state from before it.
+     */
+    private void lost(Battle battle) {
+        synchronized (battle) {
+            if (battle.state() == Battle.State.ENDED)
+                return;
+            battle.state(Battle.State.ENDED);
+            this.cancelDisconnect(battle);
+        }
+        this.plugin.getSLF4JLogger().warn("Battle {} is lost, releasing {}", battle.id(), battle.playerId());
+        this.report(battle, BattleOutcome.ABORTED, null, List.of(), List.of());
+        this.finish(battle, BattleOutcome.ABORTED, 0, false);
+    }
+
     // ---- Connection ----
 
     /**
-     * A player in battle left: the battle waits for them, then is lost with no penalty.
+     * A player in battle left: the battle waits for them, then is lost with no penalty. Unless it went on elsewhere:
+     * another server took it over meanwhile (they changed server).
      */
     public void onQuit(UUID playerId) {
         UUID battleId = this.byPlayer.get(playerId);
@@ -964,20 +1183,111 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Duration grace = this.plugin.configuration().battle().disconnectGrace();
         synchronized (battle) {
             this.cancelDisconnect(battle);
-            battle.disconnectTask(Bukkit.getAsyncScheduler().runDelayed(this.plugin,
-                    _ -> this.abort(battleId, "disconnected"), grace.toMillis(), TimeUnit.MILLISECONDS));
+            battle.disconnectTask(Bukkit.getAsyncScheduler().runDelayed(this.plugin, _ -> this.records.state(battleId)
+                    .exceptionally(_ -> new BattleRecords.State(BattleRecords.Status.MISSING, null, null))
+                    .thenAccept(state -> {
+                        if (state.shardId() != null && !state.shardId().equals(this.shardId))
+                            this.letGo(battle);
+                        else
+                            this.abort(battleId, "disconnected");
+                    }), grace.toMillis(), TimeUnit.MILLISECONDS));
         }
     }
 
     public void onJoin(Player player) {
         Battle battle = this.battleFor(player);
-        if (battle == null)
+        if (battle == null) {
+            this.adopt(player);
             return;
+        }
         synchronized (battle) {
             this.cancelDisconnect(battle);
             this.showField(battle);
             this.openDialog(battle);
         }
+    }
+
+    /**
+     * Takes over the battle the player is in elsewhere, if any: rebuilt from its context in Redis, then the worker
+     * resends it here (or another one replays it, or its end is settled here).
+     */
+    private void adopt(Player player) {
+        UUID playerId = player.getUniqueId();
+        this.locks.current(playerId)
+                .thenCompose(current -> {
+                    if (current.isEmpty())
+                        return CompletableFuture.completedFuture(null);
+                    UUID battleId = current.get();
+                    return this.records.state(battleId).thenCombine(this.records.context(battleId),
+                            (state, context) -> {
+                                this.adopt(player, battleId, state, context.orElse(null));
+                                return null;
+                            });
+                })
+                .exceptionally(throwable -> {
+                    this.plugin.getSLF4JLogger().error("Taking over the battle of {} failed", player.getName(),
+                            throwable);
+                    return null;
+                });
+    }
+
+    private void adopt(Player player, UUID battleId, BattleRecords.State state, @Nullable BattleContext context) {
+        UUID playerId = player.getUniqueId();
+        Battle battle = context == null || state.status() == BattleRecords.Status.MISSING ? null : this.rebuild(context);
+        if (battle == null) {
+            this.plugin.getSLF4JLogger().warn("Battle {} of {} cannot be taken over ({}), releasing them", battleId,
+                    player.getName(), context == null ? "no context" : state.status());
+            if (state.workerId() != null && state.status() == BattleRecords.Status.ALIVE)
+                this.transport.end(state.workerId(), battleId, "aborted", "no context").exceptionally(_ -> null);
+            this.locks.release(playerId, battleId).exceptionally(_ -> false);
+            this.records.deleteContext(battleId).exceptionally(_ -> null);
+            return;
+        }
+        if (this.byPlayer.putIfAbsent(playerId, battleId) != null)
+            return;
+        battle.state(Battle.State.RUNNING);
+        battle.workerId(state.workerId());
+        battle.adopted(true);
+        this.battles.put(battleId, battle);
+        this.locks.refresh(playerId, battleId, this.plugin.configuration().battle().lockTtl()).exceptionally(_ -> false);
+        this.plugin.getSLF4JLogger().info("Taking over battle {} of {} ({})", battleId, player.getName(),
+                state.status());
+
+        switch (state.status()) {
+            case ALIVE -> {
+                PokeBattleMessages.BATTLE_RESUMED.message(player);
+                this.records.moveTo(battleId, this.shardId)
+                        .thenCompose(_ -> this.transport.attach(state.workerId(), battleId, this.shardId))
+                        .exceptionally(throwable -> {
+                            this.plugin.getSLF4JLogger().error("Battle {}: attach failed", battleId, throwable);
+                            return null;
+                        });
+            }
+            case DEAD -> this.recover(battle);
+            case ENDED -> this.settleFromRecord(battle);
+            case MISSING -> {
+            }
+        }
+    }
+
+    /**
+     * The battle as its first shard built it; null if one of the player's creatures is no longer in their storage.
+     */
+    private @Nullable Battle rebuild(BattleContext context) {
+        TrainerStorage storage = PokeCoreAPI.get().trainers().cached(context.playerId()).orElse(null);
+        if (storage == null)
+            return null;
+        List<Battle.Ally> allies = new ArrayList<>();
+        for (UUID pokemonId : context.allies()) {
+            Pokemon pokemon = storage.find(pokemonId).orElse(null);
+            if (pokemon == null)
+                return null;
+            allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+        }
+        List<Battle.Foe> foes = new ArrayList<>();
+        for (GeneratedCreature creature : context.foes())
+            foes.add(new Battle.Foe(Battle.label(foes.size()), creature));
+        return new Battle(context.battleId(), context.format(), context.playerId(), allies, foes, context.options());
     }
 
     private void cancelDisconnect(Battle battle) {
@@ -988,23 +1298,11 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     /**
-     * Server stopping: stops every battle (no settlement, creatures keep their state from before it) and releases
-     * the players. Recovery on another server comes later.
+     * Server stopping: the battles go on without it. Their players get them back on the server they join next
+     * (re-attach); one who does not come back is aborted by the worker after a few turns ({@code ABSENT_TURNS}).
      */
     public void shutdown() {
-        List<CompletableFuture<?>> pending = new ArrayList<>();
-        for (Battle battle : List.copyOf(this.battles.values())) {
-            String workerId = battle.workerId();
-            if (workerId != null)
-                pending.add(this.transport.end(workerId, battle.id(), "aborted", "server stopping")
-                        .exceptionally(_ -> null));
-            pending.add(this.locks.release(battle.playerId(), battle.id()).exceptionally(_ -> false));
+        for (Battle battle : List.copyOf(this.battles.values()))
             this.forget(battle);
-        }
-        try {
-            CompletableFuture.allOf(pending.toArray(CompletableFuture[]::new)).get(3, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            this.plugin.getSLF4JLogger().warn("Some battles could not be stopped cleanly", e);
-        }
     }
 }

@@ -79,8 +79,10 @@ public class Battle {
     private final Options options;
     /** Display names of the items used in this battle, for the log (bag items may have no bundle name). */
     private final Map<String, Component> itemNames = new ConcurrentHashMap<>();
-    private final SequenceBuffer<Packet> sequence = new SequenceBuffer<>();
-    private final BattleTracker tracker = new BattleTracker(PLAYER_SIDE);
+    /** Starts over when the battle moves to another worker or shard: they number from 0 again. */
+    private SequenceBuffer<Packet> sequence = new SequenceBuffer<>();
+    /** Starts over on a resync, which brings the whole battle again. */
+    private BattleTracker tracker = new BattleTracker(PLAYER_SIDE);
 
     @Setter
     private volatile State state = State.REQUESTED;
@@ -100,6 +102,12 @@ public class Battle {
     /** The item spent on the pending choice, not confirmed by the worker yet. */
     @Setter
     private @Nullable Spent spent;
+    /** Its worker died: another one is being asked to take it over. */
+    @Setter
+    private boolean recovering;
+    /** Taken over from another shard: the next resync opens the battle for the player instead of updating it. */
+    @Setter
+    private boolean adopted;
 
     public Battle(UUID id, String format, UUID playerId, List<Ally> allies, List<Foe> foes, Options options) {
         this.id = id;
@@ -108,6 +116,20 @@ public class Battle {
         this.allies = List.copyOf(allies);
         this.foes = List.copyOf(foes);
         this.options = options;
+    }
+
+    /**
+     * Expects the worker's packets from 0 again: before asking a new worker or shard to take it over.
+     */
+    public void restartSequence() {
+        this.sequence = new SequenceBuffer<>();
+    }
+
+    /**
+     * Forgets what the battle showed so far: a resync replays all of it.
+     */
+    public void restartTracker() {
+        this.tracker = new BattleTracker(PLAYER_SIDE);
     }
 
     public static String label(int index) {

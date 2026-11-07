@@ -22,6 +22,11 @@ battle:
   # After asking a worker to stop a battle, how long to wait for its end before releasing the players anyway.
   end-timeout: 15s
 
+recovery:
+  # How often this server checks that the workers of its battles still beat. A dead worker's battles are replayed on
+  # another one and resume where they were. Keep it below the workers' HEARTBEAT_TTL_SECONDS (5 s).
+  check-interval: 2s
+
 rewards:
   # Product of every experience bonus for these battles; the formula itself is PokeCore's (modern, level-scaled).
   experience-multiplier: 1.0
