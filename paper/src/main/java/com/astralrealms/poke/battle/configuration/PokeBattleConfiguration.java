@@ -102,13 +102,17 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      *
      * @param animations by moment ({@code switch}, {@code move}, {@code damage}, {@code faint}): the model
      *                   animations to try, first found plays
-     * @param cueSpacing time between two moments of one update, so they play in order
+     * @param cueSpacing the least time a beat the creatures play takes, so moments come one after the other
      * @param faintLinger how long a fainted creature stays before it goes
      * @param closeDelay how long the creatures stay after the battle ended
+     * @param moveSpacing the least time a move takes instead of {@code cueSpacing} (its wind-up and effect); null
+     *                    for {@code cueSpacing}
+     * @param moves      the effects a creature's moves play on stage; null for none
      */
     @ConfigSerializable
     public record Creatures(boolean enabled, Map<String, List<String>> animations, Duration cueSpacing,
-                            Duration faintLinger, Duration closeDelay) {
+                            @Nullable Duration moveSpacing, Duration faintLinger, Duration closeDelay,
+                            @Nullable MoveEffects moves) {
 
         public List<String> animations(String moment) {
             List<String> names = this.animations == null ? null : this.animations.get(moment);
@@ -117,10 +121,31 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     }
 
     /**
+     * A move's effect on stage: an AstralSkill skill cast by the attacking creature towards the other one. The skills
+     * are content (poke-content), found by id.
+     *
+     * @param skills the skill ids to try, first found plays: {@code {move}} is the move id, {@code {type}} and
+     *               {@code {category}} its type and category ids
+     * @param height   blocks above a creature's feet the effect leaves from and aims at
+     * @param statUp   the skill a creature casts when one of its stats rises; empty for none
+     * @param statDown the skill a creature casts when one of its stats falls; empty for none
+     * @param releaseMarker the model animation marker ({@code pokesmp:<name>} timeline keyframe) the effect waits
+     *                      for; empty or absent from the animation: the effect leaves with the animation's start
+     */
+    @ConfigSerializable
+    public record MoveEffects(boolean enabled, List<String> skills, double height, @Nullable String statUp,
+                              @Nullable String statDown, @Nullable String releaseMarker) {
+
+        public List<String> skills() {
+            return this.skills == null ? List.of() : this.skills;
+        }
+    }
+
+    /**
      * The camera moving around the stage as the battle goes (see {@link Stage} for places).
      *
      * @param lookHeight  blocks above a creature's feet a shot looks at
-     * @param maxSequence the longest run of shots after one update; what does not fit is skipped
+     * @param maxSequence the longest run of beats; what does not fit shows at once
      * @param shots       by {@code idle} (while choosing) and by cue ({@code ally-move}, {@code foe-faint}...); a cue
      *                    without a shot leaves the camera where it is
      */

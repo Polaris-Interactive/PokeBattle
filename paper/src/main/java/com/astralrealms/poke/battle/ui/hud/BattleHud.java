@@ -20,16 +20,19 @@ import com.astralrealms.astralHologram.api.hologram.ComponentDefinition;
 import com.astralrealms.astralHologram.api.hud.HudDefinition;
 import com.astralrealms.astralHologram.api.hud.HudOpenOptions;
 import com.astralrealms.astralHologram.api.hud.HudView;
+import com.astralrealms.astralHologram.configuration.BillboardType;
 import com.astralrealms.astralHologram.configuration.CursorSettings;
 import com.astralrealms.astralHologram.configuration.HudInput;
 import com.astralrealms.astralHologram.configuration.HudKey;
+import com.astralrealms.astralHologram.configuration.TextAlignment;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.service.BattleBag;
-import com.astralrealms.poke.battle.ui.BattleCue;
+import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleStage;
+import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
@@ -38,6 +41,8 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
+import net.kyori.adventure.text.format.TextColor;
 
 /**
  * One player's battle HUD: the two creatures, the turn and its timer, the last log lines, and the menu (actions,
@@ -52,10 +57,12 @@ final class BattleHud {
 
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
             "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon",
-            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon");
+            "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon", "info-frame");
     /** Art drawn as items (see {@link HudArt}); every other element is text. */
     private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
-            "turn-icon", "ally-icon", "foe-icon");
+            "turn-icon", "ally-icon", "foe-icon", "info-frame");
+    /** Text read line by line rather than as a label: its lines line up on the left. */
+    private static final Set<String> LEFT_ALIGNED = Set.of("info", "log");
     private static final String BUTTON = "button-";
     /** The strip behind a list button, drawn in the element of the same number. */
     private static final String FRAME = "frame-";
@@ -183,11 +190,15 @@ final class BattleHud {
             boolean item = ITEMS.contains(id) || id.startsWith(FRAME);
             // Items are flat art: squashing the model's depth keeps it from reading as a 3D block.
             ComponentDefinition.Builder component = item
-                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY)).scale(scale, scale, scale * FLAT)
+                    ? ComponentDefinition.item(id, HudArt.item(HudArt.FRAME_ALLY))
+                            .scale(scale, scale, scale * FLAT)
+                            // Billboarded, a flat item shows its mirrored back; fixed, the HUD turns its front to the eye
+                            .billboard(BillboardType.FIXED)
                     : ComponentDefinition.text(id, "")
                             .scale(scale)
                             .seeThrough(true)
-                            .transparentBackground(!element.background());
+                            .transparentBackground(!element.background())
+                            .alignment(LEFT_ALIGNED.contains(id) ? TextAlignment.LEFT : TextAlignment.CENTER);
             if (clickable)
                 component.interaction(interaction -> interaction
                         .hoverBackground(hover)
@@ -235,9 +246,26 @@ final class BattleHud {
 
     // ---- What the battle says ----
 
-    void update(FieldView field, List<Component> lines, List<BattleCue> cues) {
-        this.field = field;
-        for (Component line : lines) {
+    BattleUi.Pace pace(BattleBeat beat) {
+        return this.camera == null ? BattleUi.Pace.NONE : this.camera.pace(beat.cue());
+    }
+
+    /**
+     * A beat starts: the camera heads for its shot (the menu hides while it is away).
+     */
+    void cue(BattleBeat beat) {
+        if (this.camera == null)
+            return;
+        this.camera.cue(beat.cue());
+        this.renderMenu();
+    }
+
+    /**
+     * The beat shows: its field (cards, HP, bars) and its log lines.
+     */
+    void update(BattleBeat beat) {
+        this.field = beat.field();
+        for (Component line : beat.log()) {
             this.log.addLast(line);
             while (this.log.size() > Math.max(0, this.config.logLines()))
                 this.log.removeFirst();
@@ -245,24 +273,28 @@ final class BattleHud {
         this.renderField();
         this.renderLog();
         this.renderTimer();
-        if (this.camera != null && !cues.isEmpty()) {
-            this.camera.play(cues);
-            this.renderMenu();
-        }
     }
 
     /**
-     * F: the camera skips the rest of its shots.
+     * Every beat has played: the camera goes back to {@code idle}, where the menu shows.
+     */
+    void idle() {
+        if (this.camera != null)
+            this.camera.rest();
+    }
+
+    /**
+     * F: what is still to play shows at once.
      */
     private void skip() {
-        if (this.camera != null && !this.closed)
-            this.camera.skip();
+        if (!this.closed)
+            this.ui.plugin().ui().skip(this.player);
     }
 
     void choose(ChoiceView view) {
         this.choice = view;
         this.field = FieldView.of(view);
-        this.deadline = this.turnTimerSeconds > 0 ? System.currentTimeMillis() + this.turnTimerSeconds * 1000L : 0;
+        this.deadline = this.turnTimerSeconds > 0 ? view.askedAt() + this.turnTimerSeconds * 1000L : 0;
         this.renderField();
         this.renderTimer();
         this.show(view.forceSwitch() ? Menu.TEAM : Menu.MAIN);
@@ -325,14 +357,14 @@ final class BattleHud {
                             null, HudArt.FRAME_BAG));
                 if (view.actions().flee())
                     entries.add(new Entry(PokeBattleMessages.HUD_RUN_LABEL.component(),
-                            () -> this.handler().choose(this.player, view, "run"), null));
+                            () -> this.handler().choose(this.player, view, "run"), null, HudArt.FRAME_RUN));
             }
             case MOVES -> {
                 for (ChoiceView.Move move : view.moves()) {
                     PlaceholderContainer placeholders = new PlaceholderContainer()
                             .registerDirect("move", move.name())
                             .registerDirect("pp", move.pp())
-                            .registerDirect("max_pp", move.maxPp())
+                            .registerDirect("maxpp", move.maxPp())
                             .registerDirect("type", move.type())
                             .registerDirect("category", move.category())
                             .registerDirect("power", move.power() > 0 ? Integer.toString(move.power()) : "—")
@@ -341,13 +373,16 @@ final class BattleHud {
                             ? PokeBattleMessages.MOVE_BUTTON_DISABLED
                             : PokeBattleMessages.MOVE_BUTTON).component(placeholders),
                             move.disabled() ? null : () -> this.handler().choose(this.player, view, "move " + move.index()),
-                            PokeBattleMessages.MOVE_TOOLTIP.component(placeholders)));
+                            PokeBattleMessages.HUD_TOOLTIP_MOVE.component(placeholders
+                                    .registerDirect("icon", HudArt.typeIcon(move.typeId()))
+                                    .registerDirect("pp", pp(move.pp(), move.maxPp())))));
                 }
             }
             case TEAM -> {
                 for (ChoiceView.Member member : view.switchable())
                     entries.add(new Entry(PokeBattleMessages.MEMBER_BUTTON.component(this.member(member, false)),
-                            () -> this.handler().choose(this.player, view, "switch " + member.position()), null));
+                            () -> this.handler().choose(this.player, view, "switch " + member.position()),
+                            this.memberTooltip(member)));
             }
             case BALLS -> {
                 List<BattleBag.Entry> balls = this.handler().bag().balls(this.player);
@@ -444,7 +479,19 @@ final class BattleHud {
         if (entered)
             this.sound(this.config.hoverSound());
         Entry entry = entered ? this.entryAt(id) : null;
-        this.set("info", entry == null || entry.info() == null ? List.of() : List.of(entry.info()));
+        this.tooltip(entry == null ? null : entry.info());
+
+        // A usable button lights up: its art's second state
+        Entry under = this.entryAt(id);
+        boolean moving = this.camera != null && this.camera.busy();
+        if (under != null && under.action() != null && !moving && this.buttons.contains(id)) {
+            Key art = this.art(under);
+            this.setItem(FRAME + id.substring(BUTTON.length()), entered ? HudArt.hover(art) : art);
+        }
+    }
+
+    private Key art(Entry entry) {
+        return entry.frame() != null ? entry.frame() : HudArt.FRAME_LIST;
     }
 
     // ---- Drawing ----
@@ -454,6 +501,7 @@ final class BattleHud {
         this.setItem("foe-frame", HudArt.FRAME_FOE);
         this.setItem("log-frame", HudArt.FRAME_LOG);
         this.setItem("turn-icon", HudArt.TURN_ICON);
+        this.setItem("info-frame", null);
         this.renderField();
         this.renderLog();
         this.renderTimer();
@@ -555,13 +603,13 @@ final class BattleHud {
             this.visible(button, entry != null);
             // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
             String frame = FRAME + button.substring(BUTTON.length());
-            this.setItem(frame, entry == null ? null : entry.frame() != null ? entry.frame() : HudArt.FRAME_LIST);
+            this.setItem(frame, entry == null ? null : this.art(entry));
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);
         this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component()));
         this.visible(NEXT, !moving && this.pages() > 1);
-        this.set("info", List.of());
+        this.tooltip(null);
 
         // Disabled looks are decided on a redraw
         HudView hud = this.view;
@@ -606,6 +654,41 @@ final class BattleHud {
             return;
         this.drawn.put(key, visible);
         view.element(id).ifPresent(element -> element.visible(visible));
+    }
+
+    /**
+     * The tooltip on its panel, or neither.
+     */
+    private void tooltip(@Nullable Component info) {
+        this.set("info", info == null ? List.of() : List.of(info));
+        this.setItem("info-frame", info == null ? null : HudArt.TOOLTIP);
+    }
+
+    /**
+     * A team member's moves with their type and PP, then its ability and Speed; null when nothing is known of it.
+     */
+    private @Nullable Component memberTooltip(ChoiceView.Member member) {
+        if (member.moves().isEmpty())
+            return null;
+        List<Component> lines = new ArrayList<>();
+        for (ChoiceView.MemberMove move : member.moves())
+            lines.add(PokeBattleMessages.HUD_TOOLTIP_MEMBER_MOVE.component(new PlaceholderContainer()
+                    .registerDirect("icon", HudArt.typeIcon(move.typeId()))
+                    .registerDirect("move", move.name())
+                    .registerDirect("pp", pp(move.pp(), move.maxPp()))));
+        return PokeBattleMessages.HUD_TOOLTIP_MEMBER.component(new PlaceholderContainer()
+                .registerDirect("moves", Component.join(JoinConfiguration.newlines(), lines))
+                .registerDirect("ability", member.ability().isEmpty() ? "—" : member.ability())
+                .registerDirect("speed", member.speed() > 0 ? Integer.toString(member.speed()) : "—"));
+    }
+
+    /**
+     * PP left over the most, green while more than half is left, then yellow, then red under a quarter.
+     */
+    private static Component pp(int pp, int max) {
+        double ratio = max <= 0 ? 1 : (double) pp / max;
+        String colour = ratio > 0.5 ? "#5BE37D" : ratio > 0.25 ? "#F2C94C" : "#EB5757";
+        return Component.text(pp + "/" + max, TextColor.fromHexString(colour));
     }
 
     // ---- Helpers ----

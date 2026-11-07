@@ -68,7 +68,7 @@ public class ChoiceDialogs {
             PlaceholderContainer placeholders = new PlaceholderContainer()
                     .registerDirect("move", move.name())
                     .registerDirect("pp", move.pp())
-                    .registerDirect("max_pp", move.maxPp())
+                    .registerDirect("maxpp", move.maxPp())
                     .registerDirect("type", move.type())
                     .registerDirect("category", move.category())
                     .registerDirect("power", move.power() > 0 ? Integer.toString(move.power()) : "—")
@@ -211,14 +211,14 @@ public class ChoiceDialogs {
     private Component field(ChoiceView view) {
         return PokeBattleMessages.DIALOG_FIELD.component(new PlaceholderContainer()
                 .registerDirect("ally", view.ally().name())
-                .registerDirect("ally_level", view.ally().level())
-                .registerDirect("ally_hp", view.ally().hp())
-                .registerDirect("ally_max", view.ally().maxHp())
-                .registerDirect("ally_status", this.status(view.ally().status()))
+                .registerDirect("allylevel", view.ally().level())
+                .registerDirect("allyhp", view.ally().hp())
+                .registerDirect("allymax", view.ally().maxHp())
+                .registerDirect("allystatus", this.status(view.ally().status()))
                 .registerDirect("foe", view.foe().name())
-                .registerDirect("foe_level", view.foe().level())
-                .registerDirect("foe_percent", view.foe().hp())
-                .registerDirect("foe_status", this.status(view.foe().status())));
+                .registerDirect("foelevel", view.foe().level())
+                .registerDirect("foepercent", view.foe().hp())
+                .registerDirect("foestatus", this.status(view.foe().status())));
     }
 
     private Object status(String status) {

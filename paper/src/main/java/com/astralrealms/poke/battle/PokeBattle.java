@@ -19,8 +19,11 @@ import com.astralrealms.poke.battle.ui.BattleStages;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.DialogUi;
+import com.astralrealms.poke.battle.ui.PacedUi;
 import com.astralrealms.poke.battle.ui.hud.HudUi;
+import com.astralrealms.poke.battle.ui.stage.AstralSkillEffects;
 import com.astralrealms.poke.battle.ui.stage.CreatureActors;
+import com.astralrealms.poke.battle.ui.stage.MoveEffects;
 import com.astralrealms.poke.battle.ui.stage.PokeEntitiesActors;
 import com.astralrealms.poke.battle.ui.stage.StagedUi;
 import com.astralrealms.poke.core.PokeCoreAPI;
@@ -73,7 +76,11 @@ public final class PokeBattle extends AstralPaperPlugin {
         CreatureActors actors = this.getServer().getPluginManager().isPluginEnabled("PokeEntities")
                 ? new PokeEntitiesActors(this.getSLF4JLogger())
                 : null;
-        this.ui = new StagedUi(this, chosen, actors);
+        // What moves look like on stage; AstralSkill's types are only loaded when it is there
+        MoveEffects effects = this.getServer().getPluginManager().isPluginEnabled("AstralSkill")
+                ? new AstralSkillEffects(this)
+                : null;
+        this.ui = new PacedUi(this, new StagedUi(this, chosen, actors, effects));
         this.messaging.registerExchange(PokeBattleExchanges.shard(shardId), new ShardPacketListener(this, this.battles));
         PokeBattleAPI.initialize(new PokeBattleApiImpl(this));
 

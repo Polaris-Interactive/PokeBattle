@@ -22,6 +22,8 @@ class BattleCueTest {
         assertThat(cue("|faint|p1a: 1")).isEqualTo(BattleCue.ALLY_FAINT);
         assertThat(cue("|-damage|p2a: 1|40/100")).isEqualTo(BattleCue.FOE_DAMAGE);
         assertThat(cue("|-damage|p1a: 1|12/30 psn|[from] psn")).isEqualTo(BattleCue.ALLY_DAMAGE);
+        assertThat(cue("|-boost|p1a: 1|atk|2")).isEqualTo(BattleCue.ALLY_BOOST);
+        assertThat(cue("|-unboost|p2a: 1|accuracy|1")).isEqualTo(BattleCue.FOE_UNBOOST);
     }
 
     @Test
@@ -35,6 +37,16 @@ class BattleCueTest {
     void theRestShowsNothing() {
         assertThat(cue("|turn|2")).isNull();
         assertThat(cue("|move|nobody|testmove")).isNull();
+        assertThat(cue("|-unboost|p2a: 1|atk|0")).isNull();
+    }
+
+    @Test
+    void moveLinesNameTheirMoveWhenShown() {
+        assertThat(BattleCue.move(ProtocolLine.parse("|move|p1a: 1|Test Move|p2a: 1"))).isEqualTo("testmove");
+        assertThat(BattleCue.move(ProtocolLine.parse("|move|p2a: 1|Test Move|p1a: 1|[miss]"))).isEqualTo("testmove");
+        assertThat(BattleCue.move(ProtocolLine.parse("|move|p1a: 1|Test Move||[still]"))).isNull();
+        assertThat(BattleCue.move(ProtocolLine.parse("|move|p1a: 1|Test Move|p2a: 1|[notarget]"))).isNull();
+        assertThat(BattleCue.move(ProtocolLine.parse("|-damage|p2a: 1|40/100"))).isNull();
     }
 
     @Test

@@ -12,6 +12,9 @@ import com.astralrealms.poke.battle.model.Names;
 import com.astralrealms.poke.battle.protocol.ChoiceRequest;
 import com.astralrealms.poke.battle.protocol.Condition;
 import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.mechanics.PokemonStats;
+import com.astralrealms.poke.core.model.MoveSlot;
+import com.astralrealms.poke.core.model.Pokemon;
 import com.astralrealms.poke.core.species.MoveData;
 import com.astralrealms.poke.core.species.SpeciesRegistry;
 
@@ -23,10 +26,12 @@ import com.astralrealms.poke.core.species.SpeciesRegistry;
  * @param switchable members a switch can send in
  * @param team       every member in request order, fainted ones included (bag targets)
  * @param actions    what the player may do besides moves and switches this turn
+ * @param askedAt    when it was asked (epoch ms): the turn timer counts from there, not from when the UI shows it
+ *                   (after the turn's beats have played)
  */
 public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch, boolean trapped, Creature ally,
                          Creature foe, List<Move> moves, List<Member> switchable, List<Member> team,
-                         Actions actions) {
+                         Actions actions, long askedAt) {
 
     public ChoiceView {
         moves = List.copyOf(moves);
@@ -54,18 +59,38 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     }
 
     /**
+     * @param type     display name
+     * @param typeId   the type's id ({@code grass}), empty when unknown
      * @param power    0 for status moves
      * @param accuracy null when it never misses
      */
-    public record Move(int index, String name, String type, String category, int power, @Nullable Integer accuracy,
-                       int pp, int maxPp, boolean disabled) {
+    public record Move(int index, String name, String type, String typeId, String category, int power,
+                       @Nullable Integer accuracy, int pp, int maxPp, boolean disabled) {
     }
 
     /**
      * @param position as {@code switch N} (and the target of a bag item)
      * @param status   display name, empty when healthy
+     * @param moves    its moves with the PP stored before the battle (the request only has the active's PP)
+     * @param ability  display name, empty when unknown
+     * @param speed    its Speed stat, 0 when unknown
      */
-    public record Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted) {
+    public record Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted,
+                         List<MemberMove> moves, String ability, int speed) {
+
+        public Member {
+            moves = List.copyOf(moves);
+        }
+
+        public Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted) {
+            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", 0);
+        }
+    }
+
+    /**
+     * @param typeId the type's id ({@code grass}), empty when unknown
+     */
+    public record MemberMove(String name, String typeId, int pp, int maxPp) {
     }
 
     /**
@@ -98,6 +123,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             MoveData data = registry.findMove(option.id()).orElse(null);
             moves.add(new Move(option.index(), Names.text(locale, "move", option.id()),
                     data == null ? "" : Names.text(locale, "type", data.type()),
+                    data == null ? "" : typeId(data.type()),
                     data == null ? "" : Names.text(locale, "category", data.category().name().toLowerCase(Locale.ROOT)),
                     data == null ? 0 : data.power(), data == null ? null : data.accuracy(),
                     option.pp(), option.maxPp(), option.disabled()));
@@ -110,9 +136,19 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             if (stored == null)
                 continue;
             Condition condition = member.condition();
-            Member view = new Member(member.position(), Names.ally(locale, stored), stored.pokemon().level(),
+            Pokemon pokemon = stored.pokemon();
+            List<MemberMove> known = new ArrayList<>();
+            for (MoveSlot slot : pokemon.moves()) {
+                MoveData data = registry.findMove(slot.move()).orElse(null);
+                known.add(new MemberMove(Names.text(locale, "move", slot.move()),
+                        data == null ? "" : typeId(data.type()), slot.pp(),
+                        data == null ? slot.pp() : data.maxPp(slot.ppUps())));
+            }
+            Member view = new Member(member.position(), Names.ally(locale, stored), pokemon.level(),
                     condition == null ? 0 : condition.hp(), condition == null ? 0 : condition.maxHp(),
-                    status(condition, locale), member.fainted());
+                    status(condition, locale), member.fainted(), known,
+                    pokemon.ability() == null ? "" : Names.text(locale, "ability", pokemon.ability()),
+                    speed(pokemon, registry));
             team.add(view);
             if (request.canSwitchTo(member.position()))
                 switchable.add(view);
@@ -124,7 +160,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             actions = new Actions(options.capture() && options.wildRoll() != null, options.bag(), options.flee());
         }
         return new ChoiceView(battle.id(), request.rqid(), battle.tracker().turn(), request.forceSwitch(),
-                request.trapped(), ally, foe, moves, switchable, team, actions);
+                request.trapped(), ally, foe, moves, switchable, team, actions, System.currentTimeMillis());
     }
 
     /**
@@ -136,6 +172,19 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             return new Creature(name, level, 0, 0, "", "", species);
         return new Creature(name, level, exact ? condition.hp() : condition.percent(),
                 exact ? condition.maxHp() : 100, status(condition, locale), statusId(condition), species);
+    }
+
+    private static String typeId(String type) {
+        return type.toLowerCase(Locale.ROOT);
+    }
+
+    private static int speed(Pokemon pokemon, SpeciesRegistry registry) {
+        try {
+            return PokemonStats.of(pokemon, registry).spe();
+        } catch (RuntimeException e) {
+            // A species missing from the bundle: the tooltip just leaves the Speed out
+            return 0;
+        }
     }
 
     private static String statusId(@Nullable Condition condition) {

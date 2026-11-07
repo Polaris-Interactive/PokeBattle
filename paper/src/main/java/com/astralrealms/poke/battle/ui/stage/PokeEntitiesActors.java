@@ -1,5 +1,8 @@
 package com.astralrealms.poke.battle.ui.stage;
 
+import java.time.Duration;
+import java.util.Optional;
+
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
@@ -34,6 +37,11 @@ public class PokeEntitiesActors implements CreatureActors {
     @Override
     public boolean animate(Entity creature, String animation) {
         return PokeEntitiesAPI.get().creatures().animate(creature, animation);
+    }
+
+    @Override
+    public Optional<Duration> marker(Entity creature, String animation, String marker) {
+        return PokeEntitiesAPI.get().creatures().marker(creature, animation, marker);
     }
 
     @Override
