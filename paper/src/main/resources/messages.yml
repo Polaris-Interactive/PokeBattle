@@ -126,6 +126,8 @@ hud-tooltip-member-move: "%icon% <white>%move%</white>  %pp%"
 # %details% is hud-tooltip-ability, empty when the ability is not known in the bundle.
 hud-tooltip-member: "%moves%<newline><#4FA59B>━━━━━━━━━━━━<newline><#7FD7D0>Talent : <white>%ability%%details%<newline><#F2C94C>⚡ Vitesse : <white>%speed%"
 hud-tooltip-ability: "<newline><gray>%description%"
+# The tooltip of the opponent's card: what the battle shows of it (its ability stays unknown until it is used).
+hud-tooltip-foe: "<white>%name%</white> <gray>N.%level%<newline><#4FA59B>━━━━━━━━━━━━<newline><gray>PV : <white>%percent%%<newline><gray>Statut : <white>%status%<newline><#7FD7D0>Talent : <white>?"
 # The tooltip of a hovered bag item or ball: its name and how many, then what it does (one hud-effect-* line each).
 hud-tooltip-item: "<white>%name%</white>  <gray>×%amount%<newline><#4FA59B>━━━━━━━━━━━━<newline>%effects%"
 hud-effect-heal: "<gray>Rend <white>%amount%</white> PV"

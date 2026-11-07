@@ -224,9 +224,10 @@ hud:
     button-5:       { position: { yaw: -46.8, pitch: 20.4 }, scale: 0.146, background: false }
     frame-6:        { position: { yaw: -33.8, pitch: 23.7 }, scale: 0.581, background: false, depth: 2.05 }
     button-6:       { position: { yaw: -34.2, pitch: 24.2 }, scale: 0.171, background: false }
-    back:           { position: { yaw: -46.5, pitch: 23.8 }, scale: 0.153, background: true }
-    # The back button's art, behind its label (an item: its own hover state).
-    back-frame:     { position: { yaw: -46.5, pitch: 23.8 }, scale: 0.39, background: false, depth: 2.05 }
+    # The back button is its art only (no label); its hitbox covers the art at the same scale.
+    back:           { position: { yaw: -46.5, pitch: 23.8 }, scale: 0.2, background: true }
+    # The back button's art (an item: its own hover state).
+    back-frame:     { position: { yaw: -46.5, pitch: 23.8 }, scale: 0.2, background: false, depth: 2.05 }
     next:           { position: { yaw: -33.8, pitch: 28.0 }, scale: 0.178, background: true }
     # The tooltip of a hovered move or team member, on its panel right of the menu (lines aligned left).
     info-frame:     { position: { yaw: -14.8, pitch: 21.6 }, scale: 0.723, background: false, depth: 2.06 }

@@ -83,6 +83,8 @@ final class BattleHud {
     private static final double HOVER_GROWTH = 1.08;
     /** The player's creature card: hovering it shows the details of its team member. */
     private static final String ALLY_CARD = "ally-frame";
+    /** The opponent's card: hovering it shows what the battle knows of its creature. */
+    private static final String FOE_CARD = "foe-frame";
     /** The share of max HP a revive gives back when the item does not say (ItemEffect's default). */
     private static final double DEFAULT_REVIVE = 0.5;
     private static final double FLAT = 0.05;
@@ -225,13 +227,18 @@ final class BattleHud {
                             .transparentBackground(!element.background())
                             .alignment(LEFT_ALIGNED.contains(id) ? TextAlignment.LEFT : TextAlignment.CENTER);
             if (clickable)
-                component.interaction(interaction -> interaction
-                        .hoverBackground(hover)
-                        .hoverScale(scale * HOVER_GROWTH)
-                        .condition(_ -> this.usable(id))
-                        .disabledBackground(disabled)
-                        .onClick(_ -> this.click(id)));
-            else if (id.equals(ALLY_CARD))
+                component.interaction(interaction -> {
+                    interaction
+                            .hoverBackground(hover)
+                            .hoverScale(scale * HOVER_GROWTH)
+                            .condition(_ -> this.usable(id))
+                            .disabledBackground(disabled)
+                            .onClick(_ -> this.click(id));
+                    // The back button has no label to size its hitbox from: it covers its art
+                    if (id.equals(BACK))
+                        interaction.size(scale * ITEM_WIDTH, scale * ITEM_WIDTH);
+                });
+            else if (id.equals(ALLY_CARD) || id.equals(FOE_CARD))
                 component.interaction(interaction -> interaction.hoverScale(scale));
             double depth = element.depth() == null ? this.config.depth() : element.depth();
             builder.element(component.build(), element.position().yaw(), element.position().pitch(), depth);
@@ -544,6 +551,8 @@ final class BattleHud {
         Component info = entry == null ? null : entry.info();
         if (entered && id.equals(ALLY_CARD))
             info = this.allyTooltip();
+        if (entered && id.equals(FOE_CARD))
+            info = this.foeTooltip();
         this.tooltip(info);
 
         // A usable button lights up: its art's second state
@@ -679,7 +688,8 @@ final class BattleHud {
             this.setItem(ICON + number, icon);
             this.shift(button, icon != null);
         }
-        this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
+        // Icon only: the button's art says what it does (ChoiceDialogs keeps the text for the dialog fallback)
+        this.set(BACK, List.of());
         this.visible(BACK, !moving && this.back() != null);
         this.setItem(BACK_FRAME, HudArt.BACK);
         this.visible(BACK_FRAME, !moving && this.back() != null);
@@ -767,6 +777,21 @@ final class BattleHud {
                 .findFirst()
                 .map(this::memberTooltip)
                 .orElse(null);
+    }
+
+    /**
+     * The opponent's creature on its card: its name, level, HP, status; null when there is no opponent.
+     */
+    private @Nullable Component foeTooltip() {
+        ChoiceView view = this.choice;
+        if (view == null || !FieldView.present(view.foe()))
+            return null;
+        ChoiceView.Creature foe = view.foe();
+        return PokeBattleMessages.HUD_TOOLTIP_FOE.component(new PlaceholderContainer()
+                .registerDirect("name", foe.name())
+                .registerDirect("level", foe.level())
+                .registerDirect("percent", foe.hp())
+                .registerDirect("status", foe.status().isEmpty() ? "—" : foe.status()));
     }
 
     /**
