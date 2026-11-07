@@ -23,7 +23,7 @@ public class ArenaRequests {
     }
 
     /**
-     * @param template the arena's instance template
+     * @param template the arena's template, within the {@link ArenaBattle#INSTANCE_TYPE} type
      */
     public void request(Player player, String template, ArenaBattle battle) {
         if (this.plugin.battles().battleOf(player.getUniqueId()).isPresent()) {
@@ -32,7 +32,7 @@ public class ArenaRequests {
         }
         PokeBattleMessages.ARENA_REQUESTING.message(player);
         PolarisInstancesBridgeAPI.get()
-                .request(InstanceRequest.forPlayer(template, player.getUniqueId())
+                .request(InstanceRequest.forPlayer(ArenaBattle.INSTANCE_TYPE, template, player.getUniqueId())
                         .withMetadata(Map.of(ArenaBattle.METADATA_KEY, battle.toJson())))
                 .whenComplete((ticket, throwable) -> {
                     if (throwable != null) {

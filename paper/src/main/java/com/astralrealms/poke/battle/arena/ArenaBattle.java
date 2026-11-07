@@ -22,6 +22,8 @@ import com.google.gson.Gson;
 public record ArenaBattle(String format, String species, @Nullable String form, int level,
                           Set<String> captureFlags) {
 
+    /** The PolarisInstances instance type of arenas: their templates are {@code templates/pokebattle-arena/<id>.yml}. */
+    public static final String INSTANCE_TYPE = "pokebattle-arena";
     public static final String METADATA_KEY = "pokebattle.battle";
 
     private static final Gson GSON = new Gson();

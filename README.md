@@ -69,7 +69,8 @@ or a local `mvn install`).
 Gyms and ranked battles take place in **arenas**: one instance per battle on an arena server (VoidPaper with
 PolarisInstances and the Poké stack), built from an instance template.
 
-1. **The player's server** (with PolarisInstances-Bridge) asks for an instance of the arena template. The battle
+1. **The player's server** (with PolarisInstances-Bridge) asks for an instance of type `pokebattle-arena` with the
+   arena's template (`templates/pokebattle-arena/<template>.yml` on the arena servers). The battle
    travels in the metadata as JSON (`pokebattle.battle`, `ArenaBattle`). Try it with
    `/pokebattle arena <player> <template> <species> [level]`.
 2. **The arena server** (with PolarisInstances) starts the battle when the player enters the instance. The battle is

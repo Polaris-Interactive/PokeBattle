@@ -48,7 +48,8 @@ public class ArenaBattles implements Listener {
         Instance instance = event.instance();
         Player player = event.player();
         String json = instance.metadata().get(ArenaBattle.METADATA_KEY);
-        if (json == null || !instance.expectedPlayers().contains(player.getUniqueId())
+        if (!instance.type().equals(ArenaBattle.INSTANCE_TYPE) || json == null
+                || !instance.expectedPlayers().contains(player.getUniqueId())
                 || this.plugin.battles().battleOf(player.getUniqueId()).isPresent()
                 || !this.started.add(instance.id()))
             return;
@@ -94,7 +95,8 @@ public class ArenaBattles implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onBattleEnd(BattleEndEvent event) {
         Instance instance = PolarisInstancesAPI.get().findByPlayer(event.playerId()).orElse(null);
-        if (instance == null || !this.started.contains(instance.id()))
+        if (instance == null || !instance.type().equals(ArenaBattle.INSTANCE_TYPE)
+                || !this.started.contains(instance.id()))
             return;
         long delay = this.plugin.configuration().arenaOrDefault().returnDelay().toMillis();
         Bukkit.getAsyncScheduler().runDelayed(this.plugin,
