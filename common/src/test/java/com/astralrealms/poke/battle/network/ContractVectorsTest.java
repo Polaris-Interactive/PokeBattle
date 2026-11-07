@@ -17,6 +17,7 @@ import com.astralrealms.core.packet.Packet;
 import com.astralrealms.core.packet.io.PacketDeserializer;
 import com.astralrealms.core.packet.io.PacketSerializer;
 import com.astralrealms.poke.battle.network.packet.BattleAttachPacket;
+import com.astralrealms.poke.battle.network.packet.BattleRecoverPacket;
 import com.astralrealms.poke.battle.network.packet.BattleChoiceErrorPacket;
 import com.astralrealms.poke.battle.network.packet.BattleChoicePacket;
 import com.astralrealms.poke.battle.network.packet.BattleEndPacket;
@@ -99,6 +100,7 @@ class ContractVectorsTest {
             case "BattleEndPacket" -> new BattleEndPacket(battleId, fields.get("result").asText(),
                     fields.get("reason").asText());
             case "BattleAttachPacket" -> new BattleAttachPacket(battleId, fields.get("shardId").asText());
+            case "BattleRecoverPacket" -> new BattleRecoverPacket(battleId, fields.get("shardId").asText());
             case "BattleUpdatePacket" -> new BattleUpdatePacket(battleId, fields.get("seq").asLong(),
                     fields.get("side").asText(), this.strings(fields.get("lines")));
             case "BattleRequestPacket" -> new BattleRequestPacket(battleId, fields.get("seq").asLong(),

@@ -6,6 +6,7 @@ import com.astralrealms.poke.battle.network.packet.BattleChoiceErrorPacket;
 import com.astralrealms.poke.battle.network.packet.BattleChoicePacket;
 import com.astralrealms.poke.battle.network.packet.BattleEndPacket;
 import com.astralrealms.poke.battle.network.packet.BattleEndedPacket;
+import com.astralrealms.poke.battle.network.packet.BattleRecoverPacket;
 import com.astralrealms.poke.battle.network.packet.BattleRequestPacket;
 import com.astralrealms.poke.battle.network.packet.BattleStartPacket;
 import com.astralrealms.poke.battle.network.packet.BattleStartReplyPacket;
@@ -31,5 +32,7 @@ public class PokeBattlePacketRegistry extends PacketRegistry {
         registerPacket(0x06, BattleRequestPacket::new);
         registerPacket(0x07, BattleChoiceErrorPacket::new);
         registerPacket(0x08, BattleEndedPacket::new);
+        // Shard -> start queue (recovery after a worker died)
+        registerPacket(0x09, BattleRecoverPacket::new);
     }
 }
