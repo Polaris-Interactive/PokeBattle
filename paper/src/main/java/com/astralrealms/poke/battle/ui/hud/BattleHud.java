@@ -85,6 +85,8 @@ final class BattleHud {
     private static final String ALLY_CARD = "ally-frame";
     /** The opponent's card: hovering it shows what the battle knows of its creature. */
     private static final String FOE_CARD = "foe-frame";
+    /** The details text: the tooltip of a hovered creature, move, item or ability. */
+    private static final String INFO = "info";
     /** The share of max HP a revive gives back when the item does not say (ItemEffect's default). */
     private static final double DEFAULT_REVIVE = 0.5;
     private static final double FLAT = 0.05;
@@ -240,6 +242,8 @@ final class BattleHud {
                 });
             else if (id.equals(ALLY_CARD) || id.equals(FOE_CARD))
                 component.interaction(interaction -> interaction.hoverScale(scale));
+            if (id.equals(INFO))
+                component.background(HealthBar.argb(this.config.tooltipBackground()));
             double depth = element.depth() == null ? this.config.depth() : element.depth();
             builder.element(component.build(), element.position().yaw(), element.position().pitch(), depth);
             if (this.buttons.contains(id))
@@ -460,7 +464,7 @@ final class BattleHud {
                 for (BattleBag.Entry ball : balls)
                     entries.add(new Entry(this.bagEntry(ball),
                             () -> this.handler().throwBall(this.player, view, ball.itemId()),
-                            this.itemTooltip(ball)));
+                            this.itemTooltip(ball), null, ball.model()));
             }
             case BAG -> {
                 List<BattleBag.Entry> items = this.handler().bag().medicine(this.player);
@@ -472,7 +476,7 @@ final class BattleHud {
                     entries.add(new Entry(this.bagEntry(item), () -> {
                         this.item = item;
                         this.show(Menu.TARGETS);
-                    }, this.itemTooltip(item)));
+                    }, this.itemTooltip(item), null, item.model()));
             }
             case TARGETS -> {
                 BattleBag.Entry item = this.item;

@@ -175,7 +175,8 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param camera             null for a still camera, where the player stood
      * @param listIcon           the creature icon on a team or target button, as a share of its strip's scale; 0 for
      *                           0.22
-     * @param elements           where things go: {@code foe}, {@code ally}, {@code prompt}, {@code timer}, {@code log},
+     * @param tooltipBackground  #AARRGGBB behind the details text (the info element), sized to what it says
+     * @param elements          where things go: {@code foe}, {@code ally}, {@code prompt}, {@code timer}, {@code log},
      *                           {@code info}, {@code hint}, the menu buttons {@code button-1}... (as many as wanted),
      *                           {@code back} and {@code next}. An element left out is not drawn
      */
@@ -183,7 +184,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     public record Hud(boolean enabled, boolean closeable, double depth, Cursor cursor, boolean chatLog,
                       int logLines, Duration closeDelay, String hoverBackground, String disabledBackground,
                       String hoverSound, String clickSound, Bar bar, @Nullable Camera camera,
-                      Map<String, Element> elements, double listIcon) {
+                      Map<String, Element> elements, double listIcon, String tooltipBackground) {
     }
 
     /**

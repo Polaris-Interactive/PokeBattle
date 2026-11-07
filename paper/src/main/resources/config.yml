@@ -139,6 +139,8 @@ hud:
   # The creature's icon at the left end of a team or target button, as a share of the button strip's scale; the label
   # moves right to leave it room.
   list-icon: 0.22
+  # #AARRGGBB behind the details text (the info element): it grows with its text. Dark, mostly opaque.
+  tooltip-background: "#F0050709"
   # Health bars: `length` symbols, coloured high above 50 %, medium above 20 %, low below.
   bar:
     length: 54
@@ -192,7 +194,7 @@ hud:
     # The cards hug the top corners: the frame (`*-frame`, the art), the species in its portrait slot (outer edge),
     # the name and level, the health bar with the HP drawn over it, and the status strip under the card.
     ally-frame:     { position: { yaw: -43.9, pitch: -22.7 }, scale: 0.744, background: false, depth: 2.06 }
-    ally-icon:      { position: { yaw: -49.0, pitch: -20.6 }, scale: 0.122, background: false, depth: 2.04 }
+    ally-icon:      { position: { yaw: -49.0, pitch: -20.6 }, scale: 0.14, background: false, depth: 2.04 }
     ally-underlay:  { position: { yaw: -49.0, pitch: -20.6 }, scale: 0.15, background: false, depth: 2.05 }
     ally:           { position: { yaw: -42.2, pitch: -24.0 }, scale: 0.154, background: false }
     ally-bar:       { position: { yaw: -42.2, pitch: -22.3 }, scale: 0.135, background: false }
