@@ -8,6 +8,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
+import com.astralrealms.poke.battle.ui.BattleStage;
+
 /**
  * Puts creatures on a battle's stage. The only implementation is {@link PokeEntitiesActors}, loaded when PokeEntities
  * is: nothing else in PokeBattle names a PokeEntities type, so PokeBattle runs without it.
@@ -41,4 +43,11 @@ public interface CreatureActors {
      * Flashes the creature red for a moment, as when it is hurt.
      */
     void flash(Entity creature);
+
+    /**
+     * How much room the creature's model takes, so the camera frames it and keeps clear of it.
+     *
+     * @return null when it is not known
+     */
+    BattleStage.@Nullable Body size(Entity creature);
 }

@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -66,6 +67,13 @@ final class BattleHud {
     private static final String BUTTON = "button-";
     /** The strip behind a list button, drawn in the element of the same number. */
     private static final String FRAME = "frame-";
+    /** The creature on a team or target button, at the left end of its strip (laid out from the strip). */
+    private static final String ICON = "icon-";
+    /** An item's width per unit of scale, in blocks (textures padded square). */
+    private static final double ITEM_WIDTH = 0.95;
+    /** The share of the list strip's texture its strip takes across (90 of 92 pixels). */
+    private static final double STRIP_WIDTH = 90.0 / 92;
+    private static final double LIST_ICON = 0.22;
     private static final String BACK = "back";
     private static final String NEXT = "next";
     private static final double HOVER_GROWTH = 1.08;
@@ -76,10 +84,15 @@ final class BattleHud {
     /**
      * A button: {@code action} null when it cannot be used, {@code info} shown while it is hovered.
      */
-    private record Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame) {
+    private record Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame,
+                         @Nullable Key icon) {
+
+        Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame) {
+            this(label, action, info, frame, null);
+        }
 
         Entry(Component label, @Nullable Runnable action, @Nullable Component info) {
-            this(label, action, info, null);
+            this(label, action, info, null, null);
         }
     }
 
@@ -89,6 +102,10 @@ final class BattleHud {
     private final PokeBattleConfiguration.Hud config;
     private final int turnTimerSeconds;
     private final List<String> buttons;
+    /** Where each button's label sits in the camera's frame ({@code x} right, {@code y} up, {@code z} away), in blocks. */
+    private final Map<String, double[]> labels = new HashMap<>();
+    /** How far right a label moves to clear the icon of its button. */
+    private final Map<String, Double> shifts = new HashMap<>();
     private final Deque<Component> log = new ArrayDeque<>();
     private final Map<String, Object> drawn = new HashMap<>();
     private final @Nullable BattleCamera camera;
@@ -206,10 +223,43 @@ final class BattleHud {
                         .condition(_ -> this.usable(id))
                         .disabledBackground(disabled)
                         .onClick(_ -> this.click(id)));
-            builder.element(component.build(), element.position().yaw(), element.position().pitch(),
-                    element.depth() == null ? this.config.depth() : element.depth());
+            double depth = element.depth() == null ? this.config.depth() : element.depth();
+            builder.element(component.build(), element.position().yaw(), element.position().pitch(), depth);
+            if (this.buttons.contains(id))
+                this.labels.put(id, offset(element.position(), depth));
+            if (id.startsWith(FRAME))
+                this.icon(builder, id.substring(FRAME.length()), element, scale, depth);
         }
         return builder.build();
+    }
+
+    /**
+     * The icon slot of a list button: square, as tall as the strip allows, at the strip's left end and just in front of
+     * it. Its label moves right by half the icon when one shows.
+     */
+    private void icon(HudDefinition.Builder builder, String number, PokeBattleConfiguration.Element frame,
+                      double frameScale, double depth) {
+        double share = this.config.listIcon() > 0 ? this.config.listIcon() : LIST_ICON;
+        double scale = frameScale * share;
+        double width = scale * ITEM_WIDTH;
+        double strip = frameScale * ITEM_WIDTH * STRIP_WIDTH;
+        double[] at = offset(frame.position(), depth);
+        builder.elementAt(ComponentDefinition.item(ICON + number, HudArt.item(HudArt.FRAME_LIST))
+                        .scale(scale, scale, scale * FLAT)
+                        .billboard(BillboardType.FIXED)
+                        .build(),
+                at[0] - strip / 2 + width / 2, at[1], at[2] - 0.01);
+        this.shifts.put(BUTTON + number, width / 2);
+    }
+
+    /**
+     * An element's place in the camera's frame, as AstralHologram turns {@code yaw}/{@code pitch} and depth into one.
+     */
+    private static double[] offset(PokeBattleConfiguration.Position position, double depth) {
+        double yaw = Math.toRadians(position.yaw());
+        double pitch = Math.toRadians(position.pitch());
+        return new double[]{depth * Math.cos(pitch) * Math.sin(yaw), -depth * Math.sin(pitch),
+                depth * Math.cos(pitch) * Math.cos(yaw)};
     }
 
     /**
@@ -380,9 +430,9 @@ final class BattleHud {
             }
             case TEAM -> {
                 for (ChoiceView.Member member : view.switchable())
-                    entries.add(new Entry(PokeBattleMessages.MEMBER_BUTTON.component(this.member(member, false)),
+                    entries.add(new Entry(PokeBattleMessages.HUD_MEMBER_BUTTON.component(this.member(member, false)),
                             () -> this.handler().choose(this.player, view, "switch " + member.position()),
-                            this.memberTooltip(member)));
+                            this.memberTooltip(member), null, HudArt.speciesItem(member.species())));
             }
             case BALLS -> {
                 List<BattleBag.Entry> balls = this.handler().bag().balls(this.player);
@@ -414,8 +464,9 @@ final class BattleHud {
                     return null;
                 }
                 for (ChoiceView.Member member : targets)
-                    entries.add(new Entry(PokeBattleMessages.TARGET_BUTTON.component(this.member(member, true)),
-                            () -> this.handler().useItem(this.player, view, item.itemId(), member.position()), null));
+                    entries.add(new Entry(PokeBattleMessages.HUD_TARGET_BUTTON.component(this.member(member, true)),
+                            () -> this.handler().useItem(this.player, view, item.itemId(), member.position()),
+                            this.memberTooltip(member), null, HudArt.speciesItem(member.species())));
             }
         }
         return entries;
@@ -602,8 +653,11 @@ final class BattleHud {
                 this.set(button, List.of(entry.label()));
             this.visible(button, entry != null);
             // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
-            String frame = FRAME + button.substring(BUTTON.length());
-            this.setItem(frame, entry == null ? null : this.art(entry));
+            String number = button.substring(BUTTON.length());
+            this.setItem(FRAME + number, entry == null ? null : this.art(entry));
+            Key icon = entry == null ? null : entry.icon();
+            this.setItem(ICON + number, icon);
+            this.shift(button, icon != null);
         }
         this.set(BACK, List.of(PokeBattleMessages.BACK_BUTTON.component()));
         this.visible(BACK, !moving && this.back() != null);
@@ -657,6 +711,20 @@ final class BattleHud {
     }
 
     /**
+     * Moves a button's label right of its icon, or back where it was laid out.
+     */
+    private void shift(String button, boolean shifted) {
+        HudView view = this.view;
+        double[] at = this.labels.get(button);
+        String key = button + "#shift";
+        if (view == null || at == null || Objects.equals(this.drawn.get(key), shifted))
+            return;
+        this.drawn.put(key, shifted);
+        double dx = shifted ? this.shifts.getOrDefault(button, 0.0) : 0;
+        view.element(button).ifPresent(element -> element.offset(at[0] + dx, at[1], at[2]));
+    }
+
+    /**
      * The tooltip on its panel, or neither.
      */
     private void tooltip(@Nullable Component info) {
@@ -701,11 +769,21 @@ final class BattleHud {
         return new PlaceholderContainer()
                 .registerDirect("name", member.name())
                 .registerDirect("level", member.level())
-                .registerDirect("hp", member.hp())
+                .registerDirect("hp", HealthBar.points(member.hp(), member.maxHp(), this.config.bar()))
                 .registerDirect("max", member.maxHp())
                 .registerDirect("status", target && member.fainted()
                         ? PokeBattleMessages.TARGET_FAINTED.component()
-                        : this.status(member.status()));
+                        : this.shortStatus(member.status()));
+    }
+
+    /**
+     * A status cut to its first three letters, so it fits a button.
+     */
+    private Object shortStatus(String status) {
+        if (status.isEmpty())
+            return "";
+        String cut = status.substring(0, Math.min(3, status.length())).toUpperCase(Locale.ROOT);
+        return PokeBattleMessages.HUD_MEMBER_STATUS.component(new PlaceholderContainer().registerDirect("status", cut));
     }
 
     private Component bagEntry(BattleBag.Entry entry) {

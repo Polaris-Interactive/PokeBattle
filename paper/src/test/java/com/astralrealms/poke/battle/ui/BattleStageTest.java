@@ -16,7 +16,7 @@ class BattleStageTest {
     private static final PokeBattleConfiguration.Stage SPOTS = new PokeBattleConfiguration.Stage(
             new PokeBattleConfiguration.Point(2, -1, 0), new PokeBattleConfiguration.Point(8, 1, 0));
     private static final PokeBattleConfiguration.Camera CAMERA = new PokeBattleConfiguration.Camera(true, 1,
-            Duration.ofSeconds(6), Map.of());
+            Duration.ofSeconds(6), Map.of(), 1.5, 4);
 
     private static PokeBattleConfiguration.Shot shot(double forward, double right, double up, String lookAt) {
         return new PokeBattleConfiguration.Shot(new PokeBattleConfiguration.Point(forward, right, up), lookAt, 10, 10);
@@ -62,6 +62,40 @@ class BattleStageTest {
         // Above the ally, looking down at it
         Location down = stage.eye(shot(2, -1, 5, "ally"));
         assertThat(down.getPitch()).isCloseTo(90, within(1.0E-3f));
+    }
+
+    @Test
+    void aBigCreatureIsFramedFromFurtherBackAndLookedAtHigher() {
+        BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
+        Location before = stage.eye(shot(0, 0, 3, "foe"));
+
+        // 3 blocks tall, twice the reference size: twice as far, looking at twice the look height
+        stage.body("foe", new BattleStage.Body(3, 2));
+        Location bigTarget = stage.target("foe");
+        assertThat(bigTarget.getY()).isCloseTo(2, within(1.0E-9));
+        Location after = stage.eye(shot(0, 0, 3, "foe"));
+        assertThat(after.toVector().distance(bigTarget.toVector()))
+                .isCloseTo(2 * before.toVector().distance(bigTarget.toVector()), within(1.0E-6));
+
+        // Gone: back to the shot as set
+        stage.body("foe", null);
+        assertThat(stage.eye(shot(0, 0, 3, "foe")).toVector()).isEqualTo(before.toVector());
+    }
+
+    @Test
+    void anEyeRisesOverABigCreatureInTheWay() {
+        BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
+        // Behind the ally, looking at the middle: a 4-block ally stands across the line
+        stage.body("ally", new BattleStage.Body(4, 2));
+        Location eye = stage.eye(shot(0, -1, 1, "center"));
+        Location target = stage.target("center");
+
+        // Where the line from the middle to the eye enters the ally's box (its far side, z = 3), it passes over its head
+        double share = (target.getZ() - 3) / (target.getZ() - eye.getZ());
+        double height = target.getY() + share * (eye.getY() - target.getY());
+        assertThat(height).isGreaterThan(4);
+        // And not much more than it needs
+        assertThat(height).isLessThan(4 + 0.5);
     }
 
     @Test

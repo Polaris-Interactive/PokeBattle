@@ -30,6 +30,15 @@ public class HealthBar {
                 .build();
     }
 
+    /**
+     * {@code hp/max} in the colour its bar would have.
+     */
+    public static Component points(int hp, int max, PokeBattleConfiguration.Bar bar) {
+        double ratio = max <= 0 ? 0 : Math.clamp((double) hp / max, 0, 1);
+        String color = ratio > 0.5 ? bar.high() : ratio > 0.2 ? bar.medium() : bar.low();
+        return Component.text(hp + "/" + max, color(color, NamedTextColor.GREEN));
+    }
+
     private static TextColor color(String hex, TextColor fallback) {
         TextColor color = TextColor.fromHexString(hex);
         return color == null ? fallback : color;

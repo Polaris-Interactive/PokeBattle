@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
+import com.astralrealms.poke.battle.ui.BattleStage;
 import com.astralrealms.poke.entities.PokeEntitiesAPI;
 import com.astralrealms.poke.entities.api.model.CreatureSpawnResult;
 
@@ -52,5 +53,12 @@ public class PokeEntitiesActors implements CreatureActors {
     @Override
     public void flash(Entity creature) {
         PokeEntitiesAPI.get().creatures().flash(creature);
+    }
+
+    @Override
+    public BattleStage.@Nullable Body size(Entity creature) {
+        return PokeEntitiesAPI.get().creatures().size(creature)
+                .map(size -> new BattleStage.Body(size.height(), size.width()))
+                .orElse(null);
     }
 }

@@ -119,6 +119,9 @@ public enum PokeBattleMessages implements MessageEnum {
     HUD_TOOLTIP_MOVE,
     HUD_TOOLTIP_MEMBER_MOVE,
     HUD_TOOLTIP_MEMBER,
+    HUD_MEMBER_BUTTON,
+    HUD_TARGET_BUTTON,
+    HUD_MEMBER_STATUS,
     HIT_DAMAGE_ALLY,
     HIT_DAMAGE_FOE,
     ;

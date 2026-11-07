@@ -162,7 +162,12 @@ public class StagedUi implements BattleUi {
 
     private enum Side {
         ALLY,
-        FOE
+        FOE;
+
+        /** The side as the stage and its shots name it. */
+        String key() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     private record Actor(String species, Entity entity) {
@@ -201,6 +206,8 @@ public class StagedUi implements BattleUi {
             if (entity == null)
                 return;
             this.standing.put(side, new Actor(creature.species(), entity));
+            // The camera frames it, and keeps clear of it, by its size
+            this.stage.body(side.key(), this.actors.size(entity));
             // Its battle stance, looping under everything else it plays (a once animation goes back to it)
             this.animate(side, "stance");
         }
@@ -334,6 +341,7 @@ public class StagedUi implements BattleUi {
             Actor actor = this.standing.remove(side);
             if (actor == null)
                 return;
+            this.stage.body(side.key(), null);
             Entity entity = actor.entity();
             if (delay <= 0) {
                 this.actors.remove(entity);

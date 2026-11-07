@@ -136,6 +136,9 @@ hud:
   # Sound keys, empty for none.
   hover-sound: "minecraft:ui.button.click"
   click-sound: ""
+  # The creature's icon at the left end of a team or target button, as a share of the button strip's scale; the label
+  # moves right to leave it room.
+  list-icon: 0.22
   # Health bars: `length` symbols, coloured high above 50 %, medium above 20 %, low below.
   bar:
     length: 54
@@ -156,6 +159,11 @@ hud:
     # GDD: a camera run lasts at most 6 s. Each moment shows when its shot lands (the HP bars, the log, the creatures);
     # what would go past this shows at once, and F shows the rest at once anyway.
     max-sequence: 6s
+    # Shots are laid out for creatures up to `reference-size` blocks (height or width, whichever is bigger). A bigger
+    # one is framed from further back, as many times as it is bigger (at most `max-scale`), and looked at that much
+    # higher. A creature standing between a shot and what it looks at (a big ally in `idle`) makes the eye rise over it.
+    reference-size: 1.5
+    max-scale: 4
     # `look-at`: ally, foe or center. `glide`: ticks to get there (0 cuts). `hold`: ticks before the next shot.
     shots:
       # Over the shoulder of the player's creature, the opponent across: where the menu is used.

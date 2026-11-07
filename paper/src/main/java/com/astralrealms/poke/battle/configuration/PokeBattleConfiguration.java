@@ -84,7 +84,6 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     public record Capture(@Nullable Integer guaranteedBelow) {
     }
 
-
     /**
      * The {@code arena} section, its missing keys at their defaults. Configurate builds the section with null fields
      * when an older config lacks it, and AstralCore cannot write durations back, so defaults are applied here, not
@@ -174,6 +173,8 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param logLines           log lines shown in the HUD
      * @param closeDelay         how long the HUD stays after the battle ended
      * @param camera             null for a still camera, where the player stood
+     * @param listIcon           the creature icon on a team or target button, as a share of its strip's scale; 0 for
+     *                           0.22
      * @param elements           where things go: {@code foe}, {@code ally}, {@code prompt}, {@code timer}, {@code log},
      *                           {@code info}, {@code hint}, the menu buttons {@code button-1}... (as many as wanted),
      *                           {@code back} and {@code next}. An element left out is not drawn
@@ -182,7 +183,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     public record Hud(boolean enabled, boolean closeable, double depth, Cursor cursor, boolean chatLog,
                       int logLines, Duration closeDelay, String hoverBackground, String disabledBackground,
                       String hoverSound, String clickSound, Bar bar, @Nullable Camera camera,
-                      Map<String, Element> elements) {
+                      Map<String, Element> elements, double listIcon) {
     }
 
     /**
@@ -236,7 +237,6 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
                     section.numberScale() == null ? 1.2 : section.numberScale());
         }
 
-
         public List<String> animations(String moment) {
             List<String> names = this.animations == null ? null : this.animations.get(moment);
             return names == null ? List.of() : names;
@@ -286,10 +286,13 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param maxSequence the longest run of beats; what does not fit shows at once
      * @param shots       by {@code idle} (while choosing) and by cue ({@code ally-move}, {@code foe-faint}...); a cue
      *                    without a shot leaves the camera where it is
+     * @param referenceSize the biggest creature (height or width, in blocks) shots are laid out for: a bigger one is
+     *                      framed from further back, its look height raised the same; 0 for 1.5
+     * @param maxScale    the most a shot is pushed back for a big creature, as a factor; 0 for 4
      */
     @ConfigSerializable
     public record Camera(boolean enabled, double lookHeight, Duration maxSequence,
-                         Map<String, Shot> shots) {
+                         Map<String, Shot> shots, double referenceSize, double maxScale) {
     }
 
     @ConfigSerializable
