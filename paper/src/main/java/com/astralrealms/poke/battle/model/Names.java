@@ -24,6 +24,17 @@ public class Names {
         return PokeCoreAPI.get().species().text(locale, kind + "." + id + ".name");
     }
 
+    /**
+     * The short description of an entity ({@code <kind>.<id>.desc}), empty when the bundle has none.
+     */
+    public static String description(@Nullable Locale locale, String kind, @Nullable String id) {
+        if (id == null || id.isEmpty())
+            return "";
+        String key = kind + "." + id + ".desc";
+        String text = PokeCoreAPI.get().species().text(locale, key);
+        return text.equals(key) ? "" : text;
+    }
+
     public static String ally(@Nullable Locale locale, Battle.Ally ally) {
         String nickname = ally.pokemon().nickname();
         if (nickname != null && !nickname.isBlank())

@@ -37,6 +37,7 @@ import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
+import com.astralrealms.poke.core.mechanics.item.ItemEffect;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.key.Key;
@@ -77,6 +78,10 @@ final class BattleHud {
     private static final String BACK = "back";
     private static final String NEXT = "next";
     private static final double HOVER_GROWTH = 1.08;
+    /** The player's creature card: hovering it shows the details of its team member. */
+    private static final String ALLY_CARD = "ally-frame";
+    /** The share of max HP a revive gives back when the item does not say (ItemEffect's default). */
+    private static final double DEFAULT_REVIVE = 0.5;
     private static final double FLAT = 0.05;
 
     enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS }
@@ -223,6 +228,8 @@ final class BattleHud {
                         .condition(_ -> this.usable(id))
                         .disabledBackground(disabled)
                         .onClick(_ -> this.click(id)));
+            else if (id.equals(ALLY_CARD))
+                component.interaction(interaction -> interaction.hoverScale(scale));
             double depth = element.depth() == null ? this.config.depth() : element.depth();
             builder.element(component.build(), element.position().yaw(), element.position().pitch(), depth);
             if (this.buttons.contains(id))
@@ -442,7 +449,8 @@ final class BattleHud {
                 }
                 for (BattleBag.Entry ball : balls)
                     entries.add(new Entry(this.bagEntry(ball),
-                            () -> this.handler().throwBall(this.player, view, ball.itemId()), null));
+                            () -> this.handler().throwBall(this.player, view, ball.itemId()),
+                            this.itemTooltip(ball)));
             }
             case BAG -> {
                 List<BattleBag.Entry> items = this.handler().bag().medicine(this.player);
@@ -454,7 +462,7 @@ final class BattleHud {
                     entries.add(new Entry(this.bagEntry(item), () -> {
                         this.item = item;
                         this.show(Menu.TARGETS);
-                    }, null));
+                    }, this.itemTooltip(item)));
             }
             case TARGETS -> {
                 BattleBag.Entry item = this.item;
@@ -530,7 +538,10 @@ final class BattleHud {
         if (entered)
             this.sound(this.config.hoverSound());
         Entry entry = entered ? this.entryAt(id) : null;
-        this.tooltip(entry == null ? null : entry.info());
+        Component info = entry == null ? null : entry.info();
+        if (entered && id.equals(ALLY_CARD))
+            info = this.allyTooltip();
+        this.tooltip(info);
 
         // A usable button lights up: its art's second state
         Entry under = this.entryAt(id);
@@ -733,6 +744,21 @@ final class BattleHud {
     }
 
     /**
+     * The details of the player's creature on its card: its team member's tooltip, or null when it is not known.
+     */
+    private @Nullable Component allyTooltip() {
+        ChoiceView view = this.choice;
+        if (view == null || !FieldView.present(view.ally()))
+            return null;
+        ChoiceView.Creature ally = view.ally();
+        return view.team().stream()
+                .filter(member -> member.name().equals(ally.name()) && member.level() == ally.level())
+                .findFirst()
+                .map(this::memberTooltip)
+                .orElse(null);
+    }
+
+    /**
      * A team member's moves with their type and PP, then its ability and Speed; null when nothing is known of it.
      */
     private @Nullable Component memberTooltip(ChoiceView.Member member) {
@@ -747,7 +773,59 @@ final class BattleHud {
         return PokeBattleMessages.HUD_TOOLTIP_MEMBER.component(new PlaceholderContainer()
                 .registerDirect("moves", Component.join(JoinConfiguration.newlines(), lines))
                 .registerDirect("ability", member.ability().isEmpty() ? "—" : member.ability())
+                .registerDirect("details", this.abilityDetails(member))
                 .registerDirect("speed", member.speed() > 0 ? Integer.toString(member.speed()) : "—"));
+    }
+
+    /**
+     * The ability's description under its name, or nothing when the bundle has none.
+     */
+    private Component abilityDetails(ChoiceView.Member member) {
+        if (member.abilityDescription().isEmpty())
+            return Component.empty();
+        return PokeBattleMessages.HUD_TOOLTIP_ABILITY.component(new PlaceholderContainer()
+                .registerDirect("description", member.abilityDescription()));
+    }
+
+    /**
+     * A bag item or ball: its name and amount, then what it does (a ball only catches).
+     */
+    private Component itemTooltip(BattleBag.Entry entry) {
+        List<Component> lines = new ArrayList<>();
+        for (ItemEffect effect : entry.effects())
+            lines.addAll(effectLines(effect));
+        if (entry.effects().isEmpty())
+            lines.add(PokeBattleMessages.HUD_EFFECT_BALL.component());
+        return PokeBattleMessages.HUD_TOOLTIP_ITEM.component(new PlaceholderContainer()
+                .registerDirect("name", entry.name())
+                .registerDirect("amount", entry.amount())
+                .registerDirect("effects", Component.join(JoinConfiguration.newlines(), lines)));
+    }
+
+    /**
+     * The lines saying what one battle effect does; a heal that also cures gets a line for the cure.
+     */
+    private static List<Component> effectLines(ItemEffect effect) {
+        return switch (effect.type()) {
+            case HEAL -> {
+                List<Component> lines = new ArrayList<>();
+                lines.add(effect.amount() == null
+                        ? PokeBattleMessages.HUD_EFFECT_HEAL_ALL.component()
+                        : PokeBattleMessages.HUD_EFFECT_HEAL.component(new PlaceholderContainer()
+                        .registerDirect("amount", effect.amount())));
+                if (effect.cureStatus())
+                    lines.add(PokeBattleMessages.HUD_EFFECT_CURE.component());
+                yield lines;
+            }
+            case REVIVE -> List.of(PokeBattleMessages.HUD_EFFECT_REVIVE.component(new PlaceholderContainer()
+                    .registerDirect("percent", Math.round((effect.fraction() == null ? DEFAULT_REVIVE : effect.fraction()) * 100) + " %")));
+            case CURE_STATUS -> List.of(PokeBattleMessages.HUD_EFFECT_CURE.component());
+            case RESTORE_PP -> List.of(effect.amount() == null
+                    ? PokeBattleMessages.HUD_EFFECT_PP_ALL.component()
+                    : PokeBattleMessages.HUD_EFFECT_PP.component(new PlaceholderContainer()
+                    .registerDirect("amount", effect.amount())));
+            default -> List.of();
+        };
     }
 
     /**

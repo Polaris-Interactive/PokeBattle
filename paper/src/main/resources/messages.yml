@@ -123,7 +123,18 @@ hud-closed: "<gray>Tapez <white>/combat</white> pour revenir au combat."
 hud-tooltip-move: "%icon% <white>%move%</white>  %pp%<newline><#4FA59B>━━━━━━━━━━━━<newline><gray>Type : <white>%type%<newline><gray>Catégorie : <white>%category%<newline><gray>Puissance : <white>%power%<newline><gray>Précision : <white>%accuracy%"
 # The tooltip of a hovered team member: one line per move (hud-tooltip-member-move), then its ability and Speed.
 hud-tooltip-member-move: "%icon% <white>%move%</white>  %pp%"
-hud-tooltip-member: "%moves%<newline><#4FA59B>━━━━━━━━━━━━<newline><#7FD7D0>Talent : <white>%ability%<newline><#F2C94C>⚡ Vitesse : <white>%speed%"
+# %details% is hud-tooltip-ability, empty when the ability is not known in the bundle.
+hud-tooltip-member: "%moves%<newline><#4FA59B>━━━━━━━━━━━━<newline><#7FD7D0>Talent : <white>%ability%%details%<newline><#F2C94C>⚡ Vitesse : <white>%speed%"
+hud-tooltip-ability: "<newline><gray>%description%"
+# The tooltip of a hovered bag item or ball: its name and how many, then what it does (one hud-effect-* line each).
+hud-tooltip-item: "<white>%name%</white>  <gray>×%amount%<newline><#4FA59B>━━━━━━━━━━━━<newline>%effects%"
+hud-effect-heal: "<gray>Rend <white>%amount%</white> PV"
+hud-effect-heal-all: "<gray>Rend tous les PV"
+hud-effect-cure: "<gray>Soigne le statut"
+hud-effect-revive: "<gray>Ranime avec <white>%percent%</white> des PV"
+hud-effect-pp: "<gray>Restaure <white>%amount%</white> PP"
+hud-effect-pp-all: "<gray>Restaure tous les PP"
+hud-effect-ball: "<gray>Capture un Pokémon sauvage"
 # Team and target buttons in the HUD: two short lines, so they fit their strip next to the creature's icon.
 # %hp% is coloured by what is left; %status% is hud-member-status (or target-fainted), empty when healthy.
 hud-member-button: "<white>%name%</white> <gray>N.%level%<newline>%hp% <gray>PV</gray> %status%"

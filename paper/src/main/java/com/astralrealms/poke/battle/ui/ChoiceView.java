@@ -72,19 +72,20 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
      * @param position as {@code switch N} (and the target of a bag item)
      * @param status   display name, empty when healthy
      * @param moves    its moves with the PP stored before the battle (the request only has the active's PP)
-     * @param ability  display name, empty when unknown
-     * @param speed    its Speed stat, 0 when unknown
-     * @param species  its species id, for its icon; empty when unknown
+     * @param ability            display name, empty when unknown
+     * @param abilityDescription what the ability does, empty when unknown
+     * @param speed              its Speed stat, 0 when unknown
+     * @param species            its species id, for its icon; empty when unknown
      */
     public record Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted,
-                         List<MemberMove> moves, String ability, int speed, String species) {
+                         List<MemberMove> moves, String ability, String abilityDescription, int speed, String species) {
 
         public Member {
             moves = List.copyOf(moves);
         }
 
         public Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted) {
-            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", 0, "");
+            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", "", 0, "");
         }
     }
 
@@ -149,6 +150,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
                     condition == null ? 0 : condition.hp(), condition == null ? 0 : condition.maxHp(),
                     status(condition, locale), member.fainted(), known,
                     pokemon.ability() == null ? "" : Names.text(locale, "ability", pokemon.ability()),
+                    pokemon.ability() == null ? "" : Names.description(locale, "ability", pokemon.ability()),
                     speed(pokemon, registry), pokemon.species());
             team.add(view);
             if (request.canSwitchTo(member.position()))
