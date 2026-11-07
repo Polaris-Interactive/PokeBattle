@@ -18,8 +18,8 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
                                       @Nullable Arena arena, Rewards rewards, Dialog dialog, Stage stage,
                                       @Nullable Creatures creatures, @Nullable Hud hud) {
 
-    private static final Recovery DEFAULT_RECOVERY = new Recovery(Duration.ofSeconds(2));
-    private static final Arena DEFAULT_ARENA = new Arena("stage", Duration.ofSeconds(3));
+    private static final Recovery DEFAULT_RECOVERY = new Recovery(null);
+    private static final Arena DEFAULT_ARENA = new Arena(null, null);
 
     /**
      * The {@code arena} section, or its defaults when an older config has none.
@@ -37,6 +37,12 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      */
     @ConfigSerializable
     public record Arena(String stageSpawn, Duration returnDelay) {
+
+        // Configurate builds the record even when the section is absent from an older config: defaults per field
+        public Arena {
+            stageSpawn = stageSpawn == null ? "stage" : stageSpawn;
+            returnDelay = returnDelay == null ? Duration.ofSeconds(3) : returnDelay;
+        }
     }
 
     /**
@@ -52,6 +58,11 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      */
     @ConfigSerializable
     public record Recovery(Duration checkInterval) {
+
+        // Configurate builds the record even when the section is absent from an older config: defaults per field
+        public Recovery {
+            checkInterval = checkInterval == null ? Duration.ofSeconds(2) : checkInterval;
+        }
     }
 
     @ConfigSerializable
