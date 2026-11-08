@@ -33,8 +33,8 @@ public record FieldView(UUID battleId, int turn, ChoiceView.Creature ally, Choic
         String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
         Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
         if (opponent != null)
-            foe = ChoiceView.creature(Names.foe(locale, opponent), opponent.creature().species(),
-                    opponent.creature().level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
+            foe = ChoiceView.creature(Names.foe(locale, opponent), opponent.species(),
+                    opponent.level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
         return new FieldView(battle.id(), battle.tracker().turn(), ally, foe);
     }
 

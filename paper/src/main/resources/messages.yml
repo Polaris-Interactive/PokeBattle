@@ -31,6 +31,9 @@ item-refunded: "<info>%item% <info>vous a été rendu."
 # End of a battle
 battle-won: "<success>Vous avez gagné le combat !"
 battle-lost: "<error>Toutes vos créatures sont K.O..."
+# Against an NPC trainer; %trainer% is its name
+battle-won-trainer: "<success>Vous avez battu <white>%trainer%</white> !"
+battle-lost-trainer: "<error>Vous avez perdu contre <white>%trainer%</white>..."
 battle-tie: "<info>Le combat se termine sur une égalité."
 battle-aborted: "<warning>Le combat a été interrompu."
 battle-fled: "<info>Vous avez pris la fuite."
@@ -46,7 +49,11 @@ move-pending: "<info><white>%pokemon%</white> voudrait apprendre <white>%move%</
 
 # Battle log. %pokemon% is the creature as named in the log (foe-name for the opponent's), %name% its plain name.
 foe-name-wild: "<white>%name%</white> sauvage"
+# An NPC trainer's creature; %trainer% is the trainer's name in every log line of a trainer battle
+foe-name-trainer: "<white>%name%</white> <gray>de</gray> <white>%trainer%</white>"
 log-wild-appears: "<gray>Un <white>%name%</white> sauvage apparaît !"
+log-trainer-challenge: "<white>%trainer%</white> <gray>veut se battre !"
+log-trainer-sends: "<white>%trainer%</white> <gray>envoie <white>%name%</white> !"
 log-send-out: "<gray>Vas-y, <white>%name%</white> !"
 log-turn: "<dark_gray>— Tour %turn% —"
 log-move: "%pokemon% <gray>utilise <white>%move%</white> !"

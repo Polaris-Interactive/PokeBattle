@@ -117,8 +117,8 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
         String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
         Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
         if (opponent != null)
-            foe = creature(Names.foe(locale, opponent), opponent.creature().species(),
-                    opponent.creature().level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
+            foe = creature(Names.foe(locale, opponent), opponent.species(),
+                    opponent.level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
 
         List<Move> moves = new ArrayList<>();
         for (ChoiceRequest.MoveOption option : request.moves()) {

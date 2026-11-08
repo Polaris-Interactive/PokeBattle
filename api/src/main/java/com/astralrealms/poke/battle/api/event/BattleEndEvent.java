@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.poke.battle.api.model.BattleOutcome;
 
@@ -27,9 +28,11 @@ public class BattleEndEvent extends Event {
     private final BattleOutcome outcome;
     private final int turns;
     private final boolean settled;
+    /** The request's tag, null when it had none: the same on whichever server ends the battle. */
+    private final @Nullable String tag;
 
     public BattleEndEvent(UUID battleId, UUID playerId, String format, BattleOutcome outcome, int turns,
-                          boolean settled) {
+                          boolean settled, @Nullable String tag) {
         super(true);
         this.battleId = battleId;
         this.playerId = playerId;
@@ -37,6 +40,7 @@ public class BattleEndEvent extends Event {
         this.outcome = outcome;
         this.turns = turns;
         this.settled = settled;
+        this.tag = tag;
     }
 
     @Override

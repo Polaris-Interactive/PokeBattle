@@ -14,6 +14,7 @@ import com.astralrealms.poke.battle.protocol.ChoiceRequest;
 import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
 import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
 import com.astralrealms.poke.core.model.Pokemon;
+import com.astralrealms.poke.core.team.TrainerMember;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import lombok.Getter;
@@ -21,7 +22,7 @@ import lombok.Setter;
 import net.kyori.adventure.text.Component;
 
 /**
- * A battle shown by this server: one player's side against a wild creature. Worker packets are fed to it in order
+ * A battle shown by this server: one player's side against a wild creature or an NPC trainer's team. Worker packets are fed to it in order
  * ({@link #sequence}), under its monitor; every mutable field is guarded by it.
  * <p>
  * Team members are named by their 1-based index in the start team ({@code p1a: 2}): display names are resolved here,
@@ -47,21 +48,59 @@ public class Battle {
     public record Ally(String label, Pokemon pokemon) {
     }
 
-    public record Foe(String label, GeneratedCreature creature) {
+    /**
+     * One of the opponent's creatures, as much as this server shows and rewards (the worker has the whole set).
+     *
+     * @param nickname display name given by content, null for the species name
+     */
+    public record Foe(String label, String species, @Nullable String form, int level, @Nullable String nickname) {
+
+        public static Foe of(String label, GeneratedCreature creature) {
+            return new Foe(label, creature.species(), creature.form(), creature.level(), null);
+        }
+
+        public static Foe of(String label, TrainerMember member) {
+            return new Foe(label, member.species(), member.form(), member.level(),
+                    member.nickname() == null || member.nickname().isBlank() ? null : member.nickname());
+        }
+
+        /**
+         * The same creature under another label.
+         */
+        public Foe labelled(String label) {
+            return new Foe(label, this.species, this.form, this.level, this.nickname);
+        }
     }
 
     /**
-     * What the player may do besides moves and switches.
+     * What the player may do besides moves and switches, and who the opponent is. Kept in Redis with the battle
+     * ({@link BattleContext}): a field added here reads as null from a context written before it.
      *
-     * @param wildRoll     the opponent as rolled, redeemed when caught; null when it cannot be caught
-     * @param captureFlags facts about the encounter for ball rules
-     * @param metAt        where a caught creature was met
+     * @param wildRoll             the opponent as rolled, redeemed when caught; null when it cannot be caught
+     * @param captureFlags         facts about the encounter for ball rules
+     * @param metAt                where a caught creature was met
+     * @param trainer              the NPC trainer's name, null for a wild battle
+     * @param experienceMultiplier the request's, null for none (1.0)
+     * @param tag                  the request's tag, given back by the battle's events
      */
     public record Options(boolean capture, boolean bag, boolean flee, @Nullable SignedRoll wildRoll,
-                          Set<String> captureFlags, String metAt) {
+                          Set<String> captureFlags, String metAt, @Nullable String trainer,
+                          @Nullable Double experienceMultiplier, @Nullable String tag) {
 
         public Options {
-            captureFlags = Set.copyOf(captureFlags);
+            captureFlags = captureFlags == null ? Set.of() : Set.copyOf(captureFlags);
+        }
+
+        /**
+         * A wild battle's options with no trainer, multiplier or tag.
+         */
+        public Options(boolean capture, boolean bag, boolean flee, @Nullable SignedRoll wildRoll,
+                       Set<String> captureFlags, String metAt) {
+            this(capture, bag, flee, wildRoll, captureFlags, metAt, null, null, null);
+        }
+
+        public double experience() {
+            return this.experienceMultiplier == null ? 1.0 : this.experienceMultiplier;
         }
     }
 

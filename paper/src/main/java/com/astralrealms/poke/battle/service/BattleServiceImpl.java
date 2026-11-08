@@ -26,7 +26,9 @@ import com.astralrealms.poke.battle.api.event.BattleEndEvent;
 import com.astralrealms.poke.battle.api.event.BattleStartEvent;
 import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.api.model.BattleRequest;
+import com.astralrealms.poke.battle.api.model.BattleRules;
 import com.astralrealms.poke.battle.api.model.BattleStartResult;
+import com.astralrealms.poke.battle.api.model.TrainerOpponent;
 import com.astralrealms.poke.battle.api.service.BattleService;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
@@ -80,6 +82,7 @@ import com.astralrealms.poke.core.species.SpeciesRegistry;
 import com.astralrealms.poke.core.team.BattleSets;
 import com.astralrealms.poke.core.team.PackedSet;
 import com.astralrealms.poke.core.team.PackedTeam;
+import com.astralrealms.poke.core.team.TrainerMember;
 import com.astralrealms.poke.core.utils.UuidV7;
 
 import net.kyori.adventure.text.Component;
@@ -157,13 +160,42 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
 
         UUID battleId = UuidV7.generate();
-        Battle.Options options = new Battle.Options(true, true, true, request.wild(), request.captureFlags(),
-                request.place() != null ? request.place() : player.getWorld().getName());
-        Battle battle = new Battle(battleId, request.format(), playerId, allies,
-                List.of(new Battle.Foe(Battle.label(0), request.wild().creature())), options);
+        BattleRules rules = request.rules();
+        String metAt = request.place() != null ? request.place() : player.getWorld().getName();
+        List<Battle.Foe> foes = new ArrayList<>();
+        List<PackedSet> foeSets = new ArrayList<>();
+        Battle.Options options;
         BattleStartPacket packet;
+        Battle battle;
         try {
-            packet = this.startPacket(battle, player.getName(), registry);
+            SignedRoll wild = request.wild();
+            TrainerOpponent trainer = request.trainer();
+            if (wild != null) {
+                foes.add(Battle.Foe.of(Battle.label(0), wild.creature()));
+                foeSets.add(BattleSets.of(wild.creature(), Battle.label(0), registry));
+                options = new Battle.Options(rules.capture(), rules.bag(), rules.flee(), wild, request.captureFlags(),
+                        metAt, null, rules.experienceMultiplier(), request.tag());
+            } else {
+                List<String> errors = PokeCoreAPI.get().creation().validate(trainer.team());
+                if (!errors.isEmpty()) {
+                    this.plugin.getSLF4JLogger().error("Battle {} for {}: the team of trainer {} is invalid: {}",
+                            battleId, player.getName(), trainer.name(), String.join("; ", errors));
+                    return CompletableFuture.completedFuture(BattleStartResult.ERROR);
+                }
+                for (TrainerMember member : trainer.team()) {
+                    // Defaults rolled once, here: the worker gets the whole set, this server what it shows
+                    TrainerMember completed = PokeCoreAPI.get().creation().complete(member);
+                    String label = Battle.label(foes.size());
+                    foes.add(Battle.Foe.of(label, completed));
+                    foeSets.add(BattleSets.of(completed, label, registry));
+                }
+                // Never capture a trainer's creature, whatever the rules say
+                options = new Battle.Options(false, rules.bag(), rules.flee(), null, Set.of(), metAt,
+                        trainerName(trainer.name()), rules.experienceMultiplier(), request.tag());
+            }
+            battle = new Battle(battleId, request.format(), playerId, allies, foes, options);
+            packet = this.startPacket(battle, player.getName(), registry, foeSets,
+                    trainer == null ? WILD_AI : trainer.ai());
         } catch (IllegalArgumentException e) {
             this.plugin.getSLF4JLogger().error("Battle {} for {} cannot be built", battleId, player.getName(), e);
             return CompletableFuture.completedFuture(BattleStartResult.ERROR);
@@ -196,7 +228,20 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 });
     }
 
-    private BattleStartPacket startPacket(Battle battle, String playerName, SpeciesRegistry registry) {
+    /**
+     * A trainer's name as the simulator gets it: a protocol line cannot hold {@code |} or a line break.
+     */
+    static String trainerName(String name) {
+        String cleaned = name.replaceAll("[|\\r\\n]+", " ").strip();
+        return cleaned.isEmpty() ? "?" : cleaned;
+    }
+
+    /**
+     * @param foeSets the opponent's team, in label order
+     * @param foeAi   the AI that plays it
+     */
+    private BattleStartPacket startPacket(Battle battle, String playerName, SpeciesRegistry registry,
+                                          List<PackedSet> foeSets, String foeAi) {
         List<PackedSet> sets = new ArrayList<>();
         List<BattleMemberState> states = new ArrayList<>();
         for (Battle.Ally ally : battle.allies()) {
@@ -211,14 +256,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                                     .orElse(slot.pp()))
                             .toList()));
         }
-        List<PackedSet> wild = battle.foes()
-                .stream()
-                .map(foe -> BattleSets.of(foe.creature(), foe.label(), registry))
-                .toList();
-
+        String foeName = battle.options().trainer() != null ? battle.options().trainer() : WILD_SIDE_NAME;
         List<BattleSide> sides = List.of(
                 new BattleSide(Battle.PLAYER_SIDE, playerName, battle.playerId(), PackedTeam.pack(sets), "", states),
-                new BattleSide(Battle.FOE_SIDE, WILD_SIDE_NAME, null, PackedTeam.pack(wild), WILD_AI, List.of()));
+                new BattleSide(Battle.FOE_SIDE, foeName, null, PackedTeam.pack(foeSets), foeAi, List.of()));
         return new BattleStartPacket(battle.id(), this.shardId, battle.format(), "", sides,
                 this.plugin.configuration().battle().turnTimerSeconds(), battle.options().bag(),
                 battle.options().capture());
@@ -251,7 +292,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         if (abortReason != null)
             this.abort(battle.id(), abortReason);
         PokeBattleMessages.REOPEN_HINT.message(player);
-        Bukkit.getPluginManager().callEvent(new BattleStartEvent(battle.id(), player, battle.format()));
+        Bukkit.getPluginManager().callEvent(new BattleStartEvent(battle.id(), player, battle.format(),
+                battle.options().tag()));
         return BattleStartResult.STARTED;
     }
 
@@ -639,7 +681,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     private @Nullable CaptureAttempt attempt(Battle battle, String ball) {
-        if (PokeCoreAPI.get().capture().ball(ball).isEmpty() || battle.options().wildRoll() == null)
+        SignedRoll roll = battle.options().wildRoll();
+        if (PokeCoreAPI.get().capture().ball(ball).isEmpty() || roll == null)
             return null;
         String foeLabel = battle.tracker().active(Battle.FOE_SIDE);
         Battle.Foe foe = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
@@ -648,7 +691,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return null;
 
         SpeciesRegistry registry = PokeCoreAPI.get().species();
-        GeneratedCreature creature = foe.creature();
+        GeneratedCreature creature = roll.creature();
         Species species = registry.findSpecies(creature.species()).orElse(null);
         if (species == null)
             return null;
@@ -833,15 +876,19 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             SpeciesRegistry registry = PokeCoreAPI.get().species();
             Map<String, RewardCalculator.Foe> foes = new LinkedHashMap<>();
             for (Battle.Foe foe : battle.foes()) {
-                Species species = registry.findSpecies(foe.creature().species()).orElse(null);
+                Species species = registry.findSpecies(foe.species()).orElse(null);
                 if (species != null)
-                    foes.put(foe.label(), new RewardCalculator.Foe(species.baseExperience(), foe.creature().level(),
+                    foes.put(foe.label(), new RewardCalculator.Foe(species.baseExperience(), foe.level(),
                             species.evYield()));
             }
             List<BattleTracker.Defeat> defeats = new ArrayList<>(battle.tracker().defeats());
             if (capture != null)
                 defeats.add(new BattleTracker.Defeat(capture.label(), capture.participants()));
-            gains = RewardCalculator.gains(defeats, allies, foes, this.plugin.configuration().rewards().rules());
+            RewardCalculator.Rules rules = this.plugin.configuration().rewards().rules();
+            // A trainer's win is worth more (the request's multiplier, on top of the server's)
+            rules = new RewardCalculator.Rules(rules.experienceMultiplier() * battle.options().experience(),
+                    rules.effortValues(), rules.friendship());
+            gains = RewardCalculator.gains(defeats, allies, foes, rules);
         }
 
         List<ExperienceGain> granted = gains;
@@ -954,10 +1001,22 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player == null)
             return;
+        PlaceholderContainer trainer = new PlaceholderContainer().registerDirect("trainer",
+                battle.options().trainer() == null ? "" : battle.options().trainer());
         switch (outcome) {
-            case WON -> PokeBattleMessages.BATTLE_WON.message(player);
+            case WON -> {
+                if (battle.options().trainer() == null)
+                    PokeBattleMessages.BATTLE_WON.message(player);
+                else
+                    PokeBattleMessages.BATTLE_WON_TRAINER.message(player, trainer);
+            }
             case CAPTURED -> this.reportCapture(player, battle, creation);
-            case LOST -> PokeBattleMessages.BATTLE_LOST.message(player);
+            case LOST -> {
+                if (battle.options().trainer() == null)
+                    PokeBattleMessages.BATTLE_LOST.message(player);
+                else
+                    PokeBattleMessages.BATTLE_LOST_TRAINER.message(player, trainer);
+            }
             case TIE -> PokeBattleMessages.BATTLE_TIE.message(player);
             case FLED -> PokeBattleMessages.BATTLE_FLED.message(player);
             case ABORTED -> PokeBattleMessages.BATTLE_ABORTED.message(player);
@@ -1019,7 +1078,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return false;
         });
         Bukkit.getPluginManager().callEvent(new BattleEndEvent(battle.id(), battle.playerId(), battle.format(), outcome,
-                turns, settled));
+                turns, settled, battle.options().tag()));
     }
 
     /**
@@ -1301,8 +1360,9 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
         }
         List<Battle.Foe> foes = new ArrayList<>();
-        for (GeneratedCreature creature : context.foes())
-            foes.add(new Battle.Foe(Battle.label(foes.size()), creature));
+        // Labelled again by position: a context written before trainers has no labels
+        for (Battle.Foe foe : context.foes())
+            foes.add(foe.labelled(Battle.label(foes.size())));
         return new Battle(context.battleId(), context.format(), context.playerId(), allies, foes, context.options());
     }
 

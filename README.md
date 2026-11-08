@@ -38,8 +38,26 @@ or a local `mvn install`).
    catch first redeems the roll (`CreationService.redeem`: party, else PC), and the caught creature keeps the
    condition the battle left it in. Then the lock is released and `BattleEndEvent` fires (outcomes `WON`, `CAPTURED`,
    `LOST`, `TIE`, `FLED`, `ABORTED`).
+   The event carries the request's `tag` (also on `BattleStartEvent`), kept in the Redis context so it is right on
+   whichever server ends the battle.
 5. A player who leaves has `battle.disconnect-grace` to come back to this server, then the battle is aborted (no
    rewards, condition kept). An abort the worker never confirms releases the player after `battle.end-timeout`.
+
+## Trainer battles
+
+`BattleRequest.trainer(player, new TrainerOpponent(name, team, ai), format, rules, tag)` battles an NPC trainer:
+`team` is 1 to 6 PokeCore `TrainerMember`s (species and form ids, level, optional moves, ability, item, nature,
+IVs, EVs, gender, shininess, nickname). At the start PokeCore checks the team (`CreationService.validate`, refused as
+`ERROR` with the problems logged) and rolls what it leaves out once (`CreationService.complete`). The opponent side
+is sent with the trainer's name and `ai` (`trainer`, `gym`), with no condition (a fresh team).
+
+- `BattleRules` (`WILD`, `TRAINER`, `GYM`): bag, capture and flee for the player (a trainer's creature is never
+  caught), and an experience multiplier on top of `rewards.experience-multiplier` (1.5 for trainers and gyms).
+- Formats `polaristrainer` and `polarisgym` (`BattleRequest.TRAINER_FORMAT`, `GYM_FORMAT`) are the worker's.
+- The log names the trainer (`log-trainer-challenge`, `log-trainer-sends`, `foe-name-trainer`) and so do the end
+  messages (`battle-won-trainer`, `battle-lost-trainer`). The stage shows the trainer's active creature and changes it
+  on every switch. Prize money, badges, level caps and the NPC itself belong to the caller (PokeTrainers), through
+  the tag on `BattleEndEvent`.
 
 ## Recovery and re-attach
 

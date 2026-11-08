@@ -38,6 +38,9 @@ public class BattleLogRenderer {
             return null;
         return switch (line.type()) {
             case "switch", "drag" -> this.switchIn(line);
+            case "start" -> this.battle.options().trainer() == null
+                    ? null
+                    : PokeBattleMessages.LOG_TRAINER_CHALLENGE.component(this.placeholders());
             case "turn" -> PokeBattleMessages.LOG_TURN.component(this.placeholders().registerDirect("turn", line.arg(0)));
             case "move" -> PokeBattleMessages.LOG_MOVE.component(this.creature(line.arg(0))
                     .registerDirect("move", Names.text(this.locale, "move", ProtocolLine.toId(line.arg(1)))));
@@ -95,9 +98,11 @@ public class BattleLogRenderer {
         if (ref == null)
             return null;
         PlaceholderContainer placeholders = this.creature(line.arg(0));
-        return ref.side().equals(Battle.PLAYER_SIDE)
-                ? PokeBattleMessages.LOG_SEND_OUT.component(placeholders)
-                : PokeBattleMessages.LOG_WILD_APPEARS.component(placeholders);
+        if (ref.side().equals(Battle.PLAYER_SIDE))
+            return PokeBattleMessages.LOG_SEND_OUT.component(placeholders);
+        return this.battle.options().trainer() == null
+                ? PokeBattleMessages.LOG_WILD_APPEARS.component(placeholders)
+                : PokeBattleMessages.LOG_TRAINER_SENDS.component(placeholders);
     }
 
     private @Nullable Component damage(ProtocolLine line) {
@@ -133,7 +138,10 @@ public class BattleLogRenderer {
         String name = ref == null ? "" : this.name(ref);
         Object pokemon = name;
         if (ref != null && !ref.side().equals(Battle.PLAYER_SIDE))
-            pokemon = PokeBattleMessages.FOE_NAME_WILD.component(new PlaceholderContainer().registerDirect("name", name));
+            pokemon = (this.battle.options().trainer() == null
+                    ? PokeBattleMessages.FOE_NAME_WILD
+                    : PokeBattleMessages.FOE_NAME_TRAINER)
+                    .component(this.placeholders().registerDirect("name", name));
         return this.placeholders()
                 .registerDirect("name", name)
                 .registerDirect("pokemon", pokemon);
@@ -168,7 +176,11 @@ public class BattleLogRenderer {
         return ref != null && ref.side().equals(Battle.PLAYER_SIDE);
     }
 
+    /**
+     * {@code %trainer%}: the NPC trainer's name, empty in a wild battle.
+     */
     private PlaceholderContainer placeholders() {
-        return new PlaceholderContainer();
+        String trainer = this.battle.options().trainer();
+        return new PlaceholderContainer().registerDirect("trainer", trainer == null ? "" : trainer);
     }
 }

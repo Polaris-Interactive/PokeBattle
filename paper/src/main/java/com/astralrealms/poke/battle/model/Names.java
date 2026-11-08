@@ -43,6 +43,8 @@ public class Names {
     }
 
     public static String foe(@Nullable Locale locale, Battle.Foe foe) {
-        return text(locale, "species", foe.creature().species());
+        if (foe.nickname() != null && !foe.nickname().isBlank())
+            return foe.nickname();
+        return text(locale, "species", foe.species());
     }
 }
