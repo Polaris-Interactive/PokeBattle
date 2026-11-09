@@ -3,6 +3,7 @@ package com.astralrealms.poke.battle;
 import java.io.File;
 import java.util.concurrent.TimeUnit;
 
+import org.bukkit.plugin.ServicePriority;
 import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.core.cache.CacheService;
@@ -37,6 +38,7 @@ import com.astralrealms.poke.battle.ui.stage.MoveMotions;
 import com.astralrealms.poke.battle.ui.stage.PokeEntitiesActors;
 import com.astralrealms.poke.battle.ui.stage.StagedUi;
 import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.api.service.BattleStatus;
 import com.astralrealms.poke.core.species.Species;
 
 import lombok.Getter;
@@ -97,6 +99,9 @@ public final class PokeBattle extends AstralPaperPlugin {
         this.ui = new PacedUi(this, new StagedUi(this, chosen, actors, effects));
         this.messaging.registerExchange(PokeBattleExchanges.shard(shardId), new ShardPacketListener(this, this.battles));
         PokeBattleAPI.initialize(new PokeBattleApiImpl(this));
+        // PokeCore refuses to hold (daycare, gym...) a creature of a player in a battle
+        this.getServer().getServicesManager().register(BattleStatus.class, this.battles::inBattle, this,
+                ServicePriority.Normal);
 
         // Listeners
         this.registerListeners(new BattleConnectionListener(this.battles));
