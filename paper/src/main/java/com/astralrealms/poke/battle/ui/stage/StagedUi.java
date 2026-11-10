@@ -43,6 +43,8 @@ public class StagedUi implements BattleUi {
     private final @Nullable MoveEffects effects;
     private final @Nullable HitFeedback hits;
     private final Map<UUID, Scene> scenes = new HashMap<>();
+    /** By player, the ticks a move that struck early left unspent: the next beat of the run takes them. */
+    private final Map<UUID, Long> owed = new HashMap<>();
 
     /**
      * @param effects what moves look like between the creatures; null for none (AstralSkill missing)
@@ -79,10 +81,19 @@ public class StagedUi implements BattleUi {
             return pace;
         boolean move = beat.cue() == BattleCue.ALLY_MOVE || beat.cue() == BattleCue.FOE_MOVE;
         Duration spacing = move && config.moveSpacing() != null ? config.moveSpacing() : config.cueSpacing();
-        // A creature that runs to its target strikes that much later
-        long approach = !move ? 0 : this.scene(player, beat.field().battleId())
-                .approach(beat.cue() == BattleCue.ALLY_MOVE ? Side.ALLY : Side.FOE, beat.move());
-        return pace.with(new Pace(0, ticks(spacing) + approach));
+        // What a move that struck early left unspent goes to the beat after it: the turn keeps its rhythm
+        Long owed = this.owed.remove(player.getUniqueId());
+        Pace full = pace.with(new Pace(0, ticks(spacing) + (owed == null ? 0 : owed)));
+        // A creature that goes to its target strikes it there: the next beat (the hit: its flash, the HP lost) comes
+        // with the strike, not once the creature is back on its spot
+        long impact = !move ? -1 : this.scene(player, beat.field().battleId())
+                .impact(beat.cue() == BattleCue.ALLY_MOVE ? Side.ALLY : Side.FOE, beat.move());
+        if (impact < 0)
+            return full;
+        long hold = Math.max(1, impact);
+        if (full.hold() > hold)
+            this.owed.put(player.getUniqueId(), full.hold() - hold);
+        return new Pace(full.lead(), hold);
     }
 
     @Override
@@ -119,6 +130,7 @@ public class StagedUi implements BattleUi {
 
     @Override
     public void idle(Player player) {
+        this.owed.remove(player.getUniqueId());
         this.ui.idle(player);
     }
 
@@ -311,14 +323,37 @@ public class StagedUi implements BattleUi {
         }
 
         /**
-         * Ticks before the side's creature strikes with this move: the way to its target, 0 when it does not move.
+         * Ticks before the side's creature hits its target with this move, for a move that takes it there: the way,
+         * then its strike up to the release marker. -1 for a move it uses from its spot (its effect travels).
          */
-        long approach(Side side, @Nullable String move) {
+        long impact(Side side, @Nullable String move) {
             MoveMotions.Motion motion = plugin.motions().get(move);
             Actor attacker = this.standing.get(side);
             Location contact = motion == null ? null : this.contact(side);
-            return contact == null || !shown(attacker) ? 0
-                    : StageMotion.ticksToStrike(motion, attacker.home(), contact, this.height(side));
+            if (contact == null || !shown(attacker))
+                return -1;
+            return StageMotion.ticksToStrike(motion, attacker.home(), contact, this.height(side))
+                    + this.release(attacker, move);
+        }
+
+        /**
+         * Ticks from the start of the move's animation to its release marker, before it plays: the first animation of
+         * the move's list that has the marker (the installer marks every attack animation). 0 without one.
+         */
+        private long release(Actor attacker, @Nullable String move) {
+            PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
+            String marker = config == null || config.moves() == null ? null : config.moves().releaseMarker();
+            if (move == null || marker == null || marker.isBlank())
+                return 0;
+            MoveData data = PokeCoreAPI.get().species().findMove(move).orElse(null);
+            String moment = data == null ? "move" : "move-" + data.category().name().toLowerCase(Locale.ROOT);
+            for (String candidate : config.animations(config.animations(moment).isEmpty() ? "move" : moment)) {
+                Duration release = this.actors.marker(attacker.entity(), candidate.replace("{move}", move), marker)
+                        .orElse(null);
+                if (release != null)
+                    return ticks(release);
+            }
+            return 0;
         }
 
         /**
