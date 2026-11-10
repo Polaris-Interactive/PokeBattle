@@ -48,14 +48,18 @@ final class BattleOverlay {
     private static final int BAR_WIDTH = 84;
     private static final int HP_Y = 29;
     private static final int STATUS_Y = 39;
-    // The log (169 x 55): a dark panel inside a frame
-    private static final int LOG_WIDTH = 169;
-    private static final int LOG_HEIGHT = 55;
+    // The log (230 x 82, the builder's LOG_SIZE): a dark panel inside a frame, a scroll gutter on its right
+    private static final int LOG_HEIGHT = 82;
     private static final int LOG_TEXT_X = 9;
-    private static final int LOG_TEXT_Y = 8;
-    private static final int LOG_TEXT_WIDTH = 142;
-    private static final int LOG_ROWS = 5;
+    private static final int LOG_TEXT_Y = 9;
+    private static final int LOG_GUTTER = 18;
+    /** Rows of text the log panel holds. */
+    static final int LOG_ROWS = 7;
     private static final int ROW_HEIGHT = 9;
+    // The turn and its timer, top centre: the turn icon (10 x 10), then the text; the skip hint under them
+    private static final int TURN_GAP = 3;
+    private static final int TURN_TEXT_Y = 1;
+    private static final int HINT_Y = 13;
 
     private final Player player;
     private final OverlayFont font;
@@ -73,12 +77,13 @@ final class BattleOverlay {
     }
 
     /**
-     * Draws the field and the log's last lines, if they changed.
+     * Draws the field, the turn line, the hint under it (null for none) and the log's last lines, if they changed.
      */
-    void draw(FieldView field, Collection<Component> log) {
+    void draw(FieldView field, Collection<Component> log, @Nullable Component turn, @Nullable Component hint) {
         OverlayLine line = new OverlayLine(this.font);
         this.card(line, field.ally(), true);
         this.card(line, field.foe(), false);
+        this.turn(line, turn, hint);
         this.log(line, log);
         Component title = line.build();
         if (!title.equals(this.drawn)) {
@@ -156,16 +161,34 @@ final class BattleOverlay {
     }
 
     /**
+     * The turn and its timer in the middle of the top of the screen, behind the turn icon, and the hint under them.
+     */
+    private void turn(OverlayLine line, @Nullable Component turn, @Nullable Component hint) {
+        if (turn != null) {
+            List<Run> runs = OverlayLine.runs(turn);
+            int left = -(OverlayGlyph.TURN.width() + TURN_GAP + line.width(runs)) / 2;
+            line.glyph(Anchor.TOP_CENTRE, left, this.margin, OverlayGlyph.TURN);
+            line.text(Anchor.TOP_CENTRE, left + OverlayGlyph.TURN.width() + TURN_GAP, this.margin + TURN_TEXT_Y, runs,
+                    true);
+        }
+        if (hint != null) {
+            List<Run> runs = OverlayLine.runs(hint);
+            line.text(Anchor.TOP_CENTRE, -line.width(runs) / 2, this.margin + HINT_Y, runs, true);
+        }
+    }
+
+    /**
      * The log in the bottom right corner: its lines wrapped to the panel, the last rows that fit.
      */
     private void log(OverlayLine line, Collection<Component> log) {
-        int left = -this.margin - LOG_WIDTH;
+        int left = -this.margin - OverlayGlyph.LOG.width();
         // From the bottom of the screen to the top of the frame
         int top = this.margin + LOG_HEIGHT;
         line.glyph(Anchor.BOTTOM_RIGHT, left, top, OverlayGlyph.LOG);
         List<List<Run>> rows = new ArrayList<>();
         for (Component entry : log)
-            rows.addAll(OverlayLine.wrap(this.font, OverlayLine.runs(entry), LOG_TEXT_WIDTH));
+            rows.addAll(OverlayLine.wrap(this.font, OverlayLine.runs(entry),
+                    OverlayGlyph.LOG.width() - LOG_TEXT_X - LOG_GUTTER));
         List<List<Run>> last = rows.subList(Math.max(0, rows.size() - LOG_ROWS), rows.size());
         for (int i = 0; i < last.size(); i++)
             line.text(Anchor.BOTTOM_RIGHT, left + LOG_TEXT_X, top - LOG_TEXT_Y - i * ROW_HEIGHT, last.get(i), false);

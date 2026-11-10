@@ -11,17 +11,19 @@ import net.kyori.adventure.key.Key;
  * Characters and sizes are those {@code pokeapi-importer/tools/build_battle_overlay.py} writes: keep both in step.
  */
 enum OverlayGlyph {
-    FRAME_ALLY('', 131),
-    FRAME_FOE('', 131),
-    LOG('', 169),
-    UNDERLAY('', 28),
-    STATUS_BRN('', 74),
-    STATUS_PAR('', 74),
-    STATUS_PSN('', 74),
-    STATUS_TOX('', 74),
-    STATUS_SLP('', 74),
-    STATUS_FRZ('', 74),
-    STATUS_FNT('', 74);
+    FRAME_ALLY('\uE200', 131),
+    FRAME_FOE('\uE201', 131),
+    /** The log panel, stretched from the art to this width by the pack's builder ({@code LOG_SIZE}). */
+    LOG('\uE202', 230),
+    UNDERLAY('\uE203', 28),
+    TURN('\uE204', 10),
+    STATUS_BRN('\uE210', 74),
+    STATUS_PAR('\uE211', 74),
+    STATUS_PSN('\uE212', 74),
+    STATUS_TOX('\uE213', 74),
+    STATUS_SLP('\uE214', 74),
+    STATUS_FRZ('\uE215', 74),
+    STATUS_FNT('\uE216', 74);
 
     static final Key FONT = Key.key("pokesmp", "hud_overlay");
     /** One glyph per species, at {@link #SPECIES_BASE} plus its dex number; each takes {@link #SPECIES_WIDTH}. */

@@ -94,7 +94,7 @@ final class BattleHud {
     /** What the screen overlay draws instead, when it is on: these elements are then left out of the HUD. */
     private static final Set<String> OVERLAID = Set.of("foe", "ally", "log", "ally-frame", "foe-frame", "log-frame",
             "ally-status", "foe-status", "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon",
-            "ally-underlay", "foe-underlay");
+            "ally-underlay", "foe-underlay", "timer", "turn-icon", "hint");
 
     enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS }
 
@@ -144,6 +144,9 @@ final class BattleHud {
     private List<ChoiceView.Member> team = List.of();
     /** How the battle ended, shown in place of the prompt; null while it goes on. */
     private @Nullable Component outcome;
+    /** The turn line and the skip hint as last drawn, for the screen overlay. */
+    private @Nullable Component turnLine;
+    private @Nullable Component hint;
 
     /**
      * @param stage null for a still camera
@@ -359,7 +362,10 @@ final class BattleHud {
         this.field = beat.field();
         for (Component line : beat.log()) {
             this.log.addLast(line);
-            while (this.log.size() > Math.max(0, this.config.logLines()))
+            // The screen overlay's panel holds more rows than the HUD's
+            int kept = this.overlay == null ? this.config.logLines()
+                    : Math.max(this.config.logLines(), BattleOverlay.LOG_ROWS);
+            while (this.log.size() > Math.max(0, kept))
                 this.log.removeFirst();
         }
         this.renderField();
@@ -669,7 +675,7 @@ final class BattleHud {
      */
     private void renderOverlay() {
         if (this.overlay != null && this.view != null && !this.closed)
-            this.overlay.draw(this.field, this.log);
+            this.overlay.draw(this.field, this.log, this.turnLine, this.hint);
     }
 
     /**
@@ -731,6 +737,8 @@ final class BattleHud {
             line = PokeBattleMessages.HUD_TURN.component(placeholders);
         }
         this.set("timer", List.of(line));
+        this.turnLine = line;
+        this.renderOverlay();
     }
 
     private void renderMenu() {
@@ -739,6 +747,8 @@ final class BattleHud {
         boolean moving = this.camera != null && this.camera.busy();
         this.set("hint", moving ? List.of(PokeBattleMessages.HUD_SKIP_HINT.component()) : List.of());
         this.visible("hint", moving);
+        this.hint = moving ? PokeBattleMessages.HUD_SKIP_HINT.component() : null;
+        this.renderOverlay();
         Menu menu = moving ? Menu.NONE : this.menu;
         ChoiceView view = this.choice;
         Component outcome = this.outcome;

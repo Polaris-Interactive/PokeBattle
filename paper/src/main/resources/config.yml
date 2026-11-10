@@ -141,11 +141,11 @@ hud:
   list-icon: 0.22
   # #AARRGGBB behind the details text (the info element): it grows with its text. Dark, mostly opaque.
   tooltip-background: "#F0050709"
-  # The creatures' cards and the log drawn on the screen itself, in its corners, instead of in the world in front of
-  # the camera: they keep their place and size whatever the player's FOV and do not move with the camera. It is a
+  # The creatures' cards, the turn and its timer (top centre) and the log drawn on the screen itself, instead of in
+  # the world in front of the camera; only the menu (its buttons, prompt and details) stays there, to be clicked: they keep their place and size whatever the player's FOV and do not move with the camera. It is a
   # boss bar title that the pokesmp resource pack's text shader lays out (pokeapi-importer build_battle_overlay.py),
-  # so it needs that pack. The cards cannot be hovered there (no details on them). When on, the card and log elements
-  # below (ally*, foe*, log*) are not used. `margin`: GUI pixels from the corners.
+  # so it needs that pack. The cards cannot be hovered there (no details on them). When on, the card, turn and log
+  # elements below (ally*, foe*, timer, turn-icon, hint, log*) are not used. `margin`: GUI pixels from the corners.
   overlay:
     enabled: true
     margin: 4
