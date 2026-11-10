@@ -111,6 +111,10 @@ hud-foe-name: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%leve
 hud-foe-hp: "<gray>%percent% %"
 hud-ally-name: "<white><b>%name%</b></white> %status% <gray>N.</gray><white>%level%"
 hud-ally-hp: "<white>%hp%</white><gray>/%max% PV"
+# A card drawn on the screen (hud.overlay in config.yml): the name on the left of its strip, the level on its right.
+# Colours are the closest of the overlay's palette; hud-ally-hp and hud-foe-hp are drawn under the health bar.
+hud-overlay-name: "<white>%name%"
+hud-overlay-level: "<#D0D0D0>N.</#D0D0D0><white>%level%"
 hud-fight-label: "<white>Attaque"
 hud-team-label: "<white>Équipe"
 hud-bag-label: "<white>Sac"

@@ -45,6 +45,8 @@ public class HudUi implements BattleUi, Listener {
     private final BattleUi fallback;
     private final Map<UUID, BattleHud> huds = new HashMap<>();
     private final Set<UUID> failed = new HashSet<>();
+    private @Nullable OverlayFont overlayFont;
+    private boolean overlayFontRead;
 
     public HudUi(PokeBattle plugin, ChoiceDialogs.Handler handler, BattleUi fallback) {
         this.plugin = plugin;
@@ -54,6 +56,22 @@ public class HudUi implements BattleUi, Listener {
 
     PokeBattle plugin() {
         return this.plugin;
+    }
+
+    /**
+     * The default font's widths for the screen overlay, read once; null when they cannot be (the cards and the log
+     * are then HUD elements, as without the overlay).
+     */
+    @Nullable OverlayFont overlayFont() {
+        if (!this.overlayFontRead) {
+            this.overlayFontRead = true;
+            try {
+                this.overlayFont = OverlayFont.load();
+            } catch (IllegalStateException e) {
+                this.plugin.getSLF4JLogger().warn("The battle overlay is off: its font widths could not be read", e);
+            }
+        }
+        return this.overlayFont;
     }
 
     ChoiceDialogs.Handler handler() {

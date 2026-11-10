@@ -178,6 +178,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param tooltipBackground  #AARRGGBB behind the details text (the info element), sized to what it says
      * @param timerWarning       seconds left from which the turn timer shows as urgent ({@code hud-timer-urgent});
      *                           0 for never
+     * @param overlay            the cards and the log drawn on the screen itself; null for in the world, as the rest
      * @param elements          where things go: {@code foe}, {@code ally}, {@code prompt}, {@code timer}, {@code log},
      *                           {@code info}, {@code hint}, the menu buttons {@code button-1}... (as many as wanted),
      *                           {@code back} and {@code next}. An element left out is not drawn
@@ -187,7 +188,18 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
                       int logLines, Duration closeDelay, String hoverBackground, String disabledBackground,
                       String hoverSound, String clickSound, Bar bar, @Nullable Camera camera,
                       Map<String, Element> elements, double listIcon, String tooltipBackground,
-                      int timerWarning) {
+                      int timerWarning, @Nullable Overlay overlay) {
+    }
+
+    /**
+     * The creatures' cards and the battle log drawn on the screen itself (a boss bar title the {@code pokesmp} pack's
+     * text shader lays out in the corners) rather than in the world in front of the camera: they keep their place
+     * and size whatever the player's FOV. Needs that pack; without it, leave it off.
+     *
+     * @param margin GUI pixels between a corner of the screen and what is drawn there
+     */
+    @ConfigSerializable
+    public record Overlay(boolean enabled, int margin) {
     }
 
     /**

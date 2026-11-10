@@ -91,6 +91,10 @@ final class BattleHud {
     /** The share of max HP a revive gives back when the item does not say (ItemEffect's default). */
     private static final double DEFAULT_REVIVE = 0.5;
     private static final double FLAT = 0.05;
+    /** What the screen overlay draws instead, when it is on: these elements are then left out of the HUD. */
+    private static final Set<String> OVERLAID = Set.of("foe", "ally", "log", "ally-frame", "foe-frame", "log-frame",
+            "ally-status", "foe-status", "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon",
+            "ally-underlay", "foe-underlay");
 
     enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS }
 
@@ -122,6 +126,8 @@ final class BattleHud {
     private final Deque<Component> log = new ArrayDeque<>();
     private final Map<String, Object> drawn = new HashMap<>();
     private final @Nullable BattleCamera camera;
+    /** The cards and the log on the screen itself; null when they are HUD elements. */
+    private final @Nullable BattleOverlay overlay;
 
     private @Nullable HudView view;
     private @Nullable ScheduledTask ticker;
@@ -157,6 +163,9 @@ final class BattleHud {
                 .sorted(Comparator.comparingInt(BattleHud::number))
                 .toList();
         this.camera = stage == null ? null : new BattleCamera(ui.plugin(), player, stage, this::renderMenu);
+        PokeBattleConfiguration.Overlay overlay = config.overlay();
+        OverlayFont font = overlay == null || !overlay.enabled() ? null : ui.overlayFont();
+        this.overlay = font == null ? null : new BattleOverlay(player, font, config.bar(), overlay.margin());
     }
 
     Player player() {
@@ -216,6 +225,8 @@ final class BattleHud {
         for (Map.Entry<String, PokeBattleConfiguration.Element> entry : this.config.elements().entrySet()) {
             String id = entry.getKey();
             PokeBattleConfiguration.Element element = entry.getValue();
+            if (this.overlay != null && OVERLAID.contains(id))
+                continue;
             boolean clickable = this.buttons.contains(id) || id.equals(BACK) || id.equals(NEXT);
             if (!clickable && !DISPLAYS.contains(id) && !id.startsWith(FRAME)) {
                 this.ui.plugin().getSLF4JLogger().warn("Unknown battle HUD element '{}' in config.yml, ignored", id);
@@ -295,6 +306,8 @@ final class BattleHud {
     void close() {
         this.closed = true;
         this.stopTicker();
+        if (this.overlay != null)
+            this.overlay.hide();
         if (this.camera != null)
             this.camera.stop();
         HudView view = this.view;
@@ -307,6 +320,8 @@ final class BattleHud {
         boolean ours = this.closed;
         this.closed = true;
         this.stopTicker();
+        if (this.overlay != null)
+            this.overlay.hide();
         if (this.camera != null)
             this.camera.stop();
         this.view = null;
@@ -646,6 +661,15 @@ final class BattleHud {
         this.card("ally", ally, PokeBattleMessages.HUD_ALLY_NAME, PokeBattleMessages.HUD_ALLY_HP);
         this.setItem("ally-status", this.strip(ally));
         this.setItem("foe-status", this.strip(foe));
+        this.renderOverlay();
+    }
+
+    /**
+     * The cards and the log on the screen, when they are drawn there. Like the HUD's elements, only once it is open.
+     */
+    private void renderOverlay() {
+        if (this.overlay != null && this.view != null && !this.closed)
+            this.overlay.draw(this.field, this.log);
     }
 
     /**
@@ -689,6 +713,7 @@ final class BattleHud {
 
     private void renderLog() {
         this.set("log", List.copyOf(this.log));
+        this.renderOverlay();
     }
 
     private void renderTimer() {

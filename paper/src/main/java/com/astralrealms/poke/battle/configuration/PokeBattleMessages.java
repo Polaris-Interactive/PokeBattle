@@ -108,6 +108,8 @@ public enum PokeBattleMessages implements MessageEnum {
     HUD_FOE_HP,
     HUD_ALLY_NAME,
     HUD_ALLY_HP,
+    HUD_OVERLAY_NAME,
+    HUD_OVERLAY_LEVEL,
     HUD_FIGHT_LABEL,
     HUD_TEAM_LABEL,
     HUD_BAG_LABEL,
