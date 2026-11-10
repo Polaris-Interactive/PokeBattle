@@ -13,6 +13,7 @@ import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.poke.battle.PokeBattle;
+import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleCue;
@@ -129,6 +130,16 @@ public class StagedUi implements BattleUi {
     @Override
     public void waiting(Player player) {
         this.ui.waiting(player);
+    }
+
+    @Override
+    public void outcome(Player player, UUID battleId, BattleOutcome outcome) {
+        this.ui.outcome(player, battleId, outcome);
+    }
+
+    @Override
+    public void then(Player player, Runnable action) {
+        this.ui.then(player, action);
     }
 
     @Override

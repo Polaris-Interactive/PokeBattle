@@ -4,6 +4,8 @@ import java.util.UUID;
 
 import org.bukkit.entity.Player;
 
+import com.astralrealms.poke.battle.api.model.BattleOutcome;
+
 /**
  * How a player sees and plays their battle: the choice dialog and the chat ({@link DialogUi}), or the HUD drawn in
  * front of them. The battle calls it from the player's thread, in the order things happened; {@link PacedUi} plays
@@ -57,6 +59,21 @@ public interface BattleUi {
      * The choice left: nothing to do until the turn is played.
      */
     void waiting(Player player);
+
+    /**
+     * How battle {@code battleId} ended, told right before {@link #close}: shown where the battle is, when there is
+     * such a place.
+     */
+    default void outcome(Player player, UUID battleId, BattleOutcome outcome) {
+    }
+
+    /**
+     * Runs {@code action} once everything asked so far has shown: what is said about the end of a battle must not
+     * come before the player has seen it.
+     */
+    default void then(Player player, Runnable action) {
+        action.run();
+    }
 
     /**
      * Battle {@code battleId} is over. Leaves alone what belongs to a later battle.

@@ -28,6 +28,7 @@ import com.astralrealms.astralHologram.configuration.HudKey;
 import com.astralrealms.astralHologram.configuration.TextAlignment;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
+import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.service.BattleBag;
@@ -133,6 +134,10 @@ final class BattleHud {
     private int page;
     private BattleBag.@Nullable Entry item;
     private long deadline;
+    /** The team as the last choice told it: the details of the player's creature outlive the choice. */
+    private List<ChoiceView.Member> team = List.of();
+    /** How the battle ended, shown in place of the prompt; null while it goes on. */
+    private @Nullable Component outcome;
 
     /**
      * @param stage null for a still camera
@@ -205,6 +210,7 @@ final class BattleHud {
                 .returnToOrigin(true)
                 .depth(this.config.depth())
                 .onKey(HudKey.SWAP_HANDS, _ -> this.skip())
+                .onKey(HudKey.DROP, _ -> this.goBack())
                 .onClose((_, reason) -> this.onClosed(reason));
 
         for (Map.Entry<String, PokeBattleConfiguration.Element> entry : this.config.elements().entrySet()) {
@@ -364,6 +370,7 @@ final class BattleHud {
 
     void choose(ChoiceView view) {
         this.choice = view;
+        this.team = view.team();
         this.field = FieldView.of(view);
         this.deadline = this.turnTimerSeconds > 0 ? view.askedAt() + this.turnTimerSeconds * 1000L : 0;
         this.renderField();
@@ -379,11 +386,26 @@ final class BattleHud {
     }
 
     /**
-     * The battle is over: no menu, no prompt, until the HUD closes.
+     * How the battle ended: said in place of the prompt until the HUD closes.
+     */
+    void outcome(BattleOutcome outcome) {
+        this.outcome = (switch (outcome) {
+            case WON -> PokeBattleMessages.HUD_OUTCOME_WON;
+            case CAPTURED -> PokeBattleMessages.HUD_OUTCOME_CAPTURED;
+            case LOST -> PokeBattleMessages.HUD_OUTCOME_LOST;
+            case TIE -> PokeBattleMessages.HUD_OUTCOME_TIE;
+            case FLED -> PokeBattleMessages.HUD_OUTCOME_FLED;
+            case ABORTED -> PokeBattleMessages.HUD_OUTCOME_ABORTED;
+        }).component();
+    }
+
+    /**
+     * The battle is over: no menu, and its outcome (if it was told) for a prompt, until the HUD closes.
      */
     void ended() {
+        if (this.outcome == null)
+            this.outcome = Component.empty();
         this.waiting();
-        this.set("prompt", List.of());
     }
 
     /**
@@ -439,20 +461,26 @@ final class BattleHud {
                             .registerDirect("type", move.type())
                             .registerDirect("category", move.category())
                             .registerDirect("power", move.power() > 0 ? Integer.toString(move.power()) : "—")
-                            .registerDirect("accuracy", move.accuracy() == null ? "—" : move.accuracy() + " %");
-                    entries.add(new Entry((move.disabled()
-                            ? PokeBattleMessages.MOVE_BUTTON_DISABLED
-                            : PokeBattleMessages.MOVE_BUTTON).component(placeholders),
+                            .registerDirect("accuracy", move.accuracy() == null ? "—" : move.accuracy() + " %")
+                            .registerDirect("icon", HudArt.typeIcon(move.typeId()));
+                    // A move that cannot be used keeps its PP plain: its button is greyed as a whole
+                    Component label = move.disabled()
+                            ? PokeBattleMessages.HUD_MOVE_BUTTON_DISABLED.component(placeholders)
+                            : PokeBattleMessages.HUD_MOVE_BUTTON.component(placeholders
+                                    .registerDirect("pp", pp(move.pp(), move.maxPp())));
+                    entries.add(new Entry(label,
                             move.disabled() ? null : () -> this.handler().choose(this.player, view, "move " + move.index()),
                             PokeBattleMessages.HUD_TOOLTIP_MOVE.component(placeholders
-                                    .registerDirect("icon", HudArt.typeIcon(move.typeId()))
                                     .registerDirect("pp", pp(move.pp(), move.maxPp())))));
                 }
             }
             case TEAM -> {
-                for (ChoiceView.Member member : view.switchable())
-                    entries.add(new Entry(PokeBattleMessages.HUD_MEMBER_BUTTON.component(this.member(member, false)),
-                            () -> this.handler().choose(this.player, view, "switch " + member.position()),
+                // The whole team, so the player sees who is left; only those who can be sent in can be clicked
+                for (ChoiceView.Member member : view.team())
+                    entries.add(new Entry(PokeBattleMessages.HUD_MEMBER_BUTTON.component(this.member(member, true)),
+                            view.switchable().contains(member)
+                                    ? () -> this.handler().choose(this.player, view, "switch " + member.position())
+                                    : null,
                             this.memberTooltip(member), null, HudArt.speciesItem(member.species())));
             }
             case BALLS -> {
@@ -486,7 +514,7 @@ final class BattleHud {
                     return null;
                 }
                 for (ChoiceView.Member member : targets)
-                    entries.add(new Entry(PokeBattleMessages.HUD_TARGET_BUTTON.component(this.member(member, true)),
+                    entries.add(new Entry(PokeBattleMessages.HUD_TARGET_BUTTON.component(this.member(member, false)),
                             () -> this.handler().useItem(this.player, view, item.itemId(), member.position()),
                             this.memberTooltip(member), null, HudArt.speciesItem(member.species())));
             }
@@ -527,13 +555,12 @@ final class BattleHud {
     private void click(String id) {
         if (this.closed || this.choice == null || this.camera != null && this.camera.busy())
             return;
+        if (id.equals(BACK)) {
+            this.goBack();
+            return;
+        }
         this.sound(this.config.clickSound());
         switch (id) {
-            case BACK -> {
-                Menu back = this.back();
-                if (back != null)
-                    this.show(back);
-            }
             case NEXT -> {
                 this.page = (this.page + 1) % this.pages();
                 this.renderMenu();
@@ -546,12 +573,32 @@ final class BattleHud {
         }
     }
 
+    /**
+     * The back button, or the drop key: one menu up, when there is one.
+     */
+    private void goBack() {
+        Menu back = this.back();
+        if (this.closed || this.choice == null || back == null || this.camera != null && this.camera.busy())
+            return;
+        this.sound(this.config.clickSound());
+        this.show(back);
+    }
+
     void hover(String id, boolean entered) {
         if (this.closed)
             return;
         if (entered)
             this.sound(this.config.hoverSound());
-        Entry entry = entered ? this.entryAt(id) : null;
+        this.focus(id, entered);
+    }
+
+    /**
+     * Draws what hovering {@code id} shows (its details, its art's second state), or takes it away.
+     */
+    private void focus(String id, boolean entered) {
+        boolean moving = this.camera != null && this.camera.busy();
+        // The menu is hidden while the camera is away: nothing of it to tell
+        Entry entry = entered && !moving ? this.entryAt(id) : null;
         Component info = entry == null ? null : entry.info();
         if (entered && id.equals(ALLY_CARD))
             info = this.allyTooltip();
@@ -561,14 +608,13 @@ final class BattleHud {
 
         // A usable button lights up: its art's second state
         Entry under = this.entryAt(id);
-        boolean moving = this.camera != null && this.camera.busy();
         if (under != null && under.action() != null && !moving && this.buttons.contains(id)) {
             Key art = this.art(under);
             this.setItem(FRAME + id.substring(BUTTON.length()), entered ? HudArt.hover(art) : art);
         }
 
         // The back button's art lights up the same way
-        if (id.equals(BACK) && !(this.camera != null && this.camera.busy()))
+        if (id.equals(BACK) && !moving && this.back() != null)
             this.setItem(BACK_FRAME, entered ? HudArt.hover(HudArt.BACK) : HudArt.BACK);
     }
 
@@ -608,7 +654,7 @@ final class BattleHud {
             this.set(id + "-hp", List.of());
             this.set(id + "-bar", List.of());
             this.setItem(id + "-icon", null);
-        this.setItem(id + "-underlay", null);
+            this.setItem(id + "-underlay", null);
             return;
         }
         this.setItem(id + "-icon", HudArt.speciesItem(creature.species()));
@@ -650,7 +696,9 @@ final class BattleHud {
         Component line;
         if (this.deadline > 0) {
             long seconds = Math.max(0, (this.deadline - System.currentTimeMillis() + 999) / 1000);
-            line = PokeBattleMessages.HUD_TIMER.component(placeholders.registerDirect("seconds", seconds));
+            line = (seconds <= this.config.timerWarning()
+                    ? PokeBattleMessages.HUD_TIMER_URGENT
+                    : PokeBattleMessages.HUD_TIMER).component(placeholders.registerDirect("seconds", seconds));
         } else {
             line = PokeBattleMessages.HUD_TURN.component(placeholders);
         }
@@ -665,7 +713,8 @@ final class BattleHud {
         this.visible("hint", moving);
         Menu menu = moving ? Menu.NONE : this.menu;
         ChoiceView view = this.choice;
-        this.set("prompt", List.of(switch (menu) {
+        Component outcome = this.outcome;
+        this.set("prompt", outcome != null ? List.of(outcome) : List.of(switch (menu) {
             case NONE -> PokeBattleMessages.HUD_WAITING.component();
             case MAIN -> PokeBattleMessages.HUD_PROMPT.component(new PlaceholderContainer()
                     .registerDirect("ally", this.field.ally().name()));
@@ -697,14 +746,19 @@ final class BattleHud {
         this.visible(BACK, !moving && this.back() != null);
         this.setItem(BACK_FRAME, HudArt.BACK);
         this.visible(BACK_FRAME, !moving && this.back() != null);
-        this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component()));
+        this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component(new PlaceholderContainer()
+                .registerDirect("page", this.page + 1)
+                .registerDirect("pages", this.pages()))));
         this.visible(NEXT, !moving && this.pages() > 1);
         this.tooltip(null);
 
         // Disabled looks are decided on a redraw
         HudView hud = this.view;
-        if (hud != null)
-            hud.refresh();
+        if (hud == null)
+            return;
+        hud.refresh();
+        // The cursor may rest on what was just drawn: no hover event comes for an element it never left
+        hud.hovered().ifPresent(id -> this.focus(id, true));
     }
 
     /**
@@ -773,12 +827,12 @@ final class BattleHud {
      * The details of the player's creature on its card: its team member's tooltip, or null when it is not known.
      */
     private @Nullable Component allyTooltip() {
-        ChoiceView view = this.choice;
-        if (view == null || !FieldView.present(view.ally()))
+        ChoiceView.Creature ally = this.field.ally();
+        if (!FieldView.present(ally))
             return null;
-        ChoiceView.Creature ally = view.ally();
-        return view.team().stream()
-                .filter(member -> member.name().equals(ally.name()) && member.level() == ally.level())
+        // The team is as old as the last choice: after a switch, its active member is no longer the one on the card
+        return this.team.stream()
+                .filter(member -> member.active() && member.name().equals(ally.name()))
                 .findFirst()
                 .map(this::memberTooltip)
                 .orElse(null);
@@ -788,10 +842,9 @@ final class BattleHud {
      * The opponent's creature on its card: its name, level, HP, status; null when there is no opponent.
      */
     private @Nullable Component foeTooltip() {
-        ChoiceView view = this.choice;
-        if (view == null || !FieldView.present(view.foe()))
+        ChoiceView.Creature foe = this.field.foe();
+        if (!FieldView.present(foe))
             return null;
-        ChoiceView.Creature foe = view.foe();
         return PokeBattleMessages.HUD_TOOLTIP_FOE.component(new PlaceholderContainer()
                 .registerDirect("name", foe.name())
                 .registerDirect("level", foe.level())
@@ -884,14 +937,19 @@ final class BattleHud {
         return this.ui.handler();
     }
 
-    private PlaceholderContainer member(ChoiceView.Member member, boolean target) {
+    /**
+     * @param team on the team menu, the creature on the field says so in place of its status
+     */
+    private PlaceholderContainer member(ChoiceView.Member member, boolean team) {
         return new PlaceholderContainer()
                 .registerDirect("name", member.name())
                 .registerDirect("level", member.level())
                 .registerDirect("hp", HealthBar.points(member.hp(), member.maxHp(), this.config.bar()))
                 .registerDirect("max", member.maxHp())
-                .registerDirect("status", target && member.fainted()
+                .registerDirect("status", member.fainted()
                         ? PokeBattleMessages.TARGET_FAINTED.component()
+                        : team && member.active()
+                        ? PokeBattleMessages.HUD_MEMBER_ACTIVE.component()
                         : this.shortStatus(member.status()));
     }
 

@@ -116,14 +116,20 @@ hud-team-label: "<white>Équipe"
 hud-bag-label: "<white>Sac"
 hud-run-label: "<white>Fuite"
 hud-timer: "<gray>Tour <white>%turn%</white> · <white>%seconds%</white> s"
+# The last seconds of the turn (hud.timer-warning in config.yml)
+hud-timer-urgent: "<gray>Tour <white>%turn%</white> · <#EB5757><b>%seconds%</b> s"
 hud-turn: "<gray>Tour <white>%turn%"
 hud-prompt: "<white>Que doit faire %ally% ?"
 hud-moves-title: "<white>Quelle capacité ?"
 hud-waiting: "<gray>En attente..."
+# A move button: %icon% is its type's badge, %pp% its PP coloured by what is left (plain on a move that cannot be used).
+hud-move-button: "%icon% <white>%move%</white> %pp%"
+hud-move-button-disabled: "%icon% <dark_gray>%move% %pp%/%maxpp%"
 # The main menu, one colour per action
 hud-ball-button: "<white> Capture   </white><#F2C94C>◓ ▌"
-hud-next-button: "<gray>Suivant ›"
-# While the camera follows the turn; F skips it
+# %page% of %pages%
+hud-next-button: "<gray>Suivant <white>%page%</white>/%pages% ›"
+# While the camera follows the turn; F skips it (and the drop key goes back in the menu)
 hud-skip-hint: "<gray>[<white>F</white>] Passer"
 hud-closed: "<gray>Tapez <white>/combat</white> pour revenir au combat."
 # The tooltip of a hovered move: %icon% is its type's badge, %pp% its PP coloured by what is left.
@@ -150,6 +156,15 @@ hud-member-button: "<white>%name%</white> <gray>N.%level%<newline>%hp% <gray>PV<
 hud-target-button: "<white>%name%</white> <gray>N.%level%<newline>%hp% <gray>PV</gray> %status%"
 # %status%: the status cut to its first three letters (BRÛ, PAR...).
 hud-member-status: "<yellow>%status%"
+# In place of %status% for the creature on the field (the team menu lists the whole team; it cannot be sent in).
+hud-member-active: "<#7FD7D0>Au combat"
+# How the battle ended, in place of the prompt until the HUD closes.
+hud-outcome-won: "<#5BE37D><b>Victoire !"
+hud-outcome-captured: "<#F2C94C><b>Capturé !"
+hud-outcome-lost: "<#EB5757><b>Défaite..."
+hud-outcome-tie: "<white><b>Égalité"
+hud-outcome-fled: "<gray>Vous prenez la fuite."
+hud-outcome-aborted: "<gray>Combat interrompu."
 # The HP a creature lost, rising above it on stage (creatures.hit.numbers): the player's creature in HP, the opponent's
 # in percent (the simulator only tells its HP as a percentage).
 hit-damage-ally: "<bold><#FF5555>-%amount%"

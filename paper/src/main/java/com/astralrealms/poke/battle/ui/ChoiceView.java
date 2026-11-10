@@ -71,21 +71,23 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     /**
      * @param position as {@code switch N} (and the target of a bag item)
      * @param status   display name, empty when healthy
-     * @param moves    its moves with the PP stored before the battle (the request only has the active's PP)
+     * @param moves    its moves with the PP stored before the battle; the active's with the PP the request tells
      * @param ability            display name, empty when unknown
      * @param abilityDescription what the ability does, empty when unknown
      * @param speed              its Speed stat, 0 when unknown
      * @param species            its species id, for its icon; empty when unknown
+     * @param active             whether it is the one on the field
      */
     public record Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted,
-                         List<MemberMove> moves, String ability, String abilityDescription, int speed, String species) {
+                         List<MemberMove> moves, String ability, String abilityDescription, int speed, String species,
+                         boolean active) {
 
         public Member {
             moves = List.copyOf(moves);
         }
 
         public Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted) {
-            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", "", 0, "");
+            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", "", 0, "", false);
         }
     }
 
@@ -142,16 +144,21 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             List<MemberMove> known = new ArrayList<>();
             for (MoveSlot slot : pokemon.moves()) {
                 MoveData data = registry.findMove(slot.move()).orElse(null);
+                // The request tells the PP of the creature on the field; the others have not moved since the battle began
+                ChoiceRequest.MoveOption option = !member.active() ? null : request.moves().stream()
+                        .filter(asked -> asked.id().equals(slot.move()))
+                        .findFirst()
+                        .orElse(null);
                 known.add(new MemberMove(Names.text(locale, "move", slot.move()),
-                        data == null ? "" : typeId(data.type()), slot.pp(),
-                        data == null ? slot.pp() : data.maxPp(slot.ppUps())));
+                        data == null ? "" : typeId(data.type()), option == null ? slot.pp() : option.pp(),
+                        option != null ? option.maxPp() : data == null ? slot.pp() : data.maxPp(slot.ppUps())));
             }
             Member view = new Member(member.position(), Names.ally(locale, stored), pokemon.level(),
                     condition == null ? 0 : condition.hp(), condition == null ? 0 : condition.maxHp(),
                     status(condition, locale), member.fainted(), known,
                     pokemon.ability() == null ? "" : Names.text(locale, "ability", pokemon.ability()),
                     pokemon.ability() == null ? "" : Names.description(locale, "ability", pokemon.ability()),
-                    speed(pokemon, registry), pokemon.species());
+                    speed(pokemon, registry), pokemon.species(), member.active());
             team.add(view);
             if (request.canSwitchTo(member.position()))
                 switchable.add(view);

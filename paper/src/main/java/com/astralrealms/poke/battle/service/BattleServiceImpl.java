@@ -998,9 +998,13 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      */
     private void report(Battle battle, BattleOutcome outcome, @Nullable CreationResult creation,
                         List<ExperienceGain> gains, @Nullable List<Progression> progressions) {
-        Player player = Bukkit.getPlayer(battle.playerId());
-        if (player == null)
-            return;
+        // After the last beats: the chat must not tell the end before the player has seen it
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.then(viewer,
+                () -> this.tell(viewer, battle, outcome, creation, gains, progressions)));
+    }
+
+    private void tell(Player player, Battle battle, BattleOutcome outcome, @Nullable CreationResult creation,
+                      List<ExperienceGain> gains, @Nullable List<Progression> progressions) {
         PlaceholderContainer trainer = new PlaceholderContainer().registerDirect("trainer",
                 battle.options().trainer() == null ? "" : battle.options().trainer());
         switch (outcome) {
@@ -1071,7 +1075,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
     private void finish(Battle battle, BattleOutcome outcome, int turns, boolean settled) {
         this.forget(battle);
-        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
+        this.withUi(battle.playerId(), (ui, viewer) -> {
+            ui.outcome(viewer, battle.id(), outcome);
+            ui.close(viewer, battle.id());
+        });
         this.records.deleteContext(battle.id()).exceptionally(_ -> null);
         this.locks.release(battle.playerId(), battle.id()).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().warn("Battle {}: lock release failed", battle.id(), throwable);

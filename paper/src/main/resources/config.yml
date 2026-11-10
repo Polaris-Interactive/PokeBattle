@@ -141,6 +141,8 @@ hud:
   list-icon: 0.22
   # #AARRGGBB behind the details text (the info element): it grows with its text. Dark, mostly opaque.
   tooltip-background: "#F0050709"
+  # Seconds left from which the turn timer shows as urgent (hud-timer-urgent in messages.yml). 0 for never.
+  timer-warning: 10
   # Health bars: `length` symbols, coloured high above 50 %, medium above 20 %, low below.
   bar:
     length: 54
