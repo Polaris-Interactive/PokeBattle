@@ -16,7 +16,7 @@ class BattleStageTest {
     private static final PokeBattleConfiguration.Stage SPOTS = new PokeBattleConfiguration.Stage(
             new PokeBattleConfiguration.Point(2, -1, 0), new PokeBattleConfiguration.Point(8, 1, 0));
     private static final PokeBattleConfiguration.Camera CAMERA = new PokeBattleConfiguration.Camera(true, 1,
-            Duration.ofSeconds(6), Map.of(), 1.5, 4, 0);
+            Duration.ofSeconds(6), Map.of(), 0, 0, 4, 0);
 
     private static PokeBattleConfiguration.Shot shot(double forward, double right, double up, String lookAt) {
         return new PokeBattleConfiguration.Shot(new PokeBattleConfiguration.Point(forward, right, up), lookAt, 10, 10);
@@ -65,21 +65,54 @@ class BattleStageTest {
     }
 
     @Test
-    void aBigCreatureIsFramedFromFurtherBackAndLookedAtHigher() {
+    void aCreatureIsLookedAtInItsMiddleAndOnlyFramedFromFurtherBackWhenItDoesNotFit() {
         BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
         Location before = stage.eye(shot(0, 0, 3, "foe"));
 
-        // 3 blocks tall, twice the reference size: twice as far, looking at twice the look height
+        // 3 blocks tall, 8 blocks away: looked at 60 % up, and it fits in view, so the eye stays where it was set
         stage.body("foe", new BattleStage.Body(3, 2));
-        Location bigTarget = stage.target("foe");
-        assertThat(bigTarget.getY()).isCloseTo(2, within(1.0E-9));
-        Location after = stage.eye(shot(0, 0, 3, "foe"));
-        assertThat(after.toVector().distance(bigTarget.toVector()))
-                .isCloseTo(2 * before.toVector().distance(bigTarget.toVector()), within(1.0E-6));
+        assertThat(stage.target("foe").getY()).isCloseTo(1.8, within(1.0E-9));
+        assertThat(stage.eye(shot(0, 0, 3, "foe")).toVector()).isEqualTo(before.toVector());
+
+        // A small one is looked at lower than the default look height
+        stage.body("foe", new BattleStage.Body(0.5, 0.5));
+        assertThat(stage.target("foe").getY()).isCloseTo(0.3, within(1.0E-9));
+
+        // 12 blocks tall: the eye backs off until it fits in 50 degrees of view (about 12.9 blocks from its middle)
+        stage.body("foe", new BattleStage.Body(12, 4));
+        Location far = stage.eye(shot(0, 0, 3, "foe"));
+        double room = 12 / (2 * Math.tan(Math.toRadians(25)));
+        assertThat(far.toVector().distance(new org.bukkit.util.Vector(-1, 6, 8))).isBetween(room, room + 1);
 
         // Gone: back to the shot as set
         stage.body("foe", null);
         assertThat(stage.eye(shot(0, 0, 3, "foe")).toVector()).isEqualTo(before.toVector());
+    }
+
+    @Test
+    void aShotIsNotRaisedForACreatureBehindWhatItLooksAt() {
+        BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
+        // Looking at the ally from beside it: a tall foe far behind does not lift the eye over its nametag
+        stage.body("foe", new BattleStage.Body(5, 2));
+        Location eye = stage.eye(shot(0, 2, 2, "ally"));
+        assertThat(eye.getY()).isCloseTo(2, within(1.0E-9));
+    }
+
+    @Test
+    void anEyeGettingAroundACreatureStaysOnItsSideOfTheStage() {
+        BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), SPOTS, CAMERA);
+        // Behind a big ally, off the line between the creatures, looking at the foe through it
+        stage.body("ally", new BattleStage.Body(3, 3));
+        Location set = stage.at(new PokeBattleConfiguration.Point(0, 0, 1));
+        Location eye = stage.eye(shot(0, 0, 1, "foe"));
+        // It went around the ally (it is no longer where it was set) without crossing the line between the creatures
+        assertThat(Math.hypot(eye.getX() - set.getX(), eye.getZ() - set.getZ())).isGreaterThan(0.5);
+        assertThat(Math.signum(side(eye))).isEqualTo(Math.signum(side(set)));
+    }
+
+    /** Which side of the line between the two spots a place is on (the sign only). */
+    private static double side(Location place) {
+        return -2 * (place.getZ() - 2) - 6 * (place.getX() - 1);
     }
 
     @Test

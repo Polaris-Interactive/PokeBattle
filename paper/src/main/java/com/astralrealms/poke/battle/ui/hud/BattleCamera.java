@@ -28,6 +28,8 @@ final class BattleCamera {
     /** How close two eyes are to be the same place: blocks, and the cosine of the angle between their views. */
     private static final double SAME_PLACE = 0.05;
     private static final double SAME_VIEW = 0.9995;
+    /** Ticks the camera takes to frame its shot again when a creature of another size takes the stage. */
+    private static final int REFRAME_GLIDE = 12;
 
     private final Plugin plugin;
     private final Player player;
@@ -125,6 +127,17 @@ final class BattleCamera {
             this.landing = null;
             this.settle();
         }, null, glide);
+    }
+
+    /**
+     * The creatures on stage changed (one came in, one left): the shot the camera is on is framed for them again.
+     */
+    void reframe() {
+        if (this.stopped || this.landing != null)
+            return;
+        PokeBattleConfiguration.Shot shot = this.current != null ? this.current : this.shot(IDLE);
+        if (shot != null && this.at != null && !this.there(this.stage.eye(shot)))
+            this.move(shot, REFRAME_GLIDE);
     }
 
     /**

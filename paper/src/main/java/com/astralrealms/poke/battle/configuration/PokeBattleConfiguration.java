@@ -290,15 +290,18 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param maxSequence the longest run of beats; what does not fit shows at once
      * @param shots       by {@code idle} (while choosing) and by cue ({@code ally-move}, {@code foe-faint}...); a cue
      *                    without a shot leaves the camera where it is
-     * @param referenceSize the biggest creature (height or width, in blocks) shots are laid out for: a bigger one is
-     *                      framed from further back, its look height raised the same; 0 for 1.5
-     * @param maxScale    the most a shot is pushed back for a big creature, as a factor; 0 for 4
+     * @param lookRatio   the share of a creature's height a shot looks at, once its size is known (a small one is
+     *                    looked at lower, a tall one higher); 0 for 0.6
+     * @param fitAngle    degrees of the view a creature may fill (its height or width, whichever is bigger): a shot
+     *                    backs off only as far as it takes for the creatures it shows to fit; 0 for 50
+     * @param maxScale    the most a shot backs off for a big creature, as a factor of its distance; 0 for 4
      * @param driftDistance a shot this close (blocks) to where the camera is does not hold the action back: the
      *                      camera drifts there while the moment plays; further, the moment waits for it; 0 for 3
      */
     @ConfigSerializable
     public record Camera(boolean enabled, double lookHeight, Duration maxSequence,
-                         Map<String, Shot> shots, double referenceSize, double maxScale, double driftDistance) {
+                         Map<String, Shot> shots, double lookRatio, double fitAngle, double maxScale,
+                         double driftDistance) {
     }
 
     @ConfigSerializable

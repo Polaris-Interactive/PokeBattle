@@ -103,7 +103,12 @@ public class StagedUi implements BattleUi {
 
     @Override
     public void update(Player player, BattleBeat beat) {
+        // The creatures first: the camera frames its shot for who stands there once the beat shows
+        this.stage(player, beat);
         this.ui.update(player, beat);
+    }
+
+    private void stage(Player player, BattleBeat beat) {
         Scene scene = this.scene(player, beat.field().battleId());
         if (scene == null || beat.cue() == null)
             return;

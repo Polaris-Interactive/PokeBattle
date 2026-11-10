@@ -21,8 +21,9 @@ import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
  * {@code right}, {@code up}), with the two creatures' spots in it. The creatures stand there, and camera shots turn
  * into eye locations from it. In a world, the creatures stand on the ground and shots keep blocks out of the way.
  * <p>
- * The creatures standing there ({@link #body}) count too: a shot of a big creature stands further back and looks
- * higher, and an eye with a creature between it and what it looks at rises over it.
+ * The creatures standing there ({@link #body}) count too: a shot looks at a creature's middle whatever its size, backs
+ * off only as far as it takes for the creatures it shows to fit in view, stays above a creature standing in its
+ * foreground, and gets around one standing between it and what it looks at without changing sides.
  * <p>
  * Staged battles (arenas) will give their own origin; the spots and shots stay the same.
  *
@@ -44,9 +45,16 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     /** How far, in degrees either way, an eye swings around its target to get clear, and the steps it tries. */
     private static final double MAX_SWING = 90;
     private static final double SWING_STEP = 5;
-    /** Defaults for a camera that sets no {@code reference-size} or {@code max-scale}. */
-    private static final double REFERENCE_SIZE = 1.5;
+    /** Defaults for a camera that sets no {@code look-ratio}, {@code fit-angle} or {@code max-scale}. */
+    private static final double LOOK_RATIO = 0.6;
+    private static final double FIT_ANGLE = 50;
     private static final double MAX_SCALE = 4;
+    /** How finely the push-back that fits a big creature is searched, as a share of the shot's distance. */
+    private static final double FIT_STEP = 0.05;
+    /** How much nearer to the eye than its target a creature is, in blocks, to stand in the shot's foreground. */
+    private static final double FOREGROUND_MARGIN = 0.5;
+    /** How far from the line between the creatures an eye is, in blocks, to be on one side of it. */
+    private static final double SIDE_MARGIN = 0.5;
 
     public BattleStage {
         origin = origin.clone();
@@ -78,16 +86,6 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
      */
     public @Nullable Body body(String side) {
         return side.equals("ally") ? this.bodies.ally : this.bodies.foe;
-    }
-
-    /**
-     * The height of the nametag of the creature on a side, in world Y, or negative infinity when nobody is there.
-     */
-    private double top(String side) {
-        Body body = this.body(side);
-        if (body == null)
-            return Double.NEGATIVE_INFINITY;
-        return this.spot(side.equals("ally") ? this.spots.ally() : this.spots.foe()).getY() + body.height();
     }
 
     /**
@@ -128,13 +126,12 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     }
 
     /**
-     * What a shot looks at: a creature at {@code look-height}, or the middle of the two. Unknown names look at the
-     * middle.
+     * What a shot looks at: a creature at {@code look-ratio} of its height ({@code look-height} while its size is not
+     * known), or the middle of the two. Unknown names look at the middle.
      */
     public Location target(String lookAt) {
-        double height = this.camera == null ? 0 : this.camera.lookHeight();
-        Location ally = this.spot(this.spots.ally()).add(0, height * this.scale(this.bodies.ally), 0);
-        Location foe = this.spot(this.spots.foe()).add(0, height * this.scale(this.bodies.foe), 0);
+        Location ally = this.spot(this.spots.ally()).add(0, this.lookUp(this.bodies.ally), 0);
+        Location foe = this.spot(this.spots.foe()).add(0, this.lookUp(this.bodies.foe), 0);
         return switch (lookAt.toLowerCase(Locale.ROOT)) {
             case "ally" -> ally;
             case "foe" -> foe;
@@ -143,37 +140,40 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     }
 
     /**
-     * The eye of a shot: at {@code from}, turned towards its target, and as many times further from it as the creature
-     * it looks at is bigger than {@code reference-size} (both for {@code center}). When blocks or a creature stand
-     * between them (a hill, a tree, a big ally), the eye first swings around its target to the nearest side that sees it
-     * (out of a creature's shadow, at the same distance and height); failing that, it rises up to {@link #MAX_LIFT}
-     * blocks over the tallest creature (times the push-back) to see over them, and failing that it comes in front of
-     * the first block.
+     * The eye of a shot: at {@code from}, turned towards its target.
+     * <ul>
+     * <li>It backs off along its line of sight only as far as it takes for the creatures it shows (the one it looks at;
+     * both for {@code center}) to fit in {@code fit-angle} of the view, at most {@code max-scale} times its distance:
+     * a big creature looks big, it is not shrunk to the size the shot was laid out for.</li>
+     * <li>It stays above the nametag of a creature standing in its foreground (nearer than what it looks at).</li>
+     * <li>When blocks or a creature stand between it and its target (a hill, a tree, a big ally), it first swings
+     * around its target to the nearest angle that sees it, without crossing the line between the creatures; failing
+     * that, it rises up to {@link #MAX_LIFT} blocks over the tallest creature (times the push-back) to see over
+     * them, and failing that it comes in front of the first block.</li>
+     * </ul>
      */
     public Location eye(PokeBattleConfiguration.Shot shot) {
         String lookAt = shot.lookAt().toLowerCase(Locale.ROOT);
         Location target = this.target(lookAt);
-        Location eye = this.at(shot.from());
-        double scale = switch (lookAt) {
-            case "ally" -> this.scale(this.bodies.ally);
-            case "foe" -> this.scale(this.bodies.foe);
-            default -> Math.max(this.scale(this.bodies.ally), this.scale(this.bodies.foe));
-        };
-        if (scale > 1) {
-            // Further back along the same line, never lower than the shot was set (looking up from the ground)
-            double height = eye.getY();
-            eye = target.clone().add(eye.toVector().subtract(target.toVector()).multiply(scale));
-            eye.setY(Math.max(eye.getY(), height));
+        Location set = this.at(shot.from());
+        double scale = this.fit(lookAt, target, set);
+        Location eye = this.pushed(target, set, scale);
+
+        // Above a creature in the foreground: its nametag must not hang in the middle of the view
+        double reach = flat(eye, target);
+        for (String side : new String[]{"ally", "foe"}) {
+            Body body = this.body(side);
+            if (body == null)
+                continue;
+            Location feet = this.feet(side);
+            if (flat(eye, feet) < reach - FOREGROUND_MARGIN)
+                eye.setY(Math.max(eye.getY(), feet.getY() + body.height() + CLEAR_ABOVE));
         }
-        // Never under a creature's nametag: the eye stays above the higher of the two
-        double nametags = Math.max(this.top("ally"), this.top("foe"));
-        if (nametags > Double.NEGATIVE_INFINITY)
-            eye.setY(Math.max(eye.getY(), nametags + CLEAR_ABOVE));
 
         World world = eye.getWorld();
         List<BoundingBox> creatures = this.obstacles(lookAt, target);
         if (!this.clear(world, creatures, target, eye)) {
-            Location swung = swing(world, creatures, target, eye);
+            Location swung = this.swing(world, creatures, target, eye);
             if (swung != null) {
                 eye = swung;
             } else {
@@ -196,6 +196,91 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
         if (direction.lengthSquared() > 1.0E-6)
             eye.setDirection(direction);
         return eye;
+    }
+
+    /**
+     * How many times its distance a shot backs off for the creatures it shows to fit in view: 1 when they already
+     * do (or none is known), up to {@code max-scale}.
+     */
+    private double fit(String lookAt, Location target, Location set) {
+        double max = this.camera != null && this.camera.maxScale() > 0 ? this.camera.maxScale() : MAX_SCALE;
+        double angle = this.camera != null && this.camera.fitAngle() > 0 ? this.camera.fitAngle() : FIT_ANGLE;
+        double perSize = 1 / (2 * Math.tan(Math.toRadians(Math.min(angle, 170)) / 2));
+        List<String> shown = switch (lookAt) {
+            case "ally" -> List.of("ally");
+            case "foe" -> List.of("foe");
+            default -> List.of("ally", "foe");
+        };
+        // Each creature shown: its middle, and how far the eye has to be for it to fit
+        List<Vector> middles = new ArrayList<>(2);
+        List<Double> rooms = new ArrayList<>(2);
+        for (String side : shown) {
+            Body body = this.body(side);
+            if (body == null)
+                continue;
+            middles.add(this.feet(side).add(0, body.height() / 2, 0).toVector());
+            rooms.add(Math.max(body.height(), body.width()) * perSize);
+        }
+        for (double scale = 1; scale < max; scale += FIT_STEP) {
+            Vector eye = this.pushed(target, set, scale).toVector();
+            boolean fits = true;
+            for (int i = 0; i < middles.size(); i++)
+                fits &= eye.distance(middles.get(i)) >= rooms.get(i);
+            if (fits)
+                return scale;
+        }
+        return Math.max(1, max);
+    }
+
+    /**
+     * The shot's eye {@code scale} times further from its target, along the same line, never lower than it was set
+     * (looking up from the ground).
+     */
+    private Location pushed(Location target, Location set, double scale) {
+        if (scale <= 1)
+            return set.clone();
+        Location eye = target.clone().add(set.toVector().subtract(target.toVector()).multiply(scale));
+        eye.setY(Math.max(eye.getY(), set.getY()));
+        return eye;
+    }
+
+    /**
+     * Where the creature of a side ({@code ally} or {@code foe}) stands.
+     */
+    private Location feet(String side) {
+        return this.spot(side.equals("ally") ? this.spots.ally() : this.spots.foe());
+    }
+
+    /**
+     * How far above a creature's feet a shot looks at it.
+     */
+    private double lookUp(@Nullable Body body) {
+        if (this.camera == null)
+            return 0;
+        if (body == null || body.height() <= 0)
+            return this.camera.lookHeight();
+        return body.height() * (this.camera.lookRatio() > 0 ? this.camera.lookRatio() : LOOK_RATIO);
+    }
+
+    /** The distance between two places, heights left out. */
+    private static double flat(Location a, Location b) {
+        return Math.hypot(a.getX() - b.getX(), a.getZ() - b.getZ());
+    }
+
+    /**
+     * Which side of the line between the two creatures a place is on: positive, negative, or 0 when it is on the
+     * line (within {@link #SIDE_MARGIN}).
+     */
+    private int sideOfLine(Location place) {
+        Location ally = this.feet("ally");
+        Location foe = this.feet("foe");
+        double dx = foe.getX() - ally.getX();
+        double dz = foe.getZ() - ally.getZ();
+        double length = Math.hypot(dx, dz);
+        if (length < 1.0E-6)
+            return 0;
+        double off = (dx * (place.getZ() - ally.getZ()) - dz * (place.getX() - ally.getX())) / length;
+        return Math.abs(off) < SIDE_MARGIN ? 0 : off > 0 ? 1 : -1;
     }
 
     /**
@@ -224,19 +309,6 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
             }
         }
         return spot;
-    }
-
-    /**
-     * How many times bigger than {@code reference-size} a creature is (1 for none, or a small one), up to
-     * {@code max-scale}.
-     */
-    private double scale(@Nullable Body body) {
-        if (body == null)
-            return 1;
-        double reference = this.camera != null && this.camera.referenceSize() > 0 ? this.camera.referenceSize()
-                : REFERENCE_SIZE;
-        double max = this.camera != null && this.camera.maxScale() > 0 ? this.camera.maxScale() : MAX_SCALE;
-        return Math.clamp(Math.max(body.height(), body.width()) / reference, 1, Math.max(1, max));
     }
 
     /**
@@ -291,15 +363,20 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
 
     /**
      * The eye turned around its target, at the same distance and height, by the smallest angle (up to
-     * {@link #MAX_SWING}, either way) that sees the target. Null when no angle does.
+     * {@link #MAX_SWING}, either way) that sees the target and keeps the eye on its side of the line between the
+     * creatures. Null when no angle does.
      */
     private @Nullable Location swing(@Nullable World world, List<BoundingBox> creatures, Location target,
                                      Location eye) {
         Vector offset = eye.toVector().subtract(target.toVector());
+        int side = this.sideOfLine(eye);
         for (double degrees = SWING_STEP; degrees <= MAX_SWING + 1.0E-6; degrees += SWING_STEP) {
             for (double sign : new double[]{1, -1}) {
                 Location turned = target.clone().add(offset.clone().rotateAroundY(Math.toRadians(sign * degrees)));
-                if (clear(world, creatures, target, turned))
+                // The view stays on its side of the creatures: crossing their line flips left and right on screen
+                if (side != 0 && this.sideOfLine(turned) == -side)
+                    continue;
+                if (this.clear(world, creatures, target, turned))
                     return turned;
             }
         }

@@ -350,6 +350,9 @@ final class BattleHud {
         this.renderField();
         this.renderLog();
         this.renderTimer();
+        // A creature that just came in or left may not be the size the shot was framed for
+        if (this.camera != null)
+            this.camera.reframe();
     }
 
     /**

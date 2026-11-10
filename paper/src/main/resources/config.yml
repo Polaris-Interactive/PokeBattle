@@ -160,15 +160,18 @@ hud:
   # the camera. Remove this block, or `enabled: false`, for a still camera where the player stands.
   camera:
     enabled: true
-    # Blocks above a creature's feet a shot looks at.
+    # Blocks above a creature's feet a shot looks at while its size is not known; once it is, the shot looks at
+    # `look-ratio` of its height: a small creature is looked at lower, a tall one higher.
     look-height: 0.9
+    look-ratio: 0.6
     # GDD: a camera run lasts at most 6 s. Each moment shows when its shot lands (the HP bars, the log, the creatures);
     # what would go past this shows at once, and F shows the rest at once anyway.
     max-sequence: 6s
-    # Shots are laid out for creatures up to `reference-size` blocks (height or width, whichever is bigger). A bigger
-    # one is framed from further back, as many times as it is bigger (at most `max-scale`), and looked at that much
-    # higher. A creature standing between a shot and what it looks at (a big ally in `idle`) makes the eye rise over it.
-    reference-size: 1.5
+    # Big creatures look big: a shot only backs off (along its line of sight, at most `max-scale` times its distance)
+    # as far as it takes for the creatures it shows to fit in `fit-angle` degrees of the view (the one it looks at; both
+    # for `center`). A creature in a shot's foreground keeps the eye above its nametag; one standing between a shot and
+    # what it looks at (a big ally in `idle`) makes the eye go around it, on the same side of the stage, else over it.
+    fit-angle: 50
     max-scale: 4
     # A shot this close (blocks) to where the camera is does not hold the action back: the camera drifts there while
     # the moment plays. A shot further away is reached first (its glide), then the moment plays.
