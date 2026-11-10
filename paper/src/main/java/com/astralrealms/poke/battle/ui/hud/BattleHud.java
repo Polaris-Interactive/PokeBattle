@@ -28,7 +28,6 @@ import com.astralrealms.astralHologram.configuration.HudKey;
 import com.astralrealms.astralHologram.configuration.TextAlignment;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
-import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.service.BattleBag;
@@ -142,8 +141,6 @@ final class BattleHud {
     private long deadline;
     /** The team as the last choice told it: the details of the player's creature outlive the choice. */
     private List<ChoiceView.Member> team = List.of();
-    /** How the battle ended, shown in place of the prompt; null while it goes on. */
-    private @Nullable Component outcome;
     /** The turn line and the skip hint as last drawn, for the screen overlay. */
     private @Nullable Component turnLine;
     private @Nullable Component hint;
@@ -410,25 +407,9 @@ final class BattleHud {
     }
 
     /**
-     * How the battle ended: said in place of the prompt until the HUD closes.
-     */
-    void outcome(BattleOutcome outcome) {
-        this.outcome = (switch (outcome) {
-            case WON -> PokeBattleMessages.HUD_OUTCOME_WON;
-            case CAPTURED -> PokeBattleMessages.HUD_OUTCOME_CAPTURED;
-            case LOST -> PokeBattleMessages.HUD_OUTCOME_LOST;
-            case TIE -> PokeBattleMessages.HUD_OUTCOME_TIE;
-            case FLED -> PokeBattleMessages.HUD_OUTCOME_FLED;
-            case ABORTED -> PokeBattleMessages.HUD_OUTCOME_ABORTED;
-        }).component();
-    }
-
-    /**
-     * The battle is over: no menu, and its outcome (if it was told) for a prompt, until the HUD closes.
+     * The battle is over: no menu until the HUD closes.
      */
     void ended() {
-        if (this.outcome == null)
-            this.outcome = Component.empty();
         this.waiting();
     }
 
@@ -751,9 +732,10 @@ final class BattleHud {
         this.renderOverlay();
         Menu menu = moving ? Menu.NONE : this.menu;
         ChoiceView view = this.choice;
-        Component outcome = this.outcome;
-        this.set("prompt", outcome != null ? List.of(outcome) : List.of(switch (menu) {
-            case NONE -> PokeBattleMessages.HUD_WAITING.component();
+        // The prompt titles a menu: nothing is said above the buttons while there is none (the turn plays, the
+        // opponent chooses, the battle is over)
+        this.set("prompt", menu == Menu.NONE ? List.of() : List.of(switch (menu) {
+            case NONE -> Component.empty();
             case MAIN -> PokeBattleMessages.HUD_PROMPT.component(new PlaceholderContainer()
                     .registerDirect("ally", this.field.ally().name()));
             case MOVES -> PokeBattleMessages.HUD_MOVES_TITLE.component();

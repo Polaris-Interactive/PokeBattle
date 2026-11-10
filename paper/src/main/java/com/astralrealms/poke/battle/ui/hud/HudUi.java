@@ -15,7 +15,6 @@ import org.jetbrains.annotations.Nullable;
 import com.astralrealms.astralHologram.api.event.HudFocusEvent;
 import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.poke.battle.PokeBattle;
-import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.ui.BattleBeat;
@@ -136,15 +135,6 @@ public class HudUi implements BattleUi, Listener {
         if (hud != null && !hud.closed())
             hud.waiting();
         this.fallback.waiting(player);
-    }
-
-    @Override
-    public void outcome(Player player, UUID battleId, BattleOutcome outcome) {
-        BattleHud hud = this.active(player, battleId);
-        if (hud == null)
-            this.fallback.outcome(player, battleId, outcome);
-        else
-            hud.outcome(outcome);
     }
 
     @Override

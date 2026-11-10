@@ -125,7 +125,6 @@ hud-timer-urgent: "<gray>Tour <white>%turn%</white> · <#EB5757><b>%seconds%</b>
 hud-turn: "<gray>Tour <white>%turn%"
 hud-prompt: "<white>Que doit faire %ally% ?"
 hud-moves-title: "<white>Quelle capacité ?"
-hud-waiting: "<gray>En attente..."
 # A move button: %icon% is its type's badge, %pp% its PP coloured by what is left (plain on a move that cannot be used).
 hud-move-button: "%icon% <white>%move%</white> %pp%"
 hud-move-button-disabled: "%icon% <dark_gray>%move% %pp%/%maxpp%"
@@ -163,13 +162,6 @@ hud-member-status: "<yellow>%status%"
 # In place of %status% for the creature on the field (the team menu lists the whole team; it cannot be sent in).
 # Keep it short: the line has to fit the strip next to the icon.
 hud-member-active: "<#7FD7D0>actif"
-# How the battle ended, in place of the prompt until the HUD closes.
-hud-outcome-won: "<#5BE37D><b>Victoire !"
-hud-outcome-captured: "<#F2C94C><b>Capturé !"
-hud-outcome-lost: "<#EB5757><b>Défaite..."
-hud-outcome-tie: "<white><b>Égalité"
-hud-outcome-fled: "<gray>Vous prenez la fuite."
-hud-outcome-aborted: "<gray>Combat interrompu."
 # The HP a creature lost, rising above it on stage (creatures.hit.numbers): the player's creature in HP, the opponent's
 # in percent (the simulator only tells its HP as a percentage).
 hit-damage-ally: "<bold><#FF5555>-%amount%"

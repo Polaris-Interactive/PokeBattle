@@ -1075,10 +1075,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
     private void finish(Battle battle, BattleOutcome outcome, int turns, boolean settled) {
         this.forget(battle);
-        this.withUi(battle.playerId(), (ui, viewer) -> {
-            ui.outcome(viewer, battle.id(), outcome);
-            ui.close(viewer, battle.id());
-        });
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
         this.records.deleteContext(battle.id()).exceptionally(_ -> null);
         this.locks.release(battle.playerId(), battle.id()).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().warn("Battle {}: lock release failed", battle.id(), throwable);

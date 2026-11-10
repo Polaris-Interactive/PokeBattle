@@ -11,7 +11,6 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.poke.battle.PokeBattle;
-import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
@@ -62,11 +61,6 @@ public class PacedUi implements BattleUi {
     @Override
     public void waiting(Player player) {
         this.timeline(player).call(() -> this.ui.waiting(player));
-    }
-
-    @Override
-    public void outcome(Player player, UUID battleId, BattleOutcome outcome) {
-        this.timeline(player).call(() -> this.ui.outcome(player, battleId, outcome));
     }
 
     @Override
