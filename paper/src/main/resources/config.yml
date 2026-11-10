@@ -152,7 +152,9 @@ hud:
     low: "#EB5757"
     empty: "#3A3A3A"
   # The camera follows the battle: a shot for what happens (a move, a switch, a K.O., a capture, the end), then back
-  # to `idle` where the player chooses; the menu shows once it is back. Shots keep clear of blocks: an eye with a block between it
+  # to `idle` where the player chooses; the menu shows once it is back.
+  # Keep it calm: every shot stays on the same side of the two creatures as `idle` (the player's right) and close to
+  # it, so a turn reads as one view that leans in and out, not as a flight around the stage. Shots keep clear of blocks: an eye with a block between it
   # and what it looks at rises up to 4 blocks, else comes in front of the block. Places are in blocks from where the battle
   # started: `forward` the way the player looked, `right` (left when negative), `up` from their feet. The HUD moves with
   # the camera. Remove this block, or `enabled: false`, for a still camera where the player stands.
@@ -168,18 +170,24 @@ hud:
     # higher. A creature standing between a shot and what it looks at (a big ally in `idle`) makes the eye rise over it.
     reference-size: 1.5
     max-scale: 4
+    # A shot this close (blocks) to where the camera is does not hold the action back: the camera drifts there while
+    # the moment plays. A shot further away is reached first (its glide), then the moment plays.
+    drift-distance: 3
     # `look-at`: ally, foe or center. `glide`: ticks to get there (0 cuts). `hold`: ticks before the next shot.
     shots:
       # Over the shoulder of the player's creature, the opponent across: where the menu is used.
-      idle:        { from: { forward: 0, right: 2.2, up: 2.2 }, look-at: center, glide: 20, hold: 0 }
-      ally-move:   { from: { forward: 0.5, right: -2.2, up: 1.8 }, look-at: foe, glide: 12, hold: 25 }
-      foe-move:    { from: { forward: 11.5, right: 2.2, up: 2.0 }, look-at: ally, glide: 12, hold: 25 }
-      ally-switch: { from: { forward: 5.5, right: -3.2, up: 1.4 }, look-at: ally, glide: 15, hold: 25 }
-      foe-switch:  { from: { forward: 6, right: 3.6, up: 1.6 }, look-at: foe, glide: 15, hold: 25 }
-      ally-faint:  { from: { forward: 4.5, right: -3, up: 2.6 }, look-at: ally, glide: 15, hold: 25 }
-      foe-faint:   { from: { forward: 6.5, right: 3, up: 2.6 }, look-at: foe, glide: 15, hold: 25 }
-      capture:     { from: { forward: 5, right: 2, up: 2 }, look-at: foe, glide: 15, hold: 30 }
-      end:         { from: { forward: 6, right: -6.5, up: 3.5 }, look-at: center, glide: 30, hold: 30 }
+      idle:        { from: { forward: 0, right: 2.2, up: 2.2 }, look-at: center, glide: 16, hold: 0 }
+      # The player's creature attacks: the view leans in towards the opponent.
+      ally-move:   { from: { forward: 1.2, right: 2.6, up: 2.0 }, look-at: foe, glide: 16, hold: 25 }
+      # The opponent attacks: the view pulls back a little, both creatures in frame.
+      foe-move:    { from: { forward: -1.0, right: 2.6, up: 2.6 }, look-at: center, glide: 16, hold: 25 }
+      ally-switch: { from: { forward: -0.6, right: 2.4, up: 2.0 }, look-at: ally, glide: 16, hold: 25 }
+      foe-switch:  { from: { forward: 2.0, right: 2.8, up: 2.0 }, look-at: foe, glide: 16, hold: 25 }
+      ally-faint:  { from: { forward: -0.6, right: 2.6, up: 2.8 }, look-at: ally, glide: 18, hold: 25 }
+      foe-faint:   { from: { forward: 2.5, right: 2.8, up: 2.2 }, look-at: foe, glide: 18, hold: 25 }
+      capture:     { from: { forward: 2.5, right: 2.6, up: 1.9 }, look-at: foe, glide: 18, hold: 30 }
+      # The end: a slow pull back over the whole stage.
+      end:         { from: { forward: -1.5, right: 3.0, up: 3.2 }, look-at: center, glide: 30, hold: 30 }
   # Where each element goes, in degrees right (yaw) and down (pitch) from the centre of view. Place them in game:
   # /hologram hud edit while the HUD is open prints these blocks; paste them here, then /pokebattle reload (applies
   # to the next HUD opened). Menu buttons are button-1, button-2... in reading order: add or remove some to change

@@ -293,10 +293,12 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param referenceSize the biggest creature (height or width, in blocks) shots are laid out for: a bigger one is
      *                      framed from further back, its look height raised the same; 0 for 1.5
      * @param maxScale    the most a shot is pushed back for a big creature, as a factor; 0 for 4
+     * @param driftDistance a shot this close (blocks) to where the camera is does not hold the action back: the
+     *                      camera drifts there while the moment plays; further, the moment waits for it; 0 for 3
      */
     @ConfigSerializable
     public record Camera(boolean enabled, double lookHeight, Duration maxSequence,
-                         Map<String, Shot> shots, double referenceSize, double maxScale) {
+                         Map<String, Shot> shots, double referenceSize, double maxScale, double driftDistance) {
     }
 
     @ConfigSerializable

@@ -16,7 +16,7 @@ class BattleStageTest {
     private static final PokeBattleConfiguration.Stage SPOTS = new PokeBattleConfiguration.Stage(
             new PokeBattleConfiguration.Point(2, -1, 0), new PokeBattleConfiguration.Point(8, 1, 0));
     private static final PokeBattleConfiguration.Camera CAMERA = new PokeBattleConfiguration.Camera(true, 1,
-            Duration.ofSeconds(6), Map.of(), 1.5, 4);
+            Duration.ofSeconds(6), Map.of(), 1.5, 4, 0);
 
     private static PokeBattleConfiguration.Shot shot(double forward, double right, double up, String lookAt) {
         return new PokeBattleConfiguration.Shot(new PokeBattleConfiguration.Point(forward, right, up), lookAt, 10, 10);

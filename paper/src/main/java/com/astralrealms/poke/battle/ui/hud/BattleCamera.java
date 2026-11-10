@@ -1,5 +1,6 @@
 package com.astralrealms.poke.battle.ui.hud;
 
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.Nullable;
@@ -22,6 +23,11 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 final class BattleCamera {
 
     private static final String IDLE = "idle";
+    /** The default of {@code drift-distance}, blocks. */
+    private static final double DRIFT_DISTANCE = 3;
+    /** How close two eyes are to be the same place: blocks, and the cosine of the angle between their views. */
+    private static final double SAME_PLACE = 0.05;
+    private static final double SAME_VIEW = 0.9995;
 
     private final Plugin plugin;
     private final Player player;
@@ -31,6 +37,8 @@ final class BattleCamera {
     private @Nullable HudView view;
     private PokeBattleConfiguration.@Nullable Shot current;
     private @Nullable ScheduledTask landing;
+    /** Where the camera was last sent. */
+    private @Nullable Location at;
     private boolean resting;
     private boolean stopped;
 
@@ -65,12 +73,20 @@ final class BattleCamera {
     }
 
     /**
-     * The beat's time: the shot's glide before the field changes (the camera gets there), its hold after. A cue
-     * without a shot leaves the camera where it is and takes no time.
+     * The beat's time: the shot's glide before the field changes (the camera gets there), its hold after. A shot the
+     * camera is already on takes no glide, and one close by ({@code drift-distance}) does not hold the moment back:
+     * the camera drifts there while it plays. A cue without a shot leaves the camera where it is and takes no time.
      */
     BattleUi.Pace pace(@Nullable BattleCue cue) {
         PokeBattleConfiguration.Shot shot = this.shot(cue);
-        return shot == null ? BattleUi.Pace.NONE : new BattleUi.Pace(shot.glide(), shot.hold());
+        if (shot == null)
+            return BattleUi.Pace.NONE;
+        Location eye = this.stage.eye(shot);
+        if (this.there(eye))
+            return new BattleUi.Pace(0, shot.hold());
+        if (this.near(eye))
+            return new BattleUi.Pace(0, Math.max(shot.hold(), shot.glide()));
+        return new BattleUi.Pace(shot.glide(), shot.hold());
     }
 
     /**
@@ -83,7 +99,9 @@ final class BattleCamera {
         this.cancel();
         this.resting = false;
         this.current = shot;
-        this.move(shot, Math.max(0, shot.glide()));
+        // Two cues in a row on the same shot: the camera stays still
+        if (!this.there(this.stage.eye(shot)))
+            this.move(shot, Math.max(0, shot.glide()));
     }
 
     /**
@@ -94,8 +112,10 @@ final class BattleCamera {
             return;
         this.current = null;
         PokeBattleConfiguration.Shot idle = this.shot(IDLE);
-        int glide = idle == null ? 0 : Math.max(0, idle.glide());
-        if (idle != null)
+        // Already there (no beat moved it): the menu shows at once
+        boolean there = idle == null || this.there(this.stage.eye(idle));
+        int glide = there ? 0 : Math.max(0, idle.glide());
+        if (!there)
             this.move(idle, glide);
         if (glide == 0) {
             this.settle();
@@ -131,8 +151,27 @@ final class BattleCamera {
 
     private void move(PokeBattleConfiguration.Shot shot, int glide) {
         HudView view = this.view;
-        if (view != null && view.open())
-            view.moveSeat(this.stage.eye(shot), glide, Easing.EASE_IN_OUT);
+        if (view == null || !view.open())
+            return;
+        Location eye = this.stage.eye(shot);
+        this.at = eye;
+        view.moveSeat(eye, glide, Easing.EASE_IN_OUT);
+    }
+
+    /**
+     * Whether the camera was last sent to this very place, looking the same way.
+     */
+    private boolean there(Location eye) {
+        Location at = this.at;
+        return at != null && at.getWorld() == eye.getWorld() && at.distance(eye) <= SAME_PLACE
+                && at.getDirection().dot(eye.getDirection()) >= SAME_VIEW;
+    }
+
+    private boolean near(Location eye) {
+        Location at = this.at;
+        PokeBattleConfiguration.Camera camera = this.stage.camera();
+        double drift = camera != null && camera.driftDistance() > 0 ? camera.driftDistance() : DRIFT_DISTANCE;
+        return at != null && at.getWorld() == eye.getWorld() && at.distance(eye) <= drift;
     }
 
     private void cancel() {
