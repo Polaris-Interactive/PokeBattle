@@ -24,8 +24,8 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 
 /**
- * The player's inventory as a battle bag: balls (items PokeCore knows as balls) and items whose blueprint fixes an
- * effect the simulator can apply (heal, revive, cure, PP). Items are taken when the choice leaves this server and
+ * The player's inventory as a battle bag: balls (stacks whose global key is a ball of PokeCore's {@code balls.yml})
+ * and items whose blueprint fixes an effect the simulator can apply (heal, revive, cure, PP). Items are taken when the choice leaves this server and
  * given back if the battle refuses it.
  * <p>
  * Every inventory method must run on the player's thread.
@@ -40,13 +40,14 @@ public class BattleBag {
     /**
      * One kind of item in the bag.
      *
-     * @param itemId  battle engine id, as stored and sent
+     * @param key     the item's global key ({@code items:common/example-ball}); the battle engine id is derived from it
+     *                when the choice is sent
      * @param name    the stack's display name
      * @param amount  how many the player carries
      * @param effects what it does, empty for a ball
      * @param model   the item's own model, the sprite the player sees in the inventory; null without one
      */
-    public record Entry(String itemId, Component name, int amount, List<ItemEffect> effects, @Nullable Key model) {
+    public record Entry(String key, Component name, int amount, List<ItemEffect> effects, @Nullable Key model) {
 
         public Entry {
             effects = List.copyOf(effects);
@@ -80,20 +81,20 @@ public class BattleBag {
         for (ItemStack stack : player.getInventory().getStorageContents()) {
             if (stack == null || stack.isEmpty())
                 continue;
-            String itemId = items.itemId(stack).orElse(null);
-            if (itemId == null)
+            String key = items.key(stack).orElse(null);
+            if (key == null)
                 continue;
             List<ItemEffect> effects = List.of();
             if (balls) {
-                if (PokeCoreAPI.get().capture().ball(itemId).isEmpty())
+                if (PokeCoreAPI.get().capture().ball(key).isEmpty())
                     continue;
             } else {
                 effects = battleEffects(items.fixedEffects(stack));
                 if (effects.isEmpty())
                     continue;
             }
-            Entry known = entries.get(itemId);
-            entries.put(itemId, new Entry(itemId, stack.effectiveName(),
+            Entry known = entries.get(key);
+            entries.put(key, new Entry(key, stack.effectiveName(),
                     stack.getAmount() + (known == null ? 0 : known.amount()), effects, model(stack)));
         }
         return List.copyOf(entries.values());
@@ -104,12 +105,12 @@ public class BattleBag {
      *
      * @return null if the player no longer carries one
      */
-    public @Nullable Taken take(Player player, String itemId) {
+    public @Nullable Taken take(Player player, String key) {
         ItemMappingService items = PokeCoreAPI.get().items();
         PlayerInventory inventory = player.getInventory();
         for (int slot = 0; slot < inventory.getStorageContents().length; slot++) {
             ItemStack stack = inventory.getItem(slot);
-            if (stack == null || stack.isEmpty() || !items.itemId(stack).map(itemId::equals).orElse(false))
+            if (stack == null || stack.isEmpty() || !items.key(stack).map(key::equals).orElse(false))
                 continue;
             Taken taken = new Taken(stack.effectiveName(), battleEffects(items.fixedEffects(stack)));
             stack.setAmount(stack.getAmount() - 1);
@@ -124,8 +125,8 @@ public class BattleBag {
      *
      * @return false if the item cannot be built any more (blueprint removed)
      */
-    public boolean refund(Player player, String itemId) {
-        ItemStack stack = PokeCoreAPI.get().items().stack(player, itemId, 1).orElse(null);
+    public boolean refund(Player player, String key) {
+        ItemStack stack = PokeCoreAPI.get().items().stack(player, key, 1).orElse(null);
         if (stack == null)
             return false;
         player.getInventory()

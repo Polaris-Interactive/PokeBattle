@@ -23,13 +23,17 @@ or a local `mvn install`).
    built in code, every text a `messages.yml` entry: moves (PP, type, category, power, accuracy), then the team,
    **Ball**, **Sac** and **Fuite**. Choices are checked against the request before they leave. `/combat` reopens
    it; `/combat attaque <n>`, `/combat changer <position>` and `/combat fuite` choose without it.
-   - **Ball:** the balls the player carries (items PokeCore maps to a ball). The capture is **rolled here**
+   - **Ball:** the balls the player carries (stacks whose global key is a ball of PokeCore's `balls.yml`). The capture is **rolled here**
      (`CaptureService`, ball rules with the request's capture flags, the foe's HP from its percentage) and the result
      goes with the choice; the worker ends the battle on a catch.
    - **Sac:** items whose blueprint fixes an effect the simulator applies (`poke-heal`, `poke-revive`,
      `poke-cure-status`, `poke-restore-pp`, read through `ItemMappingService.fixedEffects`), then a target among the
      members it would change. Same YAML in and out of battle.
    - The ball or item is taken from the inventory when the choice leaves, and given back if the worker refuses it.
+   - Items are identified by their AstralCore global key (`items:common/pokeball`); the worker only sees the engine id
+     PokeCore's `ItemKeys` derives from it (`pokeball`), in the team (held items, balls) and in `ball` / `item` choices.
+     A caught creature's ball comes back as an engine id and is mapped back to the key that was sent (else the only
+     `balls.yml` ball with that id).
    - The turn timer runs on the worker (`battle.turn-timer-seconds`): when it runs out the AI chooses and the log says
      so.
 4. `BattleEndedPacket`: the condition every creature left with is always written; experience, EVs and friendship
@@ -46,7 +50,7 @@ or a local `mvn install`).
 ## Trainer battles
 
 `BattleRequest.trainer(player, new TrainerOpponent(name, team, ai), format, rules, tag)` battles an NPC trainer:
-`team` is 1 to 6 PokeCore `TrainerMember`s (species and form ids, level, optional moves, ability, item, nature,
+`team` is 1 to 6 PokeCore `TrainerMember`s (species and form ids, level, optional moves, ability, item global key, nature,
 IVs, EVs, gender, shininess, nickname). At the start PokeCore checks the team (`CreationService.validate`, refused as
 `ERROR` with the problems logged) and rolls what it leaves out once (`CreationService.complete`). The opponent side
 is sent with the trainer's name and `ai` (`trainer`, `gym`), with no condition (a fresh team).

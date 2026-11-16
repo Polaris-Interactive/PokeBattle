@@ -18,18 +18,18 @@ class BattleSpentTest {
     @Test
     void aChoiceRefusedAfterTheNextRequestStillGivesItsItemBack() {
         Battle battle = battle();
-        battle.spend(new Battle.Spent(5, "ball-standard"));
+        battle.spend(new Battle.Spent(5, "items:example/standard-ball"));
         // The turn timer answered request 5: request 6 comes, then the late ball is refused as stale
         battle.requested(6);
 
-        assertThat(battle.unspend(5)).isEqualTo(new Battle.Spent(5, "ball-standard"));
+        assertThat(battle.unspend(5)).isEqualTo(new Battle.Spent(5, "items:example/standard-ball"));
         assertThat(battle.unspend(5)).isNull();
     }
 
     @Test
     void anItemOfAChoicePlayedLongAgoIsNoLongerHeld() {
         Battle battle = battle();
-        battle.spend(new Battle.Spent(5, "potion"));
+        battle.spend(new Battle.Spent(5, "items:example/potion"));
         battle.requested(6);
         battle.requested(7);
 

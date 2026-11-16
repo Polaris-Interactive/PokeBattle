@@ -66,10 +66,12 @@ import com.astralrealms.poke.core.api.model.CreationOptions;
 import com.astralrealms.poke.core.api.model.CreationResult;
 import com.astralrealms.poke.core.mechanics.PokemonStats;
 import com.astralrealms.poke.core.mechanics.StatCalculator;
+import com.astralrealms.poke.core.mechanics.capture.BallDefinition;
 import com.astralrealms.poke.core.mechanics.capture.CaptureContext;
 import com.astralrealms.poke.core.mechanics.capture.CaptureResult;
 import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
 import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
+import com.astralrealms.poke.core.mechanics.item.ItemKeys;
 import com.astralrealms.poke.core.mechanics.progression.BattleCondition;
 import com.astralrealms.poke.core.mechanics.progression.ExperienceGain;
 import com.astralrealms.poke.core.mechanics.progression.Progression;
@@ -664,11 +666,14 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                     : PokeCoreAPI.get().capture().roll(attempt);
             this.plugin.debug("Battle {}: {} thrown, {} shakes, caught {}", battle.id(), ball, result.shakes(),
                     result.caught());
-            battle.itemNames().put(ball, taken.name());
+            // The engine knows the ball by its engine id, derived from the key here and mapped back by capturedBall
+            String engineId = ItemKeys.showdownId(ball);
+            battle.itemNames().put(engineId, taken.name());
+            battle.itemKeys().put(engineId, ball);
             battle.spend(new Battle.Spent(view.rqid(), ball));
             battle.chosen(true);
             workerId = battle.workerId();
-            choice = "ball " + ball + " " + result.shakes() + " " + (result.caught() ? 1 : 0);
+            choice = "ball " + engineId + " " + result.shakes() + " " + (result.caught() ? 1 : 0);
         }
         this.send(player, battle, workerId, view.rqid(), choice);
     }
@@ -704,11 +709,13 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 this.openDialog(battle);
                 return;
             }
-            battle.itemNames().put(item, taken.name());
+            String engineId = ItemKeys.showdownId(item);
+            battle.itemNames().put(engineId, taken.name());
+            battle.itemKeys().put(engineId, item);
             battle.spend(new Battle.Spent(view.rqid(), item));
             battle.chosen(true);
             workerId = battle.workerId();
-            choice = "item " + item + " " + position + " " + BattleBag.encode(taken.effects());
+            choice = "item " + engineId + " " + position + " " + BattleBag.encode(taken.effects());
         }
         this.send(player, battle, workerId, view.rqid(), choice);
     }
@@ -817,17 +824,17 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player == null) {
             this.plugin.getSLF4JLogger().warn("Battle {}: {} could not be given back to {} (offline)", battle.id(),
-                    spent.itemId(), battle.playerId());
+                    spent.key(), battle.playerId());
             return;
         }
-        Component name = battle.itemNames().get(spent.itemId());
+        Component name = battle.itemNames().get(ItemKeys.showdownId(spent.key()));
         player.getScheduler().run(this.plugin, _ -> {
-            if (this.bag.refund(player, spent.itemId()))
+            if (this.bag.refund(player, spent.key()))
                 PokeBattleMessages.ITEM_REFUNDED.message(player, new PlaceholderContainer()
-                        .registerDirect("item", name == null ? spent.itemId() : name));
+                        .registerDirect("item", name == null ? spent.key() : name));
             else
                 this.plugin.getSLF4JLogger().warn("Battle {}: {} has no item stack any more, not given back",
-                        battle.id(), spent.itemId());
+                        battle.id(), spent.key());
         }, null);
     }
 
@@ -1055,9 +1062,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         SignedRoll roll = battle.options().wildRoll();
         if (capture == null || roll == null)
             return CompletableFuture.completedFuture(null);
+        String ball = this.capturedBall(battle, capture.ball());
         return PokeCoreAPI.get()
                 .creation()
-                .redeem(battle.playerId(), roll, CreationOptions.capture(capture.ball(), battle.options().metAt(),
+                .redeem(battle.playerId(), roll, CreationOptions.capture(ball, battle.options().metAt(),
                         battle.id().toString()))
                 .thenApply(result -> {
                     if (retaken && result.status() == StorageResult.Status.DUPLICATE) {
@@ -1069,10 +1077,32 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                         // Checked before the throw: storage filled meanwhile (another server), or a refused roll
                         this.plugin.getSLF4JLogger().warn("Battle {}: the caught creature of {} was not stored ({})",
                                 battle.id(), battle.playerId(), result.status());
-                        this.refundBall(battle, capture.ball());
+                        this.refundBall(battle, ball);
                     }
                     return result;
                 });
+    }
+
+    /**
+     * The global key of the ball the engine reports a catch with (its engine id): the key this shard sent it as, else
+     * the only ball of {@code balls.yml} (then the only AstralItems item) with that engine id, e.g. after the battle
+     * moved shards. Falls back to the engine id itself, logged, rather than losing the catch.
+     */
+    private String capturedBall(Battle battle, String engineId) {
+        String sent = battle.itemKeys().get(engineId);
+        if (sent != null)
+            return sent;
+        List<String> balls = PokeCoreAPI.get()
+                .capture()
+                .balls()
+                .stream()
+                .map(BallDefinition::id)
+                .toList();
+        return PokeCoreAPI.get().items().fromShowdownId(engineId, balls).orElseGet(() -> {
+            this.plugin.getSLF4JLogger().warn("Battle {}: caught with ball {}, which matches no single item key",
+                    battle.id(), engineId);
+            return engineId;
+        });
     }
 
     /**
@@ -1085,7 +1115,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                     ball, battle.playerId());
             return;
         }
-        Component name = battle.itemNames().get(ball);
+        Component name = battle.itemNames().get(ItemKeys.showdownId(ball));
         player.getScheduler().run(this.plugin, _ -> {
             if (this.bag.refund(player, ball))
                 PokeBattleMessages.ITEM_REFUNDED.message(player, new PlaceholderContainer()

@@ -108,8 +108,10 @@ public class Battle {
 
     /**
      * An item taken from the player's inventory for a choice: given back if the battle refuses that choice.
+     *
+     * @param key the item's global key
      */
-    public record Spent(int rqid, String itemId) {
+    public record Spent(int rqid, String key) {
     }
 
     private final UUID id;
@@ -118,8 +120,13 @@ public class Battle {
     private final List<Ally> allies;
     private final List<Foe> foes;
     private final Options options;
-    /** Display names of the items used in this battle, for the log (bag items may have no bundle name). */
+    /**
+     * Display names of the items used in this battle by battle engine id, as the log names them (bag items may have no
+     * bundle name).
+     */
     private final Map<String, Component> itemNames = new ConcurrentHashMap<>();
+    /** Global keys of the items this shard sent in choices, by battle engine id: what the engine's ids come back as. */
+    private final Map<String, String> itemKeys = new ConcurrentHashMap<>();
     /** Starts over when the battle moves to another worker or shard: they number from 0 again. */
     private SequenceBuffer<Packet> sequence = new SequenceBuffer<>();
     /** Starts over on a resync, which brings the whole battle again. */

@@ -496,7 +496,7 @@ final class BattleHud {
                 }
                 for (BattleBag.Entry ball : balls)
                     entries.add(new Entry(this.bagEntry(ball),
-                            () -> this.handler().throwBall(this.player, view, ball.itemId()),
+                            () -> this.handler().throwBall(this.player, view, ball.key()),
                             this.itemTooltip(ball), null, ball.model()));
             }
             case BAG -> {
@@ -520,7 +520,7 @@ final class BattleHud {
                 }
                 for (ChoiceView.Member member : targets)
                     entries.add(new Entry(PokeBattleMessages.HUD_TARGET_BUTTON.component(this.member(member, false)),
-                            () -> this.handler().useItem(this.player, view, item.itemId(), member.position()),
+                            () -> this.handler().useItem(this.player, view, item.key(), member.position()),
                             this.memberTooltip(member), null, HudArt.speciesItem(member.species())));
             }
         }

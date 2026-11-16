@@ -145,7 +145,7 @@ public class ChoiceDialogs {
         List<ActionButton> buttons = new ArrayList<>();
         for (BattleBag.Entry ball : balls)
             buttons.add(this.button(this.entry(ball), null,
-                    clicker -> this.handler.throwBall(clicker, view, ball.itemId())));
+                    clicker -> this.handler.throwBall(clicker, view, ball.key())));
         player.showDialog(this.list(PokeBattleMessages.BALLS_TITLE.component(), view, buttons,
                 clicker -> clicker.showDialog(this.main(view))));
     }
@@ -181,7 +181,7 @@ public class ChoiceDialogs {
                             .registerDirect("status", member.fainted()
                                     ? PokeBattleMessages.TARGET_FAINTED.component()
                                     : this.status(member.status()))), null,
-                    clicker -> this.handler.useItem(clicker, view, item.itemId(), member.position())));
+                    clicker -> this.handler.useItem(clicker, view, item.key(), member.position())));
         player.showDialog(this.list(PokeBattleMessages.TARGET_TITLE.component(new PlaceholderContainer()
                 .registerDirect("item", item.name())), view, buttons, clicker -> this.openBag(clicker, view)));
     }
