@@ -445,8 +445,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         }
         battle.pending(request);
         battle.chosen(false);
-        // A new request: the item spent on the last choice was used
-        battle.spent(null);
+        // A new request: the items spent on older choices were used
+        battle.requested(request.rqid());
         Duration ttl = this.plugin.configuration().battle().lockTtl();
         this.locks.refresh(battle.playerId(), battle.id(), ttl)
                 .exceptionally(throwable -> {
@@ -459,8 +459,11 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
     private void onChoiceError(Battle battle, BattleChoiceErrorPacket error) {
         ChoiceRequest pending = battle.pending();
-        if (pending == null || pending.rqid() != error.rqid())
+        if (pending == null || pending.rqid() != error.rqid()) {
+            // A choice that came too late (the turn timer answered for the player): only its item comes back
+            this.refund(battle, error.rqid());
             return;
+        }
         this.plugin.debug("Battle {}: choice refused ({})", battle.id(), error.message());
         battle.chosen(false);
         this.refund(battle, error.rqid());
@@ -615,7 +618,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             this.plugin.debug("Battle {}: {} thrown, {} shakes, caught {}", battle.id(), ball, result.shakes(),
                     result.caught());
             battle.itemNames().put(ball, taken.name());
-            battle.spent(new Battle.Spent(view.rqid(), ball));
+            battle.spend(new Battle.Spent(view.rqid(), ball));
             battle.chosen(true);
             workerId = battle.workerId();
             choice = "ball " + ball + " " + result.shakes() + " " + (result.caught() ? 1 : 0);
@@ -655,7 +658,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 return;
             }
             battle.itemNames().put(item, taken.name());
-            battle.spent(new Battle.Spent(view.rqid(), item));
+            battle.spend(new Battle.Spent(view.rqid(), item));
             battle.chosen(true);
             workerId = battle.workerId();
             choice = "item " + item + " " + position + " " + BattleBag.encode(taken.effects());
@@ -761,10 +764,9 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * Gives back the item spent on the choice for {@code rqid}, which the battle refused. Under the battle's monitor.
      */
     private void refund(Battle battle, int rqid) {
-        Battle.Spent spent = battle.spent();
-        if (spent == null || spent.rqid() != rqid)
+        Battle.Spent spent = battle.unspend(rqid);
+        if (spent == null)
             return;
-        battle.spent(null);
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player == null) {
             this.plugin.getSLF4JLogger().warn("Battle {}: {} could not be given back to {} (offline)", battle.id(),

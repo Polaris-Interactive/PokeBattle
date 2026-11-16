@@ -1,5 +1,6 @@
 package com.astralrealms.poke.battle.model;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +18,7 @@ import com.astralrealms.poke.core.model.Pokemon;
 import com.astralrealms.poke.core.team.TrainerMember;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import net.kyori.adventure.text.Component;
@@ -138,9 +140,12 @@ public class Battle {
     private @Nullable String abortReason;
     @Setter
     private @Nullable ScheduledTask disconnectTask;
-    /** The item spent on the pending choice, not confirmed by the worker yet. */
-    @Setter
-    private @Nullable Spent spent;
+    /**
+     * Items spent on recent choices, by request id, until known used. A choice that reaches the worker too late (the
+     * turn timer answered for the player) is refused after the next request came: its item is still given back.
+     */
+    @Getter(AccessLevel.NONE)
+    private final Map<Integer, Spent> spent = new HashMap<>();
     /** Its worker died: another one is being asked to take it over. */
     @Setter
     private boolean recovering;
@@ -169,6 +174,28 @@ public class Battle {
      */
     public void restartTracker() {
         this.tracker = new BattleTracker(PLAYER_SIDE);
+    }
+
+    /**
+     * An item taken for the choice answering request {@link Spent#rqid}.
+     */
+    public void spend(Spent spent) {
+        this.spent.put(spent.rqid(), spent);
+    }
+
+    /**
+     * The item spent on the choice for {@code rqid}, refused: no longer spent.
+     */
+    public @Nullable Spent unspend(int rqid) {
+        return this.spent.remove(rqid);
+    }
+
+    /**
+     * Request {@code rqid} came: the choices before the previous request were played, or refused already (a refusal
+     * of the previous one may still come).
+     */
+    public void requested(int rqid) {
+        this.spent.keySet().removeIf(spentRqid -> spentRqid < rqid - 1);
     }
 
     public static String label(int index) {
