@@ -1286,27 +1286,39 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * worker's battle is recovered, an end this server missed is settled, a battle another server took over is let go.
      */
     public void checkBattles() {
-        for (Battle battle : this.battles.values()) {
-            if (battle.state() != Battle.State.RUNNING || battle.recovering() || battle.workerId() == null)
-                continue;
-            this.records.state(battle.id())
-                    .thenAccept(state -> {
-                        switch (state.status()) {
-                            case ALIVE -> {
-                                if (state.shardId() != null && !state.shardId().equals(this.shardId)) {
-                                    this.plugin.debug("Battle {} moved to {}", battle.id(), state.shardId());
-                                    this.letGo(battle);
-                                }
-                            }
-                            case DEAD -> this.recover(battle);
-                            case ENDED -> this.settleFromRecord(battle);
-                            case MISSING -> this.lost(battle);
-                        }
-                    })
-                    .exceptionally(throwable -> {
-                        this.plugin.debug("Battle {}: record check failed ({})", battle.id(), throwable.getMessage());
-                        return null;
-                    });
+        List<Battle> checked = this.battles.values()
+                .stream()
+                .filter(battle -> battle.state() == Battle.State.RUNNING && !battle.recovering()
+                        && battle.workerId() != null)
+                .toList();
+        if (checked.isEmpty())
+            return;
+        // One round trip for all of them
+        this.records.states(checked.stream().map(Battle::id).toList())
+                .thenAccept(states -> {
+                    for (Battle battle : checked) {
+                        BattleRecords.State state = states.get(battle.id());
+                        if (state != null)
+                            this.check(battle, state);
+                    }
+                })
+                .exceptionally(throwable -> {
+                    this.plugin.debug("Battle record check failed ({})", throwable.getMessage());
+                    return null;
+                });
+    }
+
+    private void check(Battle battle, BattleRecords.State state) {
+        switch (state.status()) {
+            case ALIVE -> {
+                if (state.shardId() != null && !state.shardId().equals(this.shardId)) {
+                    this.plugin.debug("Battle {} moved to {}", battle.id(), state.shardId());
+                    this.letGo(battle);
+                }
+            }
+            case DEAD -> this.recover(battle);
+            case ENDED -> this.settleFromRecord(battle);
+            case MISSING -> this.lost(battle);
         }
     }
 

@@ -2,7 +2,9 @@ package com.astralrealms.poke.battle.service;
 
 import java.time.Duration;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -63,6 +65,38 @@ public class BattleRecords {
               return {'ALIVE', owner, shard}
             end
             return {'DEAD', owner, shard}""";
+    // STATE for every key, flattened: {status, workerId, shardId} per battle, in order. A worker's heartbeat is read
+    // once however many of its battles are checked
+    private static final String STATES = """
+            local result = {}
+            local beats = {}
+            for _, key in ipairs(KEYS) do
+              local owner = redis.call('HGET', key, 'workerId')
+              if not owner then
+                table.insert(result, 'MISSING'); table.insert(result, ''); table.insert(result, '')
+              else
+                local shard = redis.call('HGET', key, 'shardId') or ''
+                local status
+                if redis.call('HEXISTS', key, 'ended') == 1 then
+                  status = 'ENDED'
+                else
+                  local beating = beats[owner]
+                  if beating == nil then
+                    beating = redis.call('HGET', ARGV[1] .. owner, 'instance') or false
+                    beats[owner] = beating
+                  end
+                  local instance = redis.call('HGET', key, 'instance')
+                  if beating and beating == instance then
+                    status = 'ALIVE'
+                  else
+                    status = 'DEAD'
+                  end
+                end
+                table.insert(result, status); table.insert(result, owner); table.insert(result, shard)
+              end
+            end
+            return result""";
+
     /**
      * Who settles a battle's end. A claim is a lease ({@code settledBy}, {@code settleUntil}) until the settlement is
      * written and confirmed ({@code settled}): a shard that stops between its claim and the database leaves a claim
@@ -123,6 +157,28 @@ public class BattleRecords {
                 .thenApply(result -> new State(Status.valueOf(result.get(0)),
                         result.get(1).isEmpty() ? null : result.get(1),
                         result.get(2).isEmpty() ? null : result.get(2))));
+    }
+
+    /**
+     * {@link #state} of several battles in one round trip.
+     */
+    public CompletableFuture<Map<UUID, State>> states(List<UUID> battleIds) {
+        if (battleIds.isEmpty())
+            return CompletableFuture.completedFuture(Map.of());
+        String[] keys = battleIds.stream().map(PokeBattleKeys::battle).toArray(String[]::new);
+        return this.cache.runAsync(commands -> commands
+                .<List<String>>eval(STATES, ScriptOutputType.MULTI, keys, PokeBattleKeys.worker(""))
+                .toCompletableFuture()
+                .thenApply(result -> states(battleIds, result)));
+    }
+
+    static Map<UUID, State> states(List<UUID> battleIds, List<String> flat) {
+        Map<UUID, State> states = new LinkedHashMap<>();
+        for (int i = 0; i < battleIds.size() && 3 * i + 2 < flat.size(); i++)
+            states.put(battleIds.get(i), new State(Status.valueOf(flat.get(3 * i)),
+                    flat.get(3 * i + 1).isEmpty() ? null : flat.get(3 * i + 1),
+                    flat.get(3 * i + 2).isEmpty() ? null : flat.get(3 * i + 2)));
+        return states;
     }
 
     /**
