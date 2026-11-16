@@ -34,6 +34,12 @@ recovery:
   # How often this server checks that the workers of its battles still beat. A dead worker's battles are replayed on
   # another one and resume where they were. Keep it below the workers' HEARTBEAT_TTL_SECONDS (5 s).
   check-interval: 2s
+  # A shard claims a battle's settlement for this long. If it stops before writing it (crash, shutdown), another
+  # shard, or this one restarted, settles it again once the claim is over: the player's capture and rewards are not
+  # lost. A stopping server also waits at most this long for the settlements it is writing.
+  settle-lease: 20s
+  # Tries at writing a settlement the database refused (unreachable...), check-interval apart, before giving up.
+  settle-attempts: 3
 
 rewards:
   # Product of every experience bonus for these battles; the formula itself is PokeCore's (modern, level-scaled).

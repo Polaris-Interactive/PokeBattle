@@ -10,7 +10,9 @@ import lombok.experimental.UtilityClass;
  *     <li>{@link #battle}: hash {@code workerId, instance, shardId, format, seed, turn, createdAt, start}. Claimed by a
  *     worker with {@code HSETNX workerId} before it accepts a start, so a redelivered start is never run twice; taken
  *     over by another worker when {@code instance} no longer beats. TTL refreshed on every turn. Once ended:
- *     {@code result, endedAt, ended} (the ended packet, base64) and {@code settledBy}, the shard that settled it.</li>
+ *     {@code result, endedAt, ended} (the ended packet, base64), then {@code settledBy, settleUntil}, the shard that
+ *     claimed its settlement and until when, and {@code settled} once that shard wrote it (a claim never confirmed is
+ *     taken again past {@code settleUntil}).</li>
  *     <li>{@link #battleContext}: what a shard needs to show and settle the battle besides the worker's packets
  *     (written by the shard that started it, JSON), so another shard can take it over.</li>
  *     <li>{@link #battleLog}: list of the simulator inputs in order, enough to replay the battle on another worker

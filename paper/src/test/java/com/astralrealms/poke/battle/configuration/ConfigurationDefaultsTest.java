@@ -13,7 +13,7 @@ class ConfigurationDefaultsTest {
     void sectionsMissingFromAnOlderConfigReadAsTheirDefaults() {
         // What Configurate builds when the sections are absent: records with null fields, or no record at all
         PokeBattleConfiguration empty = new PokeBattleConfiguration(null, null, null,
-                new PokeBattleConfiguration.Recovery(null), new PokeBattleConfiguration.Arena(null, null), null, null,
+                new PokeBattleConfiguration.Recovery(null, null, null), new PokeBattleConfiguration.Arena(null, null), null, null,
                 null, null, null, new PokeBattleConfiguration.Staging(null, null, null, null, null, null, null),
                 new PokeBattleConfiguration.Capture(null));
         PokeBattleConfiguration absent = new PokeBattleConfiguration(null, null, null, null, null, null, null, null,
@@ -21,6 +21,8 @@ class ConfigurationDefaultsTest {
 
         for (PokeBattleConfiguration configuration : new PokeBattleConfiguration[]{empty, absent}) {
             assertThat(configuration.recoveryOrDefault().checkInterval()).isEqualTo(Duration.ofSeconds(2));
+            assertThat(configuration.recoveryOrDefault().settleLease()).isEqualTo(Duration.ofSeconds(20));
+            assertThat(configuration.recoveryOrDefault().settleAttempts()).isEqualTo(3);
             assertThat(configuration.arenaOrDefault().stageSpawn()).isEqualTo("stage");
             assertThat(configuration.arenaOrDefault().returnDelay()).isEqualTo(Duration.ofSeconds(3));
             PokeBattleConfiguration.Staging staging = configuration.stagingOrDefault();

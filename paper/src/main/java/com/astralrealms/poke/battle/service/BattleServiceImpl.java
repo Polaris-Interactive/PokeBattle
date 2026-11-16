@@ -11,7 +11,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -123,6 +125,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private final Map<UUID, Battle> battles = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> byPlayer = new ConcurrentHashMap<>();
     private final BattleBag bag = new BattleBag();
+    /** Settlements being written: a stopping server waits for them (see {@link #shutdown}). */
+    private final Set<CompletableFuture<?>> settling = ConcurrentHashMap.newKeySet();
 
     public BattleServiceImpl(PokeBattle plugin, BattleTransport transport, BattleLocks locks, BattleRecords records,
                              String shardId) {
@@ -496,7 +500,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      */
     private void withUi(UUID playerId, BiConsumer<BattleUi, Player> action) {
         Player player = Bukkit.getPlayer(playerId);
-        if (player == null)
+        // Stopping: a settlement that ends while the server waits for it has nobody left to show it
+        if (player == null || !this.plugin.isEnabled())
             return;
         BattleUi ui = this.plugin.ui();
         player.getScheduler().run(this.plugin, _ -> action.accept(ui, player), null);
@@ -827,26 +832,44 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     /**
      * Settles the battle if this server is the one to: the end may reach two of them (a late packet to the shard the
      * player left, the record read by the shard they joined). If Redis cannot say, it is settled here: the other path
-     * reads Redis too.
+     * reads Redis too. A claim is only a lease until the settlement is confirmed written (see
+     * {@link BattleRecords.Claim}): a shard that stops in between leaves it to be settled again.
      */
     private void settle(Battle battle, BattleEndedPacket ended) {
-        this.records.claimSettlement(battle.id(), this.shardId)
+        this.settle(battle, ended, 1);
+    }
+
+    private void settle(Battle battle, BattleEndedPacket ended, int attempt) {
+        PokeBattleConfiguration.Recovery recovery = this.plugin.configuration().recoveryOrDefault();
+        this.records.claimSettlement(battle.id(), this.shardId, recovery.settleLease())
                 .exceptionally(throwable -> {
                     this.plugin.getSLF4JLogger().warn("Battle {}: settlement claim failed, settling here", battle.id(),
                             throwable);
-                    return true;
+                    // Maybe written already: as a claim taken again
+                    return BattleRecords.Claim.RETAKEN;
                 })
-                .thenAccept(claimed -> {
-                    if (claimed) {
-                        this.settleClaimed(battle, ended);
-                        return;
+                .thenAccept(claim -> {
+                    switch (claim) {
+                        case CLAIMED -> this.settleClaimed(battle, ended, false, attempt);
+                        case RETAKEN -> this.settleClaimed(battle, ended, true, attempt);
+                        case SETTLED -> {
+                            this.plugin.debug("Battle {} was settled by another server", battle.id());
+                            this.finish(battle, outcome(battle, ended), ended.turns(), false);
+                        }
+                        case BUSY -> {
+                            // Another server is writing it; if it stopped meanwhile, its claim is taken once over
+                            this.plugin.debug("Battle {} is being settled by another server", battle.id());
+                            Bukkit.getAsyncScheduler().runDelayed(this.plugin, _ -> this.settle(battle, ended, attempt),
+                                    recovery.settleLease().toMillis(), TimeUnit.MILLISECONDS);
+                        }
                     }
-                    this.plugin.debug("Battle {} was settled by another server", battle.id());
-                    this.finish(battle, outcome(battle, ended), ended.turns(), false);
                 });
     }
 
-    private void settleClaimed(Battle battle, BattleEndedPacket ended) {
+    /**
+     * @param retaken an earlier claim was never confirmed: what it wrote, if it wrote it, is not written again
+     */
+    private void settleClaimed(Battle battle, BattleEndedPacket ended, boolean retaken, int attempt) {
         BattleTracker.Capture capture = battle.tracker().capture();
         BattleOutcome outcome = outcome(battle, ended);
         BattleTeamState team = ended.teams()
@@ -893,33 +916,63 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
         List<ExperienceGain> granted = gains;
         CompletableFuture<@Nullable CreationResult> caught = outcome == BattleOutcome.CAPTURED
-                ? this.redeem(battle, capture)
+                ? this.redeem(battle, capture, retaken)
                 : CompletableFuture.completedFuture(null);
-        caught.thenCompose(creation -> {
+        CompletableFuture<Void> settlement = caught.thenCompose(creation -> {
                     // The caught creature keeps the condition the battle left it in, like the team
                     List<BattleCondition> all = new ArrayList<>(conditions);
                     BattleCondition captured = this.capturedCondition(battle, capture, creation, ended);
                     if (captured != null)
                         all.add(captured);
-                    return this.settle(battle.playerId(), all, granted, true).thenAccept(result -> {
-                        this.report(battle, outcome, creation, granted, result.orElse(null));
-                        this.finish(battle, outcome, ended.turns(), result.isPresent());
+                    // Taken again: a stale write means the first claim wrote it, it must not be applied on top
+                    return this.settle(battle.playerId(), all, granted, !retaken).thenCompose(result -> {
+                        if (result.isEmpty() && retaken)
+                            this.plugin.getSLF4JLogger().warn("Battle {}: settlement taken again was stale, taken as"
+                                    + " written by the first claim", battle.id());
+                        return this.records.confirmSettlement(battle.id(), this.shardId)
+                                .exceptionally(throwable -> {
+                                    this.plugin.getSLF4JLogger().warn("Battle {}: settlement written but not"
+                                            + " confirmed in Redis", battle.id(), throwable);
+                                    return null;
+                                })
+                                .thenRun(() -> {
+                                    boolean settled = result.isPresent() || retaken;
+                                    this.report(battle, outcome, creation, granted,
+                                            result.orElse(retaken ? List.of() : null));
+                                    this.finish(battle, outcome, ended.turns(), settled);
+                                });
                     });
                 })
                 .exceptionally(throwable -> {
+                    int attempts = this.plugin.configuration().recoveryOrDefault().settleAttempts();
+                    if (attempt < attempts && this.plugin.isEnabled()) {
+                        this.plugin.getSLF4JLogger().warn("Battle {}: settlement failed (attempt {}/{}), trying again",
+                                battle.id(), attempt, attempts, throwable);
+                        Bukkit.getAsyncScheduler().runDelayed(this.plugin, _ -> this.settle(battle, ended,
+                                        attempt + 1),
+                                this.plugin.configuration().recoveryOrDefault().checkInterval().toMillis(),
+                                TimeUnit.MILLISECONDS);
+                        return null;
+                    }
+                    // Not confirmed: its claim is taken again if the battle comes back (its player rejoins in time)
                     this.plugin.getSLF4JLogger().error("Battle {}: settlement failed", battle.id(), throwable);
                     this.report(battle, outcome, null, List.of(), null);
                     this.finish(battle, outcome, ended.turns(), false);
                     return null;
                 });
+        this.settling.add(settlement);
+        settlement.whenComplete((_, _) -> this.settling.remove(settlement));
     }
 
     /**
-     * Stores the caught creature: the signed roll it appeared with, redeemed once. A failure (storage full, invalid
-     * or already redeemed roll) still settles the rest of the battle.
+     * Stores the caught creature: the signed roll it appeared with, redeemed once. A refusal (storage full, invalid
+     * or already redeemed roll) still settles the rest of the battle; a database error fails the settlement, which is
+     * tried again.
+     *
+     * @param retaken an earlier claim may have stored it: already redeemed is then caught
      */
-    private CompletableFuture<@Nullable CreationResult> redeem(Battle battle,
-                                                               BattleTracker.@Nullable Capture capture) {
+    private CompletableFuture<@Nullable CreationResult> redeem(Battle battle, BattleTracker.@Nullable Capture capture,
+                                                               boolean retaken) {
         SignedRoll roll = battle.options().wildRoll();
         if (capture == null || roll == null)
             return CompletableFuture.completedFuture(null);
@@ -927,16 +980,16 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 .creation()
                 .redeem(battle.playerId(), roll, CreationOptions.capture(capture.ball(), battle.options().metAt(),
                         battle.id().toString()))
-                .<@Nullable CreationResult>thenApply(result -> {
+                .thenApply(result -> {
+                    if (retaken && result.status() == StorageResult.Status.DUPLICATE) {
+                        this.plugin.getSLF4JLogger().info("Battle {}: the caught creature was stored by the first"
+                                + " claim", battle.id());
+                        return new CreationResult(StorageResult.Status.SUCCESS, null, null);
+                    }
                     if (!result.succeeded())
                         this.plugin.getSLF4JLogger().warn("Battle {}: the caught creature was not stored ({})",
                                 battle.id(), result.status());
                     return result;
-                })
-                .exceptionally(throwable -> {
-                    this.plugin.getSLF4JLogger().error("Battle {}: storing the caught creature failed", battle.id(),
-                            throwable);
-                    return null;
                 });
     }
 
@@ -1384,5 +1437,22 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     public void shutdown() {
         for (Battle battle : List.copyOf(this.battles.values()))
             this.forget(battle);
+        // Settlements being written end before PokeCore's database closes (PokeCore is disabled after this plugin).
+        // One that does not in time stays unconfirmed: it is settled again when its player comes back
+        CompletableFuture<?>[] pending = this.settling.toArray(CompletableFuture[]::new);
+        if (pending.length == 0)
+            return;
+        Duration wait = this.plugin.configuration().recoveryOrDefault().settleLease();
+        this.plugin.getSLF4JLogger().info("Waiting for {} battle settlement(s)", pending.length);
+        try {
+            CompletableFuture.allOf(pending).get(wait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            this.plugin.getSLF4JLogger().warn("{} battle settlement(s) not written in {}, left to be settled again",
+                    this.settling.size(), wait);
+        } catch (ExecutionException e) {
+            // Each logs its own failure
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

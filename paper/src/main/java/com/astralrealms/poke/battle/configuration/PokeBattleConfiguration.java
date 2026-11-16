@@ -20,6 +20,8 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
                                       @Nullable Capture capture) {
 
     private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofSeconds(2);
+    private static final Duration DEFAULT_SETTLE_LEASE = Duration.ofSeconds(20);
+    private static final int DEFAULT_SETTLE_ATTEMPTS = 3;
     private static final String DEFAULT_STAGE_SPAWN = "stage";
     private static final Duration DEFAULT_RETURN_DELAY = Duration.ofSeconds(3);
     private static final int DEFAULT_GUARANTEED_BELOW = 2;
@@ -111,17 +113,26 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      */
     public Recovery recoveryOrDefault() {
         Recovery section = this.recovery;
-        return new Recovery(section == null || section.checkInterval() == null
-                ? DEFAULT_CHECK_INTERVAL
-                : section.checkInterval());
+        if (section == null)
+            return new Recovery(DEFAULT_CHECK_INTERVAL, DEFAULT_SETTLE_LEASE, DEFAULT_SETTLE_ATTEMPTS);
+        return new Recovery(section.checkInterval() == null ? DEFAULT_CHECK_INTERVAL : section.checkInterval(),
+                section.settleLease() == null ? DEFAULT_SETTLE_LEASE : section.settleLease(),
+                section.settleAttempts() == null || section.settleAttempts() < 1
+                        ? DEFAULT_SETTLE_ATTEMPTS
+                        : section.settleAttempts());
     }
 
     /**
-     * @param checkInterval how often this server checks that the workers of its battles still beat (a dead one's
-     *                      battles are taken over by another worker, see the worker's heartbeat TTL)
+     * @param checkInterval  how often this server checks that the workers of its battles still beat (a dead one's
+     *                       battles are taken over by another worker, see the worker's heartbeat TTL)
+     * @param settleLease    how long a shard's claim on a battle's settlement holds before another shard may take it
+     *                       again (it stopped before writing it); also the longest a stopping server waits for the
+     *                       settlements it is writing
+     * @param settleAttempts tries at writing a settlement the database refused, {@code check-interval} apart
      */
     @ConfigSerializable
-    public record Recovery(@Nullable Duration checkInterval) {
+    public record Recovery(@Nullable Duration checkInterval, @Nullable Duration settleLease,
+                           @Nullable Integer settleAttempts) {
     }
 
     @ConfigSerializable

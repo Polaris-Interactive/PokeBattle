@@ -63,12 +63,50 @@ public class BattleRecords {
               return {'ALIVE', owner, shard}
             end
             return {'DEAD', owner, shard}""";
-    // Only one shard settles a battle; a battle whose record expired has nobody else to race with
+    /**
+     * Who settles a battle's end. A claim is a lease ({@code settledBy}, {@code settleUntil}) until the settlement is
+     * written and confirmed ({@code settled}): a shard that stops between its claim and the database leaves a claim
+     * that another one (or itself, restarted) takes again once the lease is over. The database side is idempotent
+     * (redeemed roll, versioned creatures), so settling twice writes once.
+     */
+    public enum Claim {
+        /** This shard settles it. */
+        CLAIMED,
+        /** This shard settles it, after an earlier claim that was never confirmed: it may have been written. */
+        RETAKEN,
+        /** Another shard settled it. */
+        SETTLED,
+        /** Another shard is settling it (its lease runs): asked again once the lease is over. */
+        BUSY,
+    }
+
+    // Only one shard settles a battle; a battle whose record expired has nobody else to race with.
+    // ARGV: shard, now (ms), lease (ms). Returns 1 claimed, 2 retaken, 0 settled, -1 busy
     private static final String CLAIM_SETTLEMENT = """
             if redis.call('EXISTS', KEYS[1]) == 0 then
               return 1
             end
-            return redis.call('HSETNX', KEYS[1], 'settledBy', ARGV[1])""";
+            if redis.call('HEXISTS', KEYS[1], 'settled') == 1 then
+              return 0
+            end
+            local now = tonumber(ARGV[2])
+            local by = redis.call('HGET', KEYS[1], 'settledBy')
+            if by and by ~= ARGV[1] then
+              local lease = tonumber(redis.call('HGET', KEYS[1], 'settleUntil') or '0')
+              if lease > now then
+                return -1
+              end
+            end
+            redis.call('HSET', KEYS[1], 'settledBy', ARGV[1], 'settleUntil', tostring(now + tonumber(ARGV[3])))
+            if by then
+              return 2
+            end
+            return 1""";
+    private static final String CONFIRM_SETTLEMENT = """
+            if redis.call('EXISTS', KEYS[1]) == 1 then
+              redis.call('HSET', KEYS[1], 'settled', ARGV[1])
+            end
+            return 1""";
 
     private final CacheService cache;
     private final PacketDeserializer deserializer = new PacketDeserializer(new PokeBattlePacketRegistry());
@@ -88,14 +126,37 @@ public class BattleRecords {
     }
 
     /**
-     * @return true if this shard is the one that settles the battle
+     * Claims the settlement of a battle's end for {@code lease}: past it, a claim never confirmed
+     * ({@link #confirmSettlement}) is taken again.
      */
-    public CompletableFuture<Boolean> claimSettlement(UUID battleId, String shardId) {
+    public CompletableFuture<Claim> claimSettlement(UUID battleId, String shardId, Duration lease) {
         return this.cache.runAsync(commands -> commands
                 .<Long>eval(CLAIM_SETTLEMENT, ScriptOutputType.INTEGER, new String[]{PokeBattleKeys.battle(battleId)},
+                        shardId, Long.toString(System.currentTimeMillis()), Long.toString(lease.toMillis()))
+                .toCompletableFuture()
+                .thenApply(BattleRecords::claim));
+    }
+
+    static Claim claim(@Nullable Long result) {
+        if (result == null)
+            return Claim.BUSY;
+        return switch (result.intValue()) {
+            case 1 -> Claim.CLAIMED;
+            case 2 -> Claim.RETAKEN;
+            case 0 -> Claim.SETTLED;
+            default -> Claim.BUSY;
+        };
+    }
+
+    /**
+     * The settlement this shard claimed is written: nobody takes it again.
+     */
+    public CompletableFuture<Void> confirmSettlement(UUID battleId, String shardId) {
+        return this.cache.runAsync(commands -> commands
+                .<Long>eval(CONFIRM_SETTLEMENT, ScriptOutputType.INTEGER, new String[]{PokeBattleKeys.battle(battleId)},
                         shardId)
                 .toCompletableFuture()
-                .thenApply(result -> result != null && result == 1L));
+                .thenApply(_ -> null));
     }
 
     /**
