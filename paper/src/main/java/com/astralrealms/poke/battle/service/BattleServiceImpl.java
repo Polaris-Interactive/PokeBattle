@@ -972,7 +972,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             if (state != null)
                 conditions.add(new BattleCondition(ally.pokemon().id(), ally.pokemon().version(), state.hp(),
                         state.status().isEmpty() ? null : state.status(), state.pp(),
-                        moveIds(ally.pokemon(), state.pp())));
+                        moveIds(ally.pokemon(), state.pp()), state.itemConsumed() ? ally.pokemon().heldItem() : null));
             allies.put(ally.label(), new RewardCalculator.Ally(ally.pokemon().id(), ally.pokemon().version(),
                     ally.pokemon().level(), state != null && state.hp() > 0));
         }
@@ -1146,7 +1146,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return null;
         Pokemon stored = creation.pokemon();
         return new BattleCondition(stored.id(), stored.version(), state.hp(),
-                state.status().isEmpty() ? null : state.status(), state.pp(), moveIds(stored, state.pp()));
+                state.status().isEmpty() ? null : state.status(), state.pp(), moveIds(stored, state.pp()),
+                state.itemConsumed() ? stored.heldItem() : null);
     }
 
     /**
@@ -1177,7 +1178,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                                     .filter(condition -> storage.find(condition.pokemonId()).isPresent())
                                     .map(condition -> new BattleCondition(condition.pokemonId(),
                                             storage.find(condition.pokemonId()).orElseThrow().version(),
-                                            condition.hp(), condition.status(), condition.pp(), condition.moves()))
+                                            condition.hp(), condition.status(), condition.pp(), condition.moves(),
+                                            condition.consumedItem()))
                                     .toList(),
                             gains.stream()
                                     .filter(gain -> storage.find(gain.pokemonId()).isPresent())

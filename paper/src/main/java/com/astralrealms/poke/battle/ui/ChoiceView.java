@@ -77,17 +77,18 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
      * @param speed              its Speed stat, 0 when unknown
      * @param species            its species id, for its icon; empty when unknown
      * @param active             whether it is the one on the field
+     * @param statusId           the status as Showdown names it (brn, par, ...), empty when healthy
      */
     public record Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted,
                          List<MemberMove> moves, String ability, String abilityDescription, int speed, String species,
-                         boolean active) {
+                         boolean active, String statusId) {
 
         public Member {
             moves = List.copyOf(moves);
         }
 
         public Member(int position, String name, int level, int hp, int maxHp, String status, boolean fainted) {
-            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", "", 0, "", false);
+            this(position, name, level, hp, maxHp, status, fainted, List.of(), "", "", 0, "", false, "");
         }
     }
 
@@ -158,7 +159,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
                     status(condition, locale), member.fainted(), known,
                     pokemon.ability() == null ? "" : Names.text(locale, "ability", pokemon.ability()),
                     pokemon.ability() == null ? "" : Names.description(locale, "ability", pokemon.ability()),
-                    speed(pokemon, registry), pokemon.species(), member.active());
+                    speed(pokemon, registry), pokemon.species(), member.active(), statusId(condition));
             team.add(view);
             if (request.canSwitchTo(member.position()))
                 switchable.add(view);

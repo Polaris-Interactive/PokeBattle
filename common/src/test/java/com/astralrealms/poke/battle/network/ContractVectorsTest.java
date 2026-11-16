@@ -134,7 +134,7 @@ class ContractVectorsTest {
         List<BattleMemberState> members = new ArrayList<>();
         for (JsonNode member : nodes)
             members.add(new BattleMemberState(member.get("hp").asInt(), member.get("status").asText(),
-                    this.ints(member.get("pp")), this.ints(member.get("maxPp"))));
+                    this.ints(member.get("pp")), this.ints(member.get("maxPp")), member.get("itemConsumed").asBoolean()));
         return members;
     }
 

@@ -13,12 +13,18 @@ import com.astralrealms.core.packet.binary.BinaryMessage;
  * @param status non-volatile status id ({@code slp}, {@code psn}...), empty when healthy
  * @param pp     PP left per move
  * @param maxPp  maximum PP per move (PP Ups included): the simulator otherwise assumes every PP Up
+ * @param itemConsumed reported at the end: its held item was used up (eaten, Focus Sash, gem, Fling...), not knocked
+ *                     off or swapped away, which it gets back. Always false in a start state
  */
-public record BattleMemberState(int hp, String status, List<Integer> pp, List<Integer> maxPp) {
+public record BattleMemberState(int hp, String status, List<Integer> pp, List<Integer> maxPp, boolean itemConsumed) {
 
     public BattleMemberState {
         pp = List.copyOf(pp);
         maxPp = List.copyOf(maxPp);
+    }
+
+    public BattleMemberState(int hp, String status, List<Integer> pp, List<Integer> maxPp) {
+        this(hp, status, pp, maxPp, false);
     }
 
     void write(BinaryMessage buffer) {
@@ -26,6 +32,7 @@ public record BattleMemberState(int hp, String status, List<Integer> pp, List<In
         buffer.writeString(this.status);
         buffer.writeList(this.pp, BinaryMessage::writeVarInt);
         buffer.writeList(this.maxPp, BinaryMessage::writeVarInt);
+        buffer.writeBoolean(this.itemConsumed);
     }
 
     static BattleMemberState read(BinaryMessage buffer) {
@@ -33,6 +40,7 @@ public record BattleMemberState(int hp, String status, List<Integer> pp, List<In
         String status = buffer.readString();
         List<Integer> pp = buffer.readList(BinaryMessage::readVarInt, ArrayList::new);
         List<Integer> maxPp = buffer.readList(BinaryMessage::readVarInt, ArrayList::new);
-        return new BattleMemberState(hp, status, pp, maxPp);
+        boolean itemConsumed = buffer.readBoolean();
+        return new BattleMemberState(hp, status, pp, maxPp, itemConsumed);
     }
 }

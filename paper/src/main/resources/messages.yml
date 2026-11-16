@@ -149,10 +149,15 @@ hud-tooltip-foe: "<white>%name%</white> <gray>N.%level%<newline><#4FA59B>━━�
 hud-tooltip-item: "<white>%name%</white>  <gray>×%amount%<newline><#4FA59B>━━━━━━━━━━━━<newline>%effects%"
 hud-effect-heal: "<gray>Rend <white>%amount%</white> PV"
 hud-effect-heal-all: "<gray>Rend tous les PV"
+hud-effect-heal-percent: "<gray>Rend <white>%percent%</white> des PV"
 hud-effect-cure: "<gray>Soigne le statut"
+hud-effect-cure-only: "<gray>Soigne : <white>%statuses%</white>"
 hud-effect-revive: "<gray>Ranime avec <white>%percent%</white> des PV"
 hud-effect-pp: "<gray>Restaure <white>%amount%</white> PP"
 hud-effect-pp-all: "<gray>Restaure tous les PP"
+hud-effect-pp-one: "<gray>Restaure <white>%amount%</white> PP à une capacité"
+hud-effect-pp-one-all: "<gray>Restaure tous les PP d'une capacité"
+hud-effect-boost: "<gray>Augmente <white>%stat%</white> de <white>%stages%</white> niveaux"
 hud-effect-ball: "<gray>Capture un Pokémon sauvage"
 # Team and target buttons in the HUD: two short lines, so they fit their strip next to the creature's icon.
 # %hp% is coloured by what is left; %status% is hud-member-status (or target-fainted), empty when healthy.

@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -30,6 +31,7 @@ import com.astralrealms.astralHologram.hud.HudCloseReason;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
+import com.astralrealms.poke.battle.model.Names;
 import com.astralrealms.poke.battle.service.BattleBag;
 import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleStage;
@@ -923,21 +925,38 @@ final class BattleHud {
         return switch (effect.type()) {
             case HEAL -> {
                 List<Component> lines = new ArrayList<>();
-                lines.add(effect.amount() == null
-                        ? PokeBattleMessages.HUD_EFFECT_HEAL_ALL.component()
-                        : PokeBattleMessages.HUD_EFFECT_HEAL.component(new PlaceholderContainer()
-                        .registerDirect("amount", effect.amount())));
+                lines.add(effect.amount() != null
+                        ? PokeBattleMessages.HUD_EFFECT_HEAL.component(new PlaceholderContainer()
+                        .registerDirect("amount", effect.amount()))
+                        : effect.fraction() != null
+                        ? PokeBattleMessages.HUD_EFFECT_HEAL_PERCENT.component(new PlaceholderContainer()
+                        .registerDirect("percent", Math.round(effect.fraction() * 100) + " %"))
+                        : PokeBattleMessages.HUD_EFFECT_HEAL_ALL.component());
                 if (effect.cureStatus())
                     lines.add(PokeBattleMessages.HUD_EFFECT_CURE.component());
                 yield lines;
             }
             case REVIVE -> List.of(PokeBattleMessages.HUD_EFFECT_REVIVE.component(new PlaceholderContainer()
                     .registerDirect("percent", Math.round((effect.fraction() == null ? DEFAULT_REVIVE : effect.fraction()) * 100) + " %")));
-            case CURE_STATUS -> List.of(PokeBattleMessages.HUD_EFFECT_CURE.component());
-            case RESTORE_PP -> List.of(effect.amount() == null
+            case CURE_STATUS -> List.of(effect.statuses() == null || effect.statuses().isEmpty()
+                    ? PokeBattleMessages.HUD_EFFECT_CURE.component()
+                    : PokeBattleMessages.HUD_EFFECT_CURE_ONLY.component(new PlaceholderContainer()
+                    .registerDirect("statuses", effect.statuses()
+                            .stream()
+                            .map(status -> Names.text(null, "status", status))
+                            .collect(Collectors.joining(", ")))));
+            case RESTORE_PP -> List.of(effect.oneMove()
+                    ? (effect.amount() == null
+                    ? PokeBattleMessages.HUD_EFFECT_PP_ONE_ALL.component()
+                    : PokeBattleMessages.HUD_EFFECT_PP_ONE.component(new PlaceholderContainer()
+                    .registerDirect("amount", effect.amount())))
+                    : (effect.amount() == null
                     ? PokeBattleMessages.HUD_EFFECT_PP_ALL.component()
                     : PokeBattleMessages.HUD_EFFECT_PP.component(new PlaceholderContainer()
-                    .registerDirect("amount", effect.amount())));
+                    .registerDirect("amount", effect.amount()))));
+            case BOOST -> List.of(PokeBattleMessages.HUD_EFFECT_BOOST.component(new PlaceholderContainer()
+                    .registerDirect("stat", Names.text(null, "stat", effect.boost()))
+                    .registerDirect("stages", effect.stages())));
             default -> List.of();
         };
     }

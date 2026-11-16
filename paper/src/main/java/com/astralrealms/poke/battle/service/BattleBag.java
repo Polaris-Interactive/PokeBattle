@@ -25,7 +25,7 @@ import net.kyori.adventure.text.Component;
 
 /**
  * The player's inventory as a battle bag: balls (stacks whose global key is a ball of PokeCore's {@code balls.yml})
- * and items whose blueprint fixes an effect the simulator can apply (heal, revive, cure, PP). Items are taken when the choice leaves this server and
+ * and items whose blueprint fixes an effect the simulator can apply (heal, revive, cure, PP, stat boost). Items are taken when the choice leaves this server and
  * given back if the battle refuses it.
  * <p>
  * Every inventory method must run on the player's thread.
@@ -34,7 +34,10 @@ public class BattleBag {
 
     /** The effects the simulator applies in battle; an item with any other effect stays out of the bag. */
     private static final Set<ItemEffect.Type> BATTLE_EFFECTS = Set.of(ItemEffect.Type.HEAL, ItemEffect.Type.REVIVE,
-            ItemEffect.Type.CURE_STATUS, ItemEffect.Type.RESTORE_PP);
+            ItemEffect.Type.CURE_STATUS, ItemEffect.Type.RESTORE_PP, ItemEffect.Type.BOOST);
+    /** Battle stats an item can boost, as the simulator names them. */
+    private static final Set<String> BOOSTS = Set.of("atk", "def", "spa", "spd", "spe", "accuracy");
+    private static final int MAX_STAGES = 6;
     private static final double DEFAULT_REVIVE_FRACTION = 0.5;
 
     /**
@@ -143,27 +146,41 @@ public class BattleBag {
     }
 
     static List<ItemEffect> battleEffects(List<ItemEffect> effects) {
-        return effects.stream().filter(effect -> BATTLE_EFFECTS.contains(effect.type())).toList();
+        return effects.stream()
+                .filter(effect -> BATTLE_EFFECTS.contains(effect.type()))
+                .filter(effect -> effect.type() != ItemEffect.Type.BOOST || (effect.boost() != null
+                        && BOOSTS.contains(effect.boost()) && effect.stages() != null && effect.stages() >= 1
+                        && effect.stages() <= MAX_STAGES))
+                .toList();
     }
 
     /**
-     * The effects as the worker reads them: {@code heal[=N]}, {@code cure}, {@code revive=F}, {@code pp[=N]}, joined by
-     * {@code +}.
+     * The effects as the worker reads them, joined by {@code +}: {@code heal[=N]}, {@code healf=F} (fraction of max HP),
+     * {@code cure[=par.slp]} (only those statuses), {@code revive=F}, {@code pp[=N]} (every move), {@code pp1[=N]} (the
+     * move missing the most PP), {@code boost=atk:2}.
      */
     public static String encode(List<ItemEffect> effects) {
         Set<String> parts = new LinkedHashSet<>();
         for (ItemEffect effect : effects) {
             switch (effect.type()) {
                 case HEAL -> {
-                    parts.add(effect.amount() == null ? "heal" : "heal=" + effect.amount());
+                    parts.add(effect.amount() != null ? "heal=" + effect.amount()
+                            : effect.fraction() != null ? "healf=" + number(effect.fraction())
+                            : "heal");
                     if (effect.cureStatus())
                         parts.add("cure");
                 }
                 case REVIVE -> parts.add("revive=" + number(effect.fraction() == null
                         ? DEFAULT_REVIVE_FRACTION
                         : effect.fraction()));
-                case CURE_STATUS -> parts.add("cure");
-                case RESTORE_PP -> parts.add(effect.amount() == null ? "pp" : "pp=" + effect.amount());
+                case CURE_STATUS -> parts.add(effect.statuses() == null || effect.statuses().isEmpty()
+                        ? "cure"
+                        : "cure=" + String.join(".", effect.statuses()));
+                case RESTORE_PP -> {
+                    String kind = effect.oneMove() ? "pp1" : "pp";
+                    parts.add(effect.amount() == null ? kind : kind + "=" + effect.amount());
+                }
+                case BOOST -> parts.add("boost=" + effect.boost() + ":" + effect.stages());
                 default -> {
                 }
             }
@@ -173,7 +190,8 @@ public class BattleBag {
 
     /**
      * Whether the item would do something to this team member, as the worker checks it. PP are only known for the
-     * active creature, so a PP item is offered for every standing one (the worker refuses it if useless).
+     * active creature, so a PP item is offered for every standing one, and stat stages are not known at all, so a boost
+     * is offered for the active creature (the worker refuses either if useless).
      */
     public static boolean applies(List<ItemEffect> effects, ChoiceView.Member member) {
         boolean revives = effects.stream().anyMatch(effect -> effect.type() == ItemEffect.Type.REVIVE);
@@ -182,7 +200,10 @@ public class BattleBag {
                 case REVIVE -> member.fainted();
                 case HEAL -> !member.fainted() && (member.hp() < member.maxHp()
                         || (effect.cureStatus() && !member.status().isEmpty()));
-                case CURE_STATUS -> !member.fainted() && !member.status().isEmpty();
+                case CURE_STATUS -> !member.fainted() && !member.status().isEmpty()
+                        && (effect.statuses() == null || effect.statuses().isEmpty()
+                        || effect.statuses().contains(member.statusId()));
+                case BOOST -> member.active() && !member.fainted();
                 case RESTORE_PP -> !member.fainted() || revives;
                 default -> false;
             };

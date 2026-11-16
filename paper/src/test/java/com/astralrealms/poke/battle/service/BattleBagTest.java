@@ -27,6 +27,16 @@ class BattleBagTest {
         return new ChoiceView.Member(position, "m" + position, 10, hp, max, status, hp == 0);
     }
 
+    private static ChoiceView.Member member(int position, int hp, String statusId, boolean active) {
+        return new ChoiceView.Member(position, "m" + position, 10, hp, 30, statusId.isEmpty() ? "" : "S " + statusId,
+                hp == 0, List.of(), "", "", 0, "", active, statusId);
+    }
+
+    private static ItemEffect boost(String stat, Integer stages) {
+        return new ItemEffect(ItemEffect.Type.BOOST, null, null, null, null, null, null, false, stat, stages, null,
+                false);
+    }
+
     @Test
     void encodesEffectsAsTheWorkerReadsThem() {
         assertThat(BattleBag.encode(List.of(HEAL_20))).isEqualTo("heal=20");
@@ -36,6 +46,35 @@ class BattleBagTest {
         assertThat(BattleBag.encode(List.of(CURE, FULL_RESTORE))).isEqualTo("cure+heal");
         assertThat(BattleBag.encode(List.of(PP_10, effect(ItemEffect.Type.RESTORE_PP, null, null, false))))
                 .isEqualTo("pp=10+pp");
+    }
+
+    @Test
+    void encodesBerryAndXItemEffects() {
+        assertThat(BattleBag.encode(List.of(effect(ItemEffect.Type.HEAL, null, 0.25, false)))).isEqualTo("healf=0.25");
+        assertThat(BattleBag.encode(List.of(new ItemEffect(ItemEffect.Type.CURE_STATUS, null, null, null, null, null,
+                null, false, null, null, List.of("psn", "tox"), false)))).isEqualTo("cure=psn.tox");
+        assertThat(BattleBag.encode(List.of(new ItemEffect(ItemEffect.Type.RESTORE_PP, 10, null, null, null, null,
+                null, false, null, null, null, true)))).isEqualTo("pp1=10");
+        assertThat(BattleBag.encode(List.of(boost("atk", 2)))).isEqualTo("boost=atk:2");
+    }
+
+    @Test
+    void keepsOnlyValidBoosts() {
+        assertThat(BattleBag.battleEffects(List.of(boost("atk", 2), boost("hp", 2), boost("spe", 7), boost(null, 1))))
+                .containsExactly(boost("atk", 2));
+    }
+
+    @Test
+    void offersBoostsToTheActiveCreatureAndStatusBerriesToTheirStatus() {
+        List<ChoiceView.Member> team = List.of(
+                member(1, 30, "par", true),
+                member(2, 12, "brn", false),
+                member(3, 0, "", false));
+        ItemEffect cheri = new ItemEffect(ItemEffect.Type.CURE_STATUS, null, null, null, null, null, null, false,
+                null, null, List.of("par"), false);
+
+        assertThat(targets(boost("def", 2), team)).containsExactly(1);
+        assertThat(targets(cheri, team)).containsExactly(1);
     }
 
     @Test
