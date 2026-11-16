@@ -128,6 +128,11 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private final Map<UUID, Battle> battles = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> byPlayer = new ConcurrentHashMap<>();
     private final BattleBag bag = new BattleBag();
+    /**
+     * Battles released after their worker did not confirm a stop, for {@code battle.end-timeout}: an end that comes
+     * after all (a capture in the last turn) is still settled.
+     */
+    private final Map<UUID, Battle> aborted = new ConcurrentHashMap<>();
     /** Settlements being written: a stopping server waits for them (see {@link #shutdown}). */
     private final Set<CompletableFuture<?>> settling = ConcurrentHashMap.newKeySet();
 
@@ -348,6 +353,14 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
         Battle battle = this.battles.get(battleId);
         if (battle == null) {
+            Battle released = this.aborted.get(battleId);
+            if (released != null) {
+                synchronized (released) {
+                    for (Packet ready : released.sequence().offer(seq, packet))
+                        this.processLate(released, ready);
+                }
+                return;
+            }
             this.plugin.debug("Packet {} for unknown battle {}", packet.getClass().getSimpleName(), battleId);
             return;
         }
@@ -358,8 +371,12 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     private void process(Battle battle, Packet packet) {
-        if (battle.state() == Battle.State.ENDED)
+        if (battle.state() == Battle.State.ENDED) {
+            // Released while its stop was not confirmed: its end still counts
+            if (this.aborted.get(battle.id()) == battle)
+                this.processLate(battle, packet);
             return;
+        }
         switch (packet) {
             case BattleUpdatePacket update -> this.onUpdate(battle, update);
             case BattleRequestPacket request -> this.onRequest(battle, request);
@@ -367,6 +384,36 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             case BattleEndedPacket ended -> {
                 battle.state(Battle.State.ENDED);
                 this.cancelDisconnect(battle);
+                this.settle(battle, ended);
+            }
+            default -> {
+            }
+        }
+    }
+
+    /**
+     * A packet for a battle released before its worker confirmed the stop: what it shows is only tracked (the player
+     * no longer sees it), and its end is settled. Under the battle's monitor.
+     */
+    private void processLate(Battle battle, Packet packet) {
+        switch (packet) {
+            case BattleUpdatePacket update when update.side().equals(Battle.PLAYER_SIDE) -> {
+                List<String> lines = update.lines();
+                if (!lines.isEmpty() && lines.getFirst().equals(RESYNC_LINE)) {
+                    battle.restartTracker();
+                    lines = lines.subList(1, lines.size());
+                }
+                for (String raw : lines) {
+                    ProtocolLine line = ProtocolLine.parse(raw);
+                    if (line != null)
+                        battle.tracker().accept(line);
+                }
+            }
+            case BattleEndedPacket ended -> {
+                if (!this.aborted.remove(battle.id(), battle))
+                    return;
+                this.plugin.getSLF4JLogger().warn("Battle {}: its end came after it was released, settling it",
+                        battle.id());
                 this.settle(battle, ended);
             }
             default -> {
@@ -832,14 +879,20 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         });
         // A dead worker never answers: release the player anyway
         Bukkit.getAsyncScheduler().runDelayed(this.plugin, _ -> {
-            if (this.battles.get(battleId) == battle && battle.state() != Battle.State.ENDED) {
-                this.plugin.getSLF4JLogger().warn("Battle {}: worker {} did not confirm the stop, releasing the player",
-                        battleId, workerId);
-                synchronized (battle) {
-                    battle.state(Battle.State.ENDED);
-                }
-                this.finish(battle, BattleOutcome.ABORTED, 0, false);
+            if (this.battles.get(battleId) != battle)
+                return;
+            synchronized (battle) {
+                if (battle.state() == Battle.State.ENDED)
+                    return;
+                battle.state(Battle.State.ENDED);
+                // Its end may still come (the worker was only slow): kept a while to settle it
+                this.aborted.put(battleId, battle);
             }
+            this.plugin.getSLF4JLogger().warn("Battle {}: worker {} did not confirm the stop, releasing the player",
+                    battleId, workerId);
+            this.finish(battle, BattleOutcome.ABORTED, 0, false);
+            Bukkit.getAsyncScheduler().runDelayed(this.plugin, _ -> this.aborted.remove(battleId, battle),
+                    this.plugin.configuration().battle().endTimeout().toMillis(), TimeUnit.MILLISECONDS);
         }, this.plugin.configuration().battle().endTimeout().toMillis(), TimeUnit.MILLISECONDS);
         return true;
     }
