@@ -96,7 +96,9 @@ public final class PokeBattle extends AstralPaperPlugin {
         MoveEffects effects = this.getServer().getPluginManager().isPluginEnabled("AstralSkill")
                 ? new AstralSkillEffects(this)
                 : null;
-        this.ui = new PacedUi(this, new StagedUi(this, chosen, actors, effects));
+        PacedUi paced = new PacedUi(this, new StagedUi(this, chosen, actors, effects));
+        this.registerListeners(paced);
+        this.ui = paced;
         this.messaging.registerExchange(PokeBattleExchanges.shard(shardId), new ShardPacketListener(this, this.battles));
         PokeBattleAPI.initialize(new PokeBattleApiImpl(this));
         // PokeCore refuses to hold (daycare, gym...) a creature of a player in a battle

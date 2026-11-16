@@ -8,6 +8,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.poke.battle.PokeBattle;
@@ -23,9 +27,12 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
  * A run of beats lasts at most {@code hud.camera.max-sequence} (GDD: 6 s): what does not fit shows at once, as
  * when the player skips (F).
  * <p>
+ * A player's timeline is dropped once a battle closed and everything before has played, and when they leave (what
+ * it still holds plays at once as their scheduler retires).
+ * <p>
  * Main thread only (the battle calls the UI on the player's thread, and PokeBattle does not run on Folia).
  */
-public class PacedUi implements BattleUi {
+public class PacedUi implements BattleUi, Listener {
 
     private final PokeBattle plugin;
     private final BattleUi ui;
@@ -70,7 +77,16 @@ public class PacedUi implements BattleUi {
 
     @Override
     public void close(Player player, UUID battleId) {
-        this.timeline(player).call(() -> this.ui.close(player, battleId));
+        Timeline timeline = this.timeline(player);
+        timeline.call(() -> {
+            this.ui.close(player, battleId);
+            timeline.closed = true;
+        });
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        this.timelines.remove(event.getPlayer().getUniqueId());
     }
 
     @Override
@@ -83,6 +99,13 @@ public class PacedUi implements BattleUi {
         this.timelines.values().forEach(Timeline::cancel);
         this.timelines.clear();
         this.ui.shutdown();
+    }
+
+    /**
+     * Whether a timeline is kept for this player (tests).
+     */
+    boolean holds(UUID playerId) {
+        return this.timelines.containsKey(playerId);
     }
 
     private Timeline timeline(Player player) {
@@ -127,6 +150,8 @@ public class PacedUi implements BattleUi {
         private boolean played;
         private boolean skipping;
         private boolean draining;
+        /** A battle closed on it: dropped once idle. */
+        private boolean closed;
 
         Timeline(Player player) {
             this.player = player;
@@ -250,6 +275,9 @@ public class PacedUi implements BattleUi {
             this.played = false;
             this.skipping = false;
             this.run = 0;
+            if (this.closed)
+                timelines.remove(this.player.getUniqueId(), this);
+            this.closed = false;
         }
 
         private void cancelTask() {
