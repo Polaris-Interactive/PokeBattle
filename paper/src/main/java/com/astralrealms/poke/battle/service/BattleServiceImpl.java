@@ -1175,7 +1175,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
 
     private void finish(Battle battle, BattleOutcome outcome, int turns, boolean settled) {
         this.forget(battle);
-        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
+        this.closeUi(battle);
         this.records.deleteContext(battle.id()).exceptionally(_ -> null);
         this.locks.release(battle.playerId(), battle.id()).exceptionally(throwable -> {
             this.plugin.getSLF4JLogger().warn("Battle {}: lock release failed", battle.id(), throwable);
@@ -1190,7 +1190,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      */
     private void discard(Battle battle) {
         this.forget(battle);
-        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
+        this.closeUi(battle);
         this.locks.release(battle.playerId(), battle.id()).exceptionally(_ -> false);
         this.records.deleteContext(battle.id()).exceptionally(_ -> null);
     }
@@ -1200,7 +1200,23 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      */
     private void letGo(Battle battle) {
         this.forget(battle);
-        this.withUi(battle.playerId(), (ui, viewer) -> ui.close(viewer, battle.id()));
+        this.closeUi(battle);
+    }
+
+    /**
+     * Closes the battle's UI for its player, or, if they are gone, drops what the UI kept for it (its stage, its
+     * creatures): nothing else would.
+     */
+    private void closeUi(Battle battle) {
+        if (!this.plugin.isEnabled())
+            return;
+        BattleUi ui = this.plugin.ui();
+        UUID battleId = battle.id();
+        Player player = Bukkit.getPlayer(battle.playerId());
+        if (player != null && player.getScheduler().run(this.plugin, _ -> ui.close(player, battleId),
+                () -> ui.release(battleId)) != null)
+            return;
+        Bukkit.getGlobalRegionScheduler().run(this.plugin, _ -> ui.release(battleId));
     }
 
     private void forget(Battle battle) {

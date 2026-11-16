@@ -72,6 +72,13 @@ public interface BattleUi {
     void close(Player player, UUID battleId);
 
     /**
+     * Battle {@code battleId} is over and its player is not here to see it close (they left): drops what it kept for
+     * it (stage, creatures...). Main thread.
+     */
+    default void release(UUID battleId) {
+    }
+
+    /**
      * The plugin is stopping: closes everything. Main thread.
      */
     void shutdown();

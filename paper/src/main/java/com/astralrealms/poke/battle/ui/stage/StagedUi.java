@@ -164,6 +164,15 @@ public class StagedUi implements BattleUi {
     }
 
     @Override
+    public void release(UUID battleId) {
+        this.ui.release(battleId);
+        this.plugin.stages().remove(battleId);
+        Scene scene = this.scenes.remove(battleId);
+        if (scene != null)
+            scene.end(0);
+    }
+
+    @Override
     public void shutdown() {
         this.ui.shutdown();
         this.scenes.values().forEach(scene -> scene.end(0));

@@ -74,6 +74,11 @@ public class PacedUi implements BattleUi {
     }
 
     @Override
+    public void release(UUID battleId) {
+        this.ui.release(battleId);
+    }
+
+    @Override
     public void shutdown() {
         this.timelines.values().forEach(Timeline::cancel);
         this.timelines.clear();

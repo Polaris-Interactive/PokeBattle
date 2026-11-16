@@ -155,6 +155,12 @@ public class HudUi implements BattleUi, Listener {
     }
 
     @Override
+    public void release(UUID battleId) {
+        this.failed.remove(battleId);
+        this.fallback.release(battleId);
+    }
+
+    @Override
     public void shutdown() {
         List.copyOf(this.huds.values()).forEach(BattleHud::close);
         this.huds.clear();
