@@ -964,7 +964,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             BattleMemberState state = team != null && i < team.members().size() ? team.members().get(i) : null;
             if (state != null)
                 conditions.add(new BattleCondition(ally.pokemon().id(), ally.pokemon().version(), state.hp(),
-                        state.status().isEmpty() ? null : state.status(), state.pp()));
+                        state.status().isEmpty() ? null : state.status(), state.pp(),
+                        moveIds(ally.pokemon(), state.pp())));
             allies.put(ally.label(), new RewardCalculator.Ally(ally.pokemon().id(), ally.pokemon().version(),
                     ally.pokemon().level(), state != null && state.hp() > 0));
         }
@@ -1115,7 +1116,17 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return null;
         Pokemon stored = creation.pokemon();
         return new BattleCondition(stored.id(), stored.version(), state.hp(),
-                state.status().isEmpty() ? null : state.status(), state.pp());
+                state.status().isEmpty() ? null : state.status(), state.pp(), moveIds(stored, state.pp()));
+    }
+
+    /**
+     * The move ids the PP were reported for (the moves the creature started the battle with), so PokeCore matches PP by
+     * move rather than by slot. Empty (PP by order) when the counts disagree.
+     */
+    private static List<String> moveIds(Pokemon pokemon, List<Integer> pp) {
+        if (pokemon.moves().size() != pp.size())
+            return List.of();
+        return pokemon.moves().stream().map(MoveSlot::move).toList();
     }
 
     /**
@@ -1136,7 +1147,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                                     .filter(condition -> storage.find(condition.pokemonId()).isPresent())
                                     .map(condition -> new BattleCondition(condition.pokemonId(),
                                             storage.find(condition.pokemonId()).orElseThrow().version(),
-                                            condition.hp(), condition.status(), condition.pp()))
+                                            condition.hp(), condition.status(), condition.pp(), condition.moves()))
                                     .toList(),
                             gains.stream()
                                     .filter(gain -> storage.find(gain.pokemonId()).isPresent())
