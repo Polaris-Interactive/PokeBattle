@@ -9,6 +9,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
+import com.astralrealms.poke.battle.api.model.StageSpots;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 
 /**
@@ -34,8 +35,20 @@ public class BattleStages {
      * Lays the battle's stage at {@code origin} (an arena), before it is first shown.
      */
     public void place(UUID battleId, Location origin, PokeBattleConfiguration configuration) {
+        this.place(battleId, origin, null, configuration);
+    }
+
+    /**
+     * Lays the battle's stage at {@code origin} with its creatures at {@code spots} (a gym's marks), or at the
+     * configured offsets when null, before it is first shown.
+     */
+    public void place(UUID battleId, Location origin, @Nullable StageSpots spots,
+                      PokeBattleConfiguration configuration) {
+        PokeBattleConfiguration.Stage creatures = spots == null || spots.ally().getWorld() != origin.getWorld()
+                ? configuration.stage()
+                : BattleStage.spotsAt(origin, spots.ally(), spots.foe());
         this.placed.add(battleId);
-        this.stages.put(battleId, new BattleStage(origin, configuration.stage(),
+        this.stages.put(battleId, new BattleStage(origin, creatures,
                 configuration.hud() == null ? null : configuration.hud().camera()));
     }
 

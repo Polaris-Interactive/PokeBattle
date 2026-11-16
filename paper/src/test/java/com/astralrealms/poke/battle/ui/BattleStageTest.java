@@ -151,4 +151,29 @@ class BattleStageTest {
         assertThat(foe.getDirection().getZ()).isCloseTo(-6 / Math.sqrt(40), within(1.0E-6));
         assertThat(ally.getPitch()).isZero();
     }
+
+    @Test
+    void aPlaceTurnsIntoTheFramePointThatLaysItBack() {
+        for (float yaw : new float[]{0, 90, 180, -90, 37.5f}) {
+            Location origin = new Location(null, 11.5, 96, -26.5, yaw, 20);
+            Location place = new Location(null, 11.5, 95, -42.5);
+            PokeBattleConfiguration.Point point = BattleStage.pointOf(origin, place);
+            Location back = new BattleStage(origin, SPOTS, CAMERA).at(point);
+            assertThat(back.getX()).isCloseTo(place.getX(), within(1.0E-9));
+            assertThat(back.getY()).isCloseTo(place.getY(), within(1.0E-9));
+            assertThat(back.getZ()).isCloseTo(place.getZ(), within(1.0E-9));
+        }
+    }
+
+    @Test
+    void gymSpotsAreMeasuredAlongTheWayTheStageFaces() {
+        // Facing north (yaw 180, -Z): a creature 16 blocks north is 16 forward, one block west (-X) is 1 left
+        Location origin = new Location(null, 11.5, 95, -29.5, 180, 0);
+        PokeBattleConfiguration.Stage spots = BattleStage.spotsAt(origin, new Location(null, 11.5, 95, -32.5),
+                new Location(null, 10.5, 95, -45.5));
+        assertThat(spots.ally().forward()).isCloseTo(3, within(1.0E-9));
+        assertThat(spots.ally().right()).isCloseTo(0, within(1.0E-9));
+        assertThat(spots.foe().forward()).isCloseTo(16, within(1.0E-9));
+        assertThat(spots.foe().right()).isCloseTo(-1, within(1.0E-9));
+    }
 }

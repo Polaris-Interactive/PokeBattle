@@ -217,7 +217,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return CompletableFuture.completedFuture(BattleStartResult.ALREADY_IN_BATTLE);
         this.battles.put(battleId, battle);
         if (request.stage() != null)
-            this.plugin.stages().place(battleId, request.stage(), this.plugin.configuration());
+            this.plugin.stages().place(battleId, request.stage(), request.spots(), this.plugin.configuration());
 
         PokeBattleConfiguration configuration = this.plugin.configuration();
         return this.locks.acquire(playerId, battleId, configuration.battle().lockTtl())

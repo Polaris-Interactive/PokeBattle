@@ -24,10 +24,12 @@ import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
  * @param stage        where the battle takes place (feet of the player's side, facing the opponent), null to lay it
  *                     in front of the player
  * @param place        where a caught creature is recorded as met, null for the player's world
+ * @param spots        where the creatures stand on a {@code stage}, null for the configured offsets from it
  */
 public record BattleRequest(String format, Player player, @Nullable SignedRoll wild,
                             @Nullable TrainerOpponent trainer, Set<String> captureFlags, BattleRules rules,
-                            @Nullable String tag, @Nullable Location stage, @Nullable String place) {
+                            @Nullable String tag, @Nullable Location stage, @Nullable String place,
+                            @Nullable StageSpots spots) {
 
     public static final String WILD_FORMAT = "polariswild";
     public static final String TRAINER_FORMAT = "polaristrainer";
@@ -39,6 +41,15 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
         captureFlags = captureFlags == null ? Set.of() : Set.copyOf(captureFlags);
         if (rules == null)
             rules = wild != null ? BattleRules.WILD : BattleRules.TRAINER;
+    }
+
+    /**
+     * Without creature spots (the request as it was before they existed).
+     */
+    public BattleRequest(String format, Player player, @Nullable SignedRoll wild, @Nullable TrainerOpponent trainer,
+                         Set<String> captureFlags, BattleRules rules, @Nullable String tag, @Nullable Location stage,
+                         @Nullable String place) {
+        this(format, player, wild, trainer, captureFlags, rules, tag, stage, place, null);
     }
 
     public static BattleRequest wild(Player player, SignedRoll creature) {
@@ -66,7 +77,16 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest at(Location stage, String place) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                this.tag, stage.clone(), place);
+                this.tag, stage.clone(), place, this.spots);
+    }
+
+    /**
+     * The same battle with its creatures at {@code spots} (a gym's marks) rather than the configured offsets from the
+     * stage; only used with a {@code stage} ({@link #at}).
+     */
+    public BattleRequest withSpots(@Nullable StageSpots spots) {
+        return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
+                this.tag, this.stage, this.place, spots);
     }
 
     /**
@@ -74,6 +94,6 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest withTag(@Nullable String tag) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                tag, this.stage, this.place);
+                tag, this.stage, this.place, this.spots);
     }
 }

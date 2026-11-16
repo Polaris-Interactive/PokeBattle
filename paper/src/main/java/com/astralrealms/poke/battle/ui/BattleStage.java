@@ -25,7 +25,8 @@ import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
  * off only as far as it takes for the creatures it shows to fit in view, stays above a creature standing in its
  * foreground, and gets around one standing between it and what it looks at without changing sides.
  * <p>
- * Staged battles (arenas) will give their own origin; the spots and shots stay the same.
+ * Staged battles (arenas, gyms) give their own origin, and may give their own creature spots ({@code StageSpots});
+ * the shots stay where they are in the frame.
  *
  * @param origin feet of the frame; only its yaw counts
  * @param camera null without a camera: shots then look at the creatures' feet
@@ -109,6 +110,26 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
                 .add(forward.multiply(point.forward()))
                 .add(right.multiply(point.right()))
                 .add(0, point.up(), 0);
+    }
+
+    /**
+     * The inverse of {@link #at}: a place in the world as a point of the frame laid at {@code origin} (only its yaw
+     * counts).
+     */
+    public static PokeBattleConfiguration.Point pointOf(Location origin, Location place) {
+        double yaw = Math.toRadians(origin.getYaw());
+        double dx = place.getX() - origin.getX();
+        double dz = place.getZ() - origin.getZ();
+        double forward = dx * -Math.sin(yaw) + dz * Math.cos(yaw);
+        double right = dx * -Math.cos(yaw) + dz * -Math.sin(yaw);
+        return new PokeBattleConfiguration.Point(forward, right, place.getY() - origin.getY());
+    }
+
+    /**
+     * The creatures' spots of a stage laid at {@code origin} with them standing at {@code ally} and {@code foe}.
+     */
+    public static PokeBattleConfiguration.Stage spotsAt(Location origin, Location ally, Location foe) {
+        return new PokeBattleConfiguration.Stage(pointOf(origin, ally), pointOf(origin, foe));
     }
 
     /**
