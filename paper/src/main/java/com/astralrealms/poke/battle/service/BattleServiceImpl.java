@@ -2,6 +2,7 @@ package com.astralrealms.poke.battle.service;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -72,9 +73,11 @@ import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
 import com.astralrealms.poke.core.mechanics.progression.BattleCondition;
 import com.astralrealms.poke.core.mechanics.progression.ExperienceGain;
 import com.astralrealms.poke.core.mechanics.progression.Progression;
+import com.astralrealms.poke.core.mechanics.storage.StorageSlots;
 import com.astralrealms.poke.core.model.MoveSlot;
 import com.astralrealms.poke.core.model.Pokemon;
 import com.astralrealms.poke.core.model.stat.StatSpread;
+import com.astralrealms.poke.core.model.storage.StorageLimits;
 import com.astralrealms.poke.core.model.storage.StoragePosition;
 import com.astralrealms.poke.core.model.storage.StorageResult;
 import com.astralrealms.poke.core.model.storage.TrainerStorage;
@@ -594,6 +597,12 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 this.openDialog(battle);
                 return;
             }
+            // A catch with nowhere to go would be lost, and the ball with it
+            if (!this.hasRoom(player)) {
+                PokeBattleMessages.CAPTURE_NO_ROOM.message(player);
+                this.openDialog(battle);
+                return;
+            }
             BattleBag.Taken taken = this.bag.take(player, ball);
             if (taken == null) {
                 PokeBattleMessages.ITEM_MISSING.message(player);
@@ -657,6 +666,20 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     @Override
     public BattleBag bag() {
         return this.bag;
+    }
+
+    /**
+     * Whether a caught creature has somewhere to go: a free party slot, else a free PC slot.
+     */
+    private boolean hasRoom(Player player) {
+        TrainerStorage storage = PokeCoreAPI.get().trainers().cached(player.getUniqueId()).orElse(null);
+        return storage != null && hasRoom(storage, PokeCoreAPI.get().trainers().limits(player));
+    }
+
+    static boolean hasRoom(TrainerStorage storage, StorageLimits limits) {
+        Set<StoragePosition> pc = new HashSet<>();
+        storage.pc().forEach((box, slots) -> slots.keySet().forEach(slot -> pc.add(StoragePosition.pc(box, slot))));
+        return StorageSlots.firstFree(storage.party().keySet(), pc, limits, true).isPresent();
     }
 
     /**
@@ -986,11 +1009,35 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                                 + " claim", battle.id());
                         return new CreationResult(StorageResult.Status.SUCCESS, null, null);
                     }
-                    if (!result.succeeded())
-                        this.plugin.getSLF4JLogger().warn("Battle {}: the caught creature was not stored ({})",
-                                battle.id(), result.status());
+                    if (!result.succeeded()) {
+                        // Checked before the throw: storage filled meanwhile (another server), or a refused roll
+                        this.plugin.getSLF4JLogger().warn("Battle {}: the caught creature of {} was not stored ({})",
+                                battle.id(), battle.playerId(), result.status());
+                        this.refundBall(battle, capture.ball());
+                    }
                     return result;
                 });
+    }
+
+    /**
+     * Gives back the ball of a catch that could not be kept: at least the throw is not lost.
+     */
+    private void refundBall(Battle battle, String ball) {
+        Player player = Bukkit.getPlayer(battle.playerId());
+        if (player == null || !this.plugin.isEnabled()) {
+            this.plugin.getSLF4JLogger().warn("Battle {}: {} could not be given back to {} (offline)", battle.id(),
+                    ball, battle.playerId());
+            return;
+        }
+        Component name = battle.itemNames().get(ball);
+        player.getScheduler().run(this.plugin, _ -> {
+            if (this.bag.refund(player, ball))
+                PokeBattleMessages.ITEM_REFUNDED.message(player, new PlaceholderContainer()
+                        .registerDirect("item", name == null ? ball : name));
+            else
+                this.plugin.getSLF4JLogger().warn("Battle {}: {} has no item stack any more, not given back",
+                        battle.id(), ball);
+        }, null);
     }
 
     private @Nullable BattleCondition capturedCondition(Battle battle, BattleTracker.@Nullable Capture capture,

@@ -27,6 +27,7 @@ no-battle-items: "<warning>Vous n'avez aucun objet utilisable en combat."
 item-no-target: "<warning>Cet objet n'aurait aucun effet sur votre équipe."
 item-missing: "<error>Vous n'avez plus cet objet."
 item-refunded: "<info>%item% <info>vous a été rendu."
+capture-no-room: "<error>Votre équipe et votre PC sont pleins : libérez une place avant de lancer une Ball."
 
 # End of a battle
 battle-won: "<success>Vous avez gagné le combat !"

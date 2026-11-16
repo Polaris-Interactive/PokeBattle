@@ -37,6 +37,7 @@ public enum PokeBattleMessages implements MessageEnum {
     ITEM_NO_TARGET,
     ITEM_MISSING,
     ITEM_REFUNDED,
+    CAPTURE_NO_ROOM,
     BATTLE_WON,
     BATTLE_LOST,
     BATTLE_WON_TRAINER,
