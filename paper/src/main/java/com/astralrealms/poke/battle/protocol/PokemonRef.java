@@ -20,4 +20,28 @@ public record PokemonRef(String side, String position, String label) {
         String side = prefix.substring(0, 2);
         return new PokemonRef(side, prefix.substring(2), value.substring(colon + 2));
     }
+
+    /**
+     * The position's letter: {@code a} for slot 0, {@code b} for slot 1...
+     */
+    public static String position(int slot) {
+        return String.valueOf((char) ('a' + slot));
+    }
+
+    /**
+     * The 0-based slot of its position on the field ({@code a} is 0, {@code b} is 1), -1 in a request.
+     */
+    public int slot() {
+        if (this.position.length() != 1)
+            return -1;
+        char letter = this.position.charAt(0);
+        return letter >= 'a' && letter <= 'z' ? letter - 'a' : -1;
+    }
+
+    /**
+     * Its place on the field: {@code p1a}, {@code p2b}...
+     */
+    public String key() {
+        return this.side + this.position;
+    }
 }

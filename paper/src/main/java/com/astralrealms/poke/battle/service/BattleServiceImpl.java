@@ -55,6 +55,7 @@ import com.astralrealms.poke.battle.network.packet.BattleUpdatePacket;
 import com.astralrealms.poke.battle.protocol.ChoiceRequest;
 import com.astralrealms.poke.battle.protocol.Condition;
 import com.astralrealms.poke.battle.protocol.ProtocolLine;
+import com.astralrealms.poke.battle.protocol.SlotChoices;
 import com.astralrealms.poke.battle.render.BattleLogRenderer;
 import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleCue;
@@ -491,7 +492,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 log.add(rendered);
             BattleCue cue = BattleCue.of(line);
             if (cue != null) {
-                beats.add(new BattleBeat(cue, BattleCue.move(line), FieldView.of(battle, player.locale()), log));
+                beats.add(BattleBeat.of(cue, line, FieldView.of(battle, player.locale()), log));
                 log.clear();
             }
         }
@@ -892,6 +893,9 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * and bag items are built here, not typed: they have their own checks.
      */
     static boolean legal(ChoiceRequest request, String choice) {
+        // In doubles, one choice per slot: no ball, bag item nor flee (they take a whole side's turn on the worker)
+        if (request.doubles())
+            return SlotChoices.legal(request, choice);
         if (choice.equals(RUN))
             return request.canAct();
         String[] parts = choice.split(" ");

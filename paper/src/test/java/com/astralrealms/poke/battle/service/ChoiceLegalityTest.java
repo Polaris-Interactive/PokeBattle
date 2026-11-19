@@ -57,4 +57,16 @@ class ChoiceLegalityTest {
         assertThat(BattleServiceImpl.legal(reviving, "switch 3")).isTrue();
         assertThat(BattleServiceImpl.legal(reviving, "switch 2")).isFalse();
     }
+
+    @Test
+    void aDoublesRequestWantsOneChoicePerSlot() {
+        ChoiceRequest doubles = ChoiceRequest.parse("""
+                {"forceSwitch":[true,false],"side":{"pokemon":[
+                  {"ident":"p1: 1","condition":"0 fnt","active":true},
+                  {"ident":"p1: 2","condition":"21/31","active":true},
+                  {"ident":"p1: 3","condition":"18/20","active":false}]},"rqid":8}""");
+        assertThat(BattleServiceImpl.legal(doubles, "switch 3, pass")).isTrue();
+        assertThat(BattleServiceImpl.legal(doubles, "switch 3")).isFalse();
+        assertThat(BattleServiceImpl.legal(doubles, "run")).isFalse();
+    }
 }
