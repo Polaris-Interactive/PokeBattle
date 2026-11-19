@@ -4,11 +4,15 @@ import java.util.Map;
 
 import org.jetbrains.annotations.Nullable;
 
-import net.kyori.adventure.key.Key;
+import com.astralrealms.poke.core.api.overlay.OverlayFonts;
+import com.astralrealms.poke.core.api.overlay.OverlayLine;
+import com.astralrealms.poke.core.api.overlay.OverlayLine.Anchor;
+import com.astralrealms.poke.core.api.overlay.OverlayPalette;
 
 /**
- * The art of the battle overlay: glyphs of the pack's {@code pokesmp:hud_overlay} font, drawn on the screen itself.
- * Characters and sizes are those {@code pokeapi-importer/tools/build_battle_overlay.py} writes: keep both in step.
+ * The art of the battle overlay: glyphs of the pack's {@code pokesmp:hud_overlay} font ({@link OverlayFonts#FONT}),
+ * drawn on the screen itself. Characters and sizes are those {@code pokeapi-importer/tools/build_battle_overlay.py}
+ * writes: keep both in step. The shared glyphs (spaces, bars, species) are PokeCore's {@link OverlayFonts}.
  */
 enum OverlayGlyph {
     FRAME_ALLY('\uE200', 131),
@@ -24,19 +28,6 @@ enum OverlayGlyph {
     STATUS_SLP('\uE214', 74),
     STATUS_FRZ('\uE215', 74),
     STATUS_FNT('\uE216', 74);
-
-    static final Key FONT = Key.key("pokesmp", "hud_overlay");
-    /** One glyph per species, at {@link #SPECIES_BASE} plus its dex number; each takes {@link #SPECIES_WIDTH}. */
-    static final Key SPECIES_FONT = Key.key("pokesmp", "hud_species");
-    static final int SPECIES_BASE = 0xE400;
-    static final int SPECIES_WIDTH = 26;
-    /** Spaces: {@code SPACE_PLUS + k} moves 2^k pixels right, {@code SPACE_MINUS + k} as many left, k below 10. */
-    static final int SPACE_PLUS = 0xE100;
-    static final int SPACE_MINUS = 0xE110;
-    static final int SPACE_BITS = 10;
-    /** Health bar pieces: {@code BAR_BASE + k} is 2^k pixels wide, k below 7; white, coloured by the palette. */
-    static final int BAR_BASE = 0xE220;
-    static final int BAR_BITS = 7;
 
     private static final Map<String, OverlayGlyph> STATUS = Map.of("brn", STATUS_BRN, "par", STATUS_PAR,
             "psn", STATUS_PSN, "tox", STATUS_TOX, "slp", STATUS_SLP, "frz", STATUS_FRZ, "fnt", STATUS_FNT);
@@ -56,6 +47,13 @@ enum OverlayGlyph {
     /** Its art's width, in GUI pixels. The game moves on one pixel more. */
     int width() {
         return this.width;
+    }
+
+    /**
+     * Draws this glyph in its own colours.
+     */
+    void draw(OverlayLine line, Anchor anchor, int x, int dy) {
+        line.art(anchor, x, dy, OverlayFonts.FONT, this.character, this.width, OverlayPalette.WHITE);
     }
 
     /**

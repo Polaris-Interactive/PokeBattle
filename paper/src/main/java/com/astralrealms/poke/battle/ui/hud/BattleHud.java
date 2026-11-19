@@ -39,6 +39,8 @@ import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
+import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.api.overlay.OverlayFont;
 import com.astralrealms.poke.core.mechanics.item.ItemEffect;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
@@ -166,7 +168,9 @@ final class BattleHud {
                 .toList();
         this.camera = stage == null ? null : new BattleCamera(ui.plugin(), player, stage, this::renderMenu);
         PokeBattleConfiguration.Overlay overlay = config.overlay();
-        OverlayFont font = overlay == null || !overlay.enabled() ? null : ui.overlayFont();
+        OverlayFont font = overlay == null || !overlay.enabled() || !PokeCoreAPI.get().overlay().available(player)
+                ? null
+                : PokeCoreAPI.get().overlay().font();
         this.overlay = font == null ? null : new BattleOverlay(player, font, config.bar(), overlay.margin());
     }
 

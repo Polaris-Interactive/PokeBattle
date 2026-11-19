@@ -149,8 +149,9 @@ hud:
   tooltip-background: "#F0050709"
   # The creatures' cards, the turn and its timer (top centre) and the log drawn on the screen itself, instead of in
   # the world in front of the camera; only the menu (its buttons, prompt and details) stays there, to be clicked: they keep their place and size whatever the player's FOV and do not move with the camera. It is a
-  # boss bar title that the pokesmp resource pack's text shader lays out (pokeapi-importer build_battle_overlay.py),
-  # so it needs that pack. The cards cannot be hovered there (no details on them). When on, the card, turn and log
+  # layer of PokeCore's screen overlay (one boss bar title per player that the pokesmp resource pack's text shader lays
+  # out, pokeapi-importer build_battle_overlay.py), so it needs that pack and PokeCore's overlay.enabled. It hides
+  # the party HUD during the battle. The cards cannot be hovered there (no details on them). When on, the card, turn and log
   # elements below (ally*, foe*, timer, turn-icon, hint, log*) are not used. `margin`: GUI pixels from the corners.
   overlay:
     enabled: true

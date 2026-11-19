@@ -12,12 +12,16 @@ import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.ui.ChoiceView;
 import com.astralrealms.poke.battle.ui.FieldView;
-import com.astralrealms.poke.battle.ui.hud.OverlayLine.Anchor;
-import com.astralrealms.poke.battle.ui.hud.OverlayLine.Run;
 import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.api.overlay.OverlayFont;
+import com.astralrealms.poke.core.api.overlay.OverlayFonts;
+import com.astralrealms.poke.core.api.overlay.OverlayLine;
+import com.astralrealms.poke.core.api.overlay.OverlayLine.Anchor;
+import com.astralrealms.poke.core.api.overlay.OverlayLine.Run;
+import com.astralrealms.poke.core.api.overlay.OverlayPalette;
+import com.astralrealms.poke.core.api.overlay.ScreenOverlay;
 import com.astralrealms.poke.core.species.Species;
 
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 
@@ -25,9 +29,11 @@ import net.kyori.adventure.text.format.TextColor;
  * The two creatures' cards and the battle log drawn on the screen itself, in its corners, rather than in the world
  * in front of the camera: they keep their place and size whatever the player's FOV, and do not move with the camera.
  * <p>
- * It is one boss bar whose title holds every piece ({@link OverlayLine}); the {@code pokesmp} pack's text shader puts
- * each piece in its corner, and the pack empties the white boss bar's own art. Without that pack the title shows as
- * a row of unknown glyphs at the top of the screen: {@code hud.overlay.enabled} is for servers that ship it.
+ * It is the {@code battle} layer of PokeCore's {@link ScreenOverlay} (one boss bar per player whose title holds every
+ * piece, {@link OverlayLine}); the {@code pokesmp} pack's text shader puts each piece in its corner. The layer is
+ * exclusive: the party HUD below it steps aside for the battle. Without that pack the title shows as a row of unknown
+ * glyphs at the top of the screen: {@code hud.overlay.enabled} (and PokeCore's {@code overlay.enabled}) is for servers
+ * that ship it.
  * <p>
  * Places inside a card and the log are those of the art ({@code assets/battle-hud}), in its pixels. Player's thread.
  */
@@ -61,11 +67,12 @@ final class BattleOverlay {
     private static final int TURN_TEXT_Y = 1;
     private static final int HINT_Y = 13;
 
+    private static final ScreenOverlay.Layer LAYER = new ScreenOverlay.Layer("battle", 100, true);
+
     private final Player player;
     private final OverlayFont font;
     private final PokeBattleConfiguration.Bar bar;
     private final int margin;
-    private final BossBar bossBar = BossBar.bossBar(Component.empty(), 0, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
     private boolean shown;
     private @Nullable Component drawn;
 
@@ -86,20 +93,17 @@ final class BattleOverlay {
         this.turn(line, turn, hint);
         this.log(line, log);
         Component title = line.build();
-        if (!title.equals(this.drawn)) {
+        if (!title.equals(this.drawn) || !this.shown) {
             this.drawn = title;
-            this.bossBar.name(title);
-        }
-        if (!this.shown) {
             this.shown = true;
-            this.player.showBossBar(this.bossBar);
+            PokeCoreAPI.get().overlay().show(this.player, LAYER, title);
         }
     }
 
     void hide() {
         if (this.shown) {
             this.shown = false;
-            this.player.hideBossBar(this.bossBar);
+            PokeCoreAPI.get().overlay().hide(this.player, LAYER.id());
         }
     }
 
@@ -113,11 +117,11 @@ final class BattleOverlay {
         // The card's left edge from its anchor, and a place of the ally's art turned into this card's
         int left = ally ? this.margin : -this.margin - CARD_WIDTH;
         int top = this.margin;
-        line.glyph(anchor, left, top, ally ? OverlayGlyph.FRAME_ALLY : OverlayGlyph.FRAME_FOE);
-        line.glyph(anchor, left + this.across(ally, UNDERLAY_X, OverlayGlyph.UNDERLAY.width()), top + UNDERLAY_Y,
-                OverlayGlyph.UNDERLAY);
-        line.species(anchor, left + this.across(ally, ICON_X, OverlayGlyph.SPECIES_WIDTH), top + ICON_Y,
-                dexNo(creature.species()));
+        (ally ? OverlayGlyph.FRAME_ALLY : OverlayGlyph.FRAME_FOE).draw(line, anchor, left, top);
+        OverlayGlyph.UNDERLAY.draw(line, anchor, left + this.across(ally, UNDERLAY_X, OverlayGlyph.UNDERLAY.width()),
+                top + UNDERLAY_Y);
+        line.species(anchor, left + this.across(ally, ICON_X, OverlayFonts.SPECIES_WIDTH), top + ICON_Y,
+                dexNo(creature.species()), OverlayPalette.WHITE);
 
         // The name on the left of its strip, the level on its right; a long name is cut to leave the level room
         int stripLeft = left + this.across(ally, NAME_LEFT, NAME_RIGHT - NAME_LEFT);
@@ -149,7 +153,7 @@ final class BattleOverlay {
         line.text(anchor, ally ? barLeft + 1 : barLeft + BAR_WIDTH - 1 - line.width(hp), top + HP_Y, hp, true);
         OverlayGlyph status = OverlayGlyph.status(creature.statusId());
         if (status != null)
-            line.glyph(anchor, ally ? barLeft + 1 : barLeft + BAR_WIDTH - 1 - status.width(), top + STATUS_Y, status);
+            status.draw(line, anchor, ally ? barLeft + 1 : barLeft + BAR_WIDTH - 1 - status.width(), top + STATUS_Y);
     }
 
     /**
@@ -167,7 +171,7 @@ final class BattleOverlay {
         if (turn != null) {
             List<Run> runs = OverlayLine.runs(turn);
             int left = -(OverlayGlyph.TURN.width() + TURN_GAP + line.width(runs)) / 2;
-            line.glyph(Anchor.TOP_CENTRE, left, this.margin, OverlayGlyph.TURN);
+            OverlayGlyph.TURN.draw(line, Anchor.TOP_CENTRE, left, this.margin);
             line.text(Anchor.TOP_CENTRE, left + OverlayGlyph.TURN.width() + TURN_GAP, this.margin + TURN_TEXT_Y, runs,
                     true);
         }
@@ -184,7 +188,7 @@ final class BattleOverlay {
         int left = -this.margin - OverlayGlyph.LOG.width();
         // From the bottom of the screen to the top of the frame
         int top = this.margin + LOG_HEIGHT;
-        line.glyph(Anchor.BOTTOM_RIGHT, left, top, OverlayGlyph.LOG);
+        OverlayGlyph.LOG.draw(line, Anchor.BOTTOM_RIGHT, left, top);
         List<List<Run>> rows = new ArrayList<>();
         for (Component entry : log)
             rows.addAll(OverlayLine.wrap(this.font, OverlayLine.runs(entry),
