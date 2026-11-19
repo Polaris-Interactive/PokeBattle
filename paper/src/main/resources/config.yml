@@ -284,3 +284,6 @@ capture:
   # Onboarding (GDD: the first capture is guaranteed): a ball always catches while the player's Pokédex counts fewer
   # caught species than this. The starter counts one, hence 2. 0 for never.
   guaranteed-below: 2
+  # The guarantee only covers wild creatures at or below this level, so a first ball cannot take a high-level creature
+  # for sure. 0 for no ceiling.
+  guaranteed-max-level: 10

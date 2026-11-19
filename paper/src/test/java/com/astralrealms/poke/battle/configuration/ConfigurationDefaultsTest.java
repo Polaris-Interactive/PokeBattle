@@ -15,7 +15,7 @@ class ConfigurationDefaultsTest {
         PokeBattleConfiguration empty = new PokeBattleConfiguration(null, null, null,
                 new PokeBattleConfiguration.Recovery(null, null, null), new PokeBattleConfiguration.Arena(null, null), null, null,
                 null, null, null, new PokeBattleConfiguration.Staging(null, null, null, null, null, null, null),
-                new PokeBattleConfiguration.Capture(null));
+                new PokeBattleConfiguration.Capture(null, null));
         PokeBattleConfiguration absent = new PokeBattleConfiguration(null, null, null, null, null, null, null, null,
                 null, null, null, null);
 
@@ -32,6 +32,7 @@ class ConfigurationDefaultsTest {
             assertThat(staging.particle()).isEqualTo("end_rod");
             assertThat(staging.interval()).isEqualTo(Duration.ofMillis(500));
             assertThat(configuration.captureOrDefault().guaranteedBelow()).isEqualTo(2);
+            assertThat(configuration.captureOrDefault().guaranteedMaxLevel()).isEqualTo(10);
         }
     }
 
@@ -40,7 +41,7 @@ class ConfigurationDefaultsTest {
         PokeBattleConfiguration partial = new PokeBattleConfiguration(null, null, null, null,
                 new PokeBattleConfiguration.Arena("podium", null), null, null, null, null, null,
                 new PokeBattleConfiguration.Staging(null, null, 9.0, null, null, null, false),
-                new PokeBattleConfiguration.Capture(0));
+                new PokeBattleConfiguration.Capture(0, null));
 
         assertThat(partial.arenaOrDefault().stageSpawn()).isEqualTo("podium");
         assertThat(partial.arenaOrDefault().returnDelay()).isEqualTo(Duration.ofSeconds(3));
@@ -48,6 +49,7 @@ class ConfigurationDefaultsTest {
         assertThat(partial.stagingOrDefault().barrier()).isFalse();
         assertThat(partial.stagingOrDefault().ring()).isTrue();
         assertThat(partial.captureOrDefault().guaranteedBelow()).isZero();
+        assertThat(partial.captureOrDefault().guaranteedMaxLevel()).isEqualTo(10);
     }
 
     @Test

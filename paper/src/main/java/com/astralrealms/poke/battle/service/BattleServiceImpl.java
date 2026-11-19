@@ -667,7 +667,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 this.openDialog(battle);
                 return;
             }
-            CaptureResult result = this.guaranteed(player)
+            CaptureResult result = this.guaranteed(player, battle)
                     ? GUARANTEED_CAPTURE
                     : PokeCoreAPI.get().capture().roll(attempt);
             this.plugin.debug("Battle {}: {} thrown, {} shakes, caught {}", battle.id(), ball, result.shakes(),
@@ -766,8 +766,13 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * Onboarding (GDD): a ball always catches while the player's Pokédex counts fewer caught species than
      * {@code capture.guaranteed-below}.
      */
-    private boolean guaranteed(Player player) {
-        int below = this.plugin.configuration().captureOrDefault().guaranteedBelow();
+    private boolean guaranteed(Player player, Battle battle) {
+        PokeBattleConfiguration.Capture capture = this.plugin.configuration().captureOrDefault();
+        int below = capture.guaranteedBelow();
+        int maxLevel = capture.guaranteedMaxLevel();
+        SignedRoll roll = battle.options().wildRoll();
+        if (maxLevel > 0 && (roll == null || roll.creature().level() > maxLevel))
+            return false;
         return below > 0 && PokeCoreAPI.get().pokedex().caughtSpecies(player.getUniqueId()) < below;
     }
 
