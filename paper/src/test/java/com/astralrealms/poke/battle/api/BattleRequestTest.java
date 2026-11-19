@@ -34,6 +34,17 @@ class BattleRequestTest {
         assertThat(request.rules()).isEqualTo(BattleRules.WILD);
         assertThat(request.trainer()).isNull();
         assertThat(request.tag()).isNull();
+        assertThat(request.lead()).isNull();
+    }
+
+    @Test
+    void theLeadSurvivesStagingAndTags() {
+        GeneratedCreature creature = new GeneratedCreature("fakemon", null, 7, StatSpread.of(31), "calm", "ability-a",
+                false, Gender.MALE, false, List.of("move-a"), 70);
+        UUID lead = UUID.randomUUID();
+        BattleRequest request = BattleRequest.wild(null, new SignedRoll(UUID.randomUUID(), 1L, creature, "sig"),
+                Set.of()).withLead(lead);
+        assertThat(request.withTag("tag").withSpots(null).lead()).isEqualTo(lead);
     }
 
     @Test

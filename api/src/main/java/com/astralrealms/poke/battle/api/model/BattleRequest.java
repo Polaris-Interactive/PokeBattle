@@ -1,6 +1,7 @@
 package com.astralrealms.poke.battle.api.model;
 
 import java.util.Set;
+import java.util.UUID;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -25,11 +26,13 @@ import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
  *                     in front of the player
  * @param place        where a caught creature is recorded as met, null for the player's world
  * @param spots        where the creatures stand on a {@code stage}, null for the configured offsets from it
+ * @param lead         the party creature sent first (one the player threw at the wild creature), null for the party
+ *                     order; ignored when it is not in the party or cannot fight
  */
 public record BattleRequest(String format, Player player, @Nullable SignedRoll wild,
                             @Nullable TrainerOpponent trainer, Set<String> captureFlags, BattleRules rules,
                             @Nullable String tag, @Nullable Location stage, @Nullable String place,
-                            @Nullable StageSpots spots) {
+                            @Nullable StageSpots spots, @Nullable UUID lead) {
 
     public static final String WILD_FORMAT = "polariswild";
     public static final String TRAINER_FORMAT = "polaristrainer";
@@ -44,12 +47,21 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
     }
 
     /**
-     * Without creature spots (the request as it was before they existed).
+     * Without creature spots nor lead (the request as it was before they existed).
      */
     public BattleRequest(String format, Player player, @Nullable SignedRoll wild, @Nullable TrainerOpponent trainer,
                          Set<String> captureFlags, BattleRules rules, @Nullable String tag, @Nullable Location stage,
                          @Nullable String place) {
-        this(format, player, wild, trainer, captureFlags, rules, tag, stage, place, null);
+        this(format, player, wild, trainer, captureFlags, rules, tag, stage, place, null, null);
+    }
+
+    /**
+     * Without a lead (the request as it was before it existed).
+     */
+    public BattleRequest(String format, Player player, @Nullable SignedRoll wild, @Nullable TrainerOpponent trainer,
+                         Set<String> captureFlags, BattleRules rules, @Nullable String tag, @Nullable Location stage,
+                         @Nullable String place, @Nullable StageSpots spots) {
+        this(format, player, wild, trainer, captureFlags, rules, tag, stage, place, spots, null);
     }
 
     public static BattleRequest wild(Player player, SignedRoll creature) {
@@ -77,7 +89,7 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest at(Location stage, String place) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                this.tag, stage.clone(), place, this.spots);
+                this.tag, stage.clone(), place, this.spots, this.lead);
     }
 
     /**
@@ -86,7 +98,7 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest withSpots(@Nullable StageSpots spots) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                this.tag, this.stage, this.place, spots);
+                this.tag, this.stage, this.place, spots, this.lead);
     }
 
     /**
@@ -94,6 +106,14 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest withTag(@Nullable String tag) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                tag, this.stage, this.place, this.spots);
+                tag, this.stage, this.place, this.spots, this.lead);
+    }
+
+    /**
+     * The same battle with {@code lead} sent first.
+     */
+    public BattleRequest withLead(@Nullable UUID lead) {
+        return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
+                this.tag, this.stage, this.place, this.spots, lead);
     }
 }

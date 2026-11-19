@@ -168,6 +168,15 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             (PokemonStats.currentHp(pokemon, registry) > 0 ? standing : fainted).add(pokemon);
         if (standing.isEmpty())
             return CompletableFuture.completedFuture(BattleStartResult.NO_USABLE_CREATURE);
+        // The creature the player threw at it goes first, the others keep their order
+        if (request.lead() != null)
+            standing.stream()
+                    .filter(pokemon -> pokemon.id().equals(request.lead()))
+                    .findFirst()
+                    .ifPresent(lead -> {
+                        standing.remove(lead);
+                        standing.addFirst(lead);
+                    });
         List<Battle.Ally> allies = new ArrayList<>();
         for (Pokemon pokemon : standing)
             if (allies.size() < MAX_TEAM)
