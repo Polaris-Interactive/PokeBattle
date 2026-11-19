@@ -193,6 +193,8 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * @param listIcon           the creature icon on a team or target button, as a share of its strip's scale; 0 for
      *                           0.22
      * @param tooltipBackground  #AARRGGBB behind the details text (the info element), sized to what it says
+     * @param moveColours        #RRGGBB tint of a move button's strip by type id; {@code other} for a move that cannot
+     *                           be used or whose type is not listed. Null or empty for plain grey strips
      * @param timerWarning       seconds left from which the turn timer shows as urgent ({@code hud-timer-urgent});
      *                           0 for never
      * @param overlay            the cards and the log drawn on the screen itself; null for in the world, as the rest
@@ -205,7 +207,7 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
                       int logLines, Duration closeDelay, String hoverBackground, String disabledBackground,
                       String hoverSound, String clickSound, Bar bar, @Nullable Camera camera,
                       Map<String, Element> elements, double listIcon, String tooltipBackground,
-                      int timerWarning, @Nullable Overlay overlay) {
+                      @Nullable Map<String, String> moveColours, int timerWarning, @Nullable Overlay overlay) {
     }
 
     /**

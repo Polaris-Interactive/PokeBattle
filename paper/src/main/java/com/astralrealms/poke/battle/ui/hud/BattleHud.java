@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
@@ -101,11 +102,21 @@ final class BattleHud {
 
     enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS }
 
+    /** What an item element was last given, so an unchanged model and tint is not sent again. */
+    private record Art(Key model, @Nullable Color tint) {
+    }
+
     /**
-     * A button: {@code action} null when it cannot be used, {@code info} shown while it is hovered.
+     * A button: {@code action} null when it cannot be used, {@code info} shown while it is hovered, {@code tint} the
+     * colour of its frame's tinted layer (move buttons).
      */
     private record Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame,
-                         @Nullable Key icon) {
+                         @Nullable Key icon, @Nullable Color tint) {
+
+        Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame,
+              @Nullable Key icon) {
+            this(label, action, info, frame, icon, null);
+        }
 
         Entry(Component label, @Nullable Runnable action, @Nullable Component info, @Nullable Key frame) {
             this(label, action, info, frame, null);
@@ -479,10 +490,13 @@ final class BattleHud {
                             ? PokeBattleMessages.HUD_MOVE_BUTTON_DISABLED.component(placeholders)
                             : PokeBattleMessages.HUD_MOVE_BUTTON.component(placeholders
                                     .registerDirect("pp", pp(move.pp(), move.maxPp())));
+                    // The move's type colour on the shared move strip; the plain list strip without colours
+                    Color tint = HudArt.moveColour(this.config.moveColours(), move.typeId(), move.disabled());
                     entries.add(new Entry(label,
                             move.disabled() ? null : () -> this.handler().choose(this.player, view, "move " + move.index()),
                             PokeBattleMessages.HUD_TOOLTIP_MOVE.component(placeholders
-                                    .registerDirect("pp", pp(move.pp(), move.maxPp())))));
+                                    .registerDirect("pp", pp(move.pp(), move.maxPp()))),
+                            tint == null ? null : HudArt.FRAME_MOVE, null, tint));
                 }
             }
             case TEAM -> {
@@ -621,7 +635,7 @@ final class BattleHud {
         Entry under = this.entryAt(id);
         if (under != null && under.action() != null && !moving && this.buttons.contains(id)) {
             Key art = this.art(under);
-            this.setItem(FRAME + id.substring(BUTTON.length()), entered ? HudArt.hover(art) : art);
+            this.setItem(FRAME + id.substring(BUTTON.length()), entered ? HudArt.hover(art) : art, under.tint());
         }
 
         // The back button's art lights up the same way
@@ -762,7 +776,7 @@ final class BattleHud {
             this.visible(button, entry != null);
             // Action buttons are their own art; list buttons (moves, team, bag) get a strip behind the label.
             String number = button.substring(BUTTON.length());
-            this.setItem(FRAME + number, entry == null ? null : this.art(entry));
+            this.setItem(FRAME + number, entry == null ? null : this.art(entry), entry == null ? null : entry.tint());
             Key icon = entry == null ? null : entry.icon();
             this.setItem(ICON + number, icon);
             this.shift(button, icon != null);
@@ -802,16 +816,24 @@ final class BattleHud {
      * Sets an item element's model, or hides it for null. Like {@link #set}, nothing is sent when nothing changed.
      */
     private void setItem(String id, @Nullable Key model) {
+        this.setItem(id, model, null);
+    }
+
+    /**
+     * Sets an item element's model with its tinted layer coloured {@code tint} (null for the model's own colours).
+     */
+    private void setItem(String id, @Nullable Key model, @Nullable Color tint) {
         HudView view = this.view;
+        Art art = model == null ? null : new Art(model, tint);
         // Elements start visible, so the first call must send the hide too: an empty cache is not "nothing to do".
-        if (view == null || this.drawn.containsKey(id) && Objects.equals(this.drawn.get(id), model))
+        if (view == null || this.drawn.containsKey(id) && Objects.equals(this.drawn.get(id), art))
             return;
-        this.drawn.put(id, model);
+        this.drawn.put(id, art);
         view.element(id).ifPresent(element -> {
             if (model == null) {
                 element.visible(false);
             } else {
-                element.item(HudArt.item(model));
+                element.item(HudArt.item(model, tint));
                 element.visible(true);
             }
         });

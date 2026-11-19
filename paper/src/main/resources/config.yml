@@ -147,6 +147,28 @@ hud:
   list-icon: 0.22
   # #AARRGGBB behind the details text (the info element): it grows with its text. Dark, mostly opaque.
   tooltip-background: "#F0050709"
+  # Move buttons: one strip for every type (pokesmp:hud_frame_move), tinted with the move's type colour, #RRGGBB by
+  # Showdown type id. A move that cannot be used, or whose type is not listed, gets `other`. Needs the pokesmp pack.
+  move-colours:
+    other: "#7C7F86"
+    normal: "#A8A77A"
+    fire: "#EE8130"
+    water: "#6390F0"
+    electric: "#F7D02C"
+    grass: "#7AC74C"
+    ice: "#96D9D6"
+    fighting: "#C22E28"
+    poison: "#A33EA1"
+    ground: "#E2BF65"
+    flying: "#A98FF3"
+    psychic: "#F95587"
+    bug: "#A6B91A"
+    rock: "#B6A136"
+    ghost: "#735797"
+    dragon: "#6F35FC"
+    dark: "#705746"
+    steel: "#B7B7CE"
+    fairy: "#D685AD"
   # The creatures' cards, the turn and its timer (top centre) and the log drawn on the screen itself, instead of in
   # the world in front of the camera; only the menu (its buttons, prompt and details) stays there, to be clicked: they keep their place and size whatever the player's FOV and do not move with the camera. It is a
   # layer of PokeCore's screen overlay (one boss bar title per player that the pokesmp resource pack's text shader lays
