@@ -19,13 +19,16 @@ import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
 import io.papermc.paper.registry.data.dialog.type.MultiActionType;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.event.ClickCallback;
 
 /**
  * The battle choice dialog (Java players), built in code: its buttons change every turn, which AstralCore's YAML
  * dialogs cannot express. Every text is a {@code messages.yml} entry. Bedrock forms come with the presentation step.
  * <p>
- * Moves, then the team, the balls and the bag (each a sub-dialog with a way back), and fleeing.
+ * Moves, then the team, the balls and the bag (each a sub-dialog with a way back), and fleeing. In doubles, each
+ * creature of the player's is chosen for in turn (a move that needs a target asks where to aim it), with a way back
+ * to the creature before; the battle sends every choice at once.
  * <p>
  * Buttons answer the request they were built for ({@link ChoiceView#rqid()}); the battle refuses a click for an older
  * one.
@@ -62,6 +65,36 @@ public class ChoiceDialogs {
         player.showDialog(view.forceSwitch() ? this.team(view, false) : this.main(view));
     }
 
+    /**
+     * In doubles, back to the creature chosen for before this one; null when there is none.
+     */
+    private @Nullable Consumer<Player> previous(ChoiceView view) {
+        ChoiceView.Doubles doubles = view.doubles();
+        ChoiceView previous = doubles == null ? null : doubles.previous();
+        return previous == null ? null : player -> this.open(player, previous);
+    }
+
+    /**
+     * A move: sent, or first aimed when it needs a target (doubles).
+     */
+    private void move(Player player, ChoiceView view, ChoiceView.Move move) {
+        List<ChoiceView.Target> targets = view.targets(move);
+        if (targets.isEmpty()) {
+            this.handler.choose(player, view, "move " + move.index());
+            return;
+        }
+        List<ActionButton> buttons = new ArrayList<>();
+        for (ChoiceView.Target target : targets) {
+            PokeBattleMessages label = target.foe()
+                    ? PokeBattleMessages.AIM_FOE_BUTTON
+                    : PokeBattleMessages.AIM_ALLY_BUTTON;
+            buttons.add(this.button(label.component(this.creature(target.creature())), null,
+                    clicker -> this.handler.choose(clicker, view, "move " + move.index() + " " + target.location())));
+        }
+        player.showDialog(this.list(PokeBattleMessages.AIM_TITLE.component(new PlaceholderContainer()
+                .registerDirect("move", move.name())), view, buttons, clicker -> clicker.showDialog(this.main(view))));
+    }
+
     private Dialog main(ChoiceView view) {
         List<ActionButton> buttons = new ArrayList<>();
         for (ChoiceView.Move move : view.moves()) {
@@ -76,7 +109,7 @@ public class ChoiceDialogs {
             Component label = (move.disabled() ? PokeBattleMessages.MOVE_BUTTON_DISABLED : PokeBattleMessages.MOVE_BUTTON)
                     .component(placeholders);
             buttons.add(this.button(label, PokeBattleMessages.MOVE_TOOLTIP.component(placeholders),
-                    player -> this.handler.choose(player, view, "move " + move.index())));
+                    player -> this.move(player, view, move)));
         }
         if (!view.switchable().isEmpty() && !view.trapped())
             buttons.add(this.button(PokeBattleMessages.TEAM_BUTTON.component(), null,
@@ -91,16 +124,22 @@ public class ChoiceDialogs {
             buttons.add(this.button(PokeBattleMessages.RUN_BUTTON.component(), null,
                     player -> this.handler.choose(player, view, "run")));
 
-        List<DialogBody> body = List.of(DialogBody.plainMessage(this.field(view), 300));
+        List<DialogBody> body = new ArrayList<>();
+        body.add(DialogBody.plainMessage(this.field(view), 300));
+        if (view.doubles() != null)
+            body.add(DialogBody.plainMessage(PokeBattleMessages.DIALOG_SLOT.component(new PlaceholderContainer()
+                    .registerDirect("ally", view.ally().name()))));
         DialogBase base = DialogBase.builder(PokeBattleMessages.DIALOG_TITLE.component(new PlaceholderContainer()
                         .registerDirect("turn", Math.max(1, view.turn()))))
                 .canCloseWithEscape(true)
                 .pause(false)
                 .body(body)
                 .build();
-        return Dialog.create(factory -> factory.empty()
-                .base(base)
-                .type(DialogType.multiAction(buttons).columns(this.moveColumns).build()));
+        MultiActionType.Builder type = DialogType.multiAction(buttons).columns(this.moveColumns);
+        Consumer<Player> previous = this.previous(view);
+        if (previous != null)
+            type.exitAction(this.button(PokeBattleMessages.BACK_BUTTON.component(), null, previous));
+        return Dialog.create(factory -> factory.empty().base(base).type(type.build()));
     }
 
     /**
@@ -129,9 +168,10 @@ public class ChoiceDialogs {
                 .body(body)
                 .build();
         MultiActionType.Builder type = DialogType.multiAction(buttons).columns(1);
-        if (back)
-            type.exitAction(this.button(PokeBattleMessages.BACK_BUTTON.component(), null,
-                    player -> player.showDialog(this.main(view))));
+        // A forced switch has no moves to go back to, only the creature chosen for before it (doubles)
+        Consumer<Player> previous = back ? player -> player.showDialog(this.main(view)) : this.previous(view);
+        if (previous != null)
+            type.exitAction(this.button(PokeBattleMessages.BACK_BUTTON.component(), null, previous));
         return Dialog.create(factory -> factory.empty().base(base).type(type.build()));
     }
 
@@ -209,6 +249,18 @@ public class ChoiceDialogs {
     }
 
     private Component field(ChoiceView view) {
+        ChoiceView.Doubles doubles = view.doubles();
+        if (doubles != null) {
+            // A line per creature on the field, the opponent's first
+            List<Component> lines = new ArrayList<>();
+            for (ChoiceView.Creature foe : doubles.foes())
+                if (FieldView.present(foe))
+                    lines.add(PokeBattleMessages.DIALOG_FIELD_FOE.component(this.creature(foe)));
+            for (ChoiceView.Creature ally : doubles.allies())
+                if (FieldView.present(ally))
+                    lines.add(PokeBattleMessages.DIALOG_FIELD_ALLY.component(this.creature(ally)));
+            return Component.join(JoinConfiguration.newlines(), lines);
+        }
         return PokeBattleMessages.DIALOG_FIELD.component(new PlaceholderContainer()
                 .registerDirect("ally", view.ally().name())
                 .registerDirect("allylevel", view.ally().level())
@@ -219,6 +271,16 @@ public class ChoiceDialogs {
                 .registerDirect("foelevel", view.foe().level())
                 .registerDirect("foepercent", view.foe().hp())
                 .registerDirect("foestatus", this.status(view.foe().status())));
+    }
+
+    private PlaceholderContainer creature(ChoiceView.Creature creature) {
+        return new PlaceholderContainer()
+                .registerDirect("name", creature.name())
+                .registerDirect("level", creature.level())
+                .registerDirect("hp", creature.hp())
+                .registerDirect("max", creature.maxHp())
+                .registerDirect("percent", creature.hp())
+                .registerDirect("status", this.status(creature.status()));
     }
 
     private Object status(String status) {

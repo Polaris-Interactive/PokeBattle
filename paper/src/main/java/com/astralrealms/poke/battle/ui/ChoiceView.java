@@ -234,10 +234,22 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
                     request.trapped(), allies.getFirst(), foes.getFirst(), slots.getFirst().moves(), switchable, team,
                     actions, askedAt, null);
 
-        // Doubles: the first slot with something to do, those before it passing
-        ChoiceView start = new ChoiceView(battle.id(), request.rqid(), battle.tracker().turn(), request.forceSwitch(),
-                false, allies.getFirst(), foes.getFirst(), List.of(), switchable, team, actions, askedAt,
-                new Doubles(-1, slots, List.of(), allies, foes, switchable, null));
+        return doubles(battle.id(), request.rqid(), battle.tracker().turn(), slots, allies, foes, switchable, team,
+                askedAt);
+    }
+
+    /**
+     * The view of a doubles request's first slot with something to do, those before it passing; null when no slot
+     * has anything to do.
+     *
+     * @param bench the members a switch can send in
+     */
+    static @Nullable ChoiceView doubles(UUID battleId, int rqid, int turn, List<SlotView> slots, List<Creature> allies,
+                                        List<Creature> foes, List<Member> bench, List<Member> team, long askedAt) {
+        boolean forced = slots.stream().anyMatch(SlotView::forced);
+        ChoiceView start = new ChoiceView(battleId, rqid, turn, forced, false,
+                allies.isEmpty() ? NOBODY : allies.getFirst(), foes.isEmpty() ? NOBODY : foes.getFirst(), List.of(),
+                bench, team, Actions.NONE, askedAt, new Doubles(-1, slots, List.of(), allies, foes, bench, null));
         return start.following(List.of(), null);
     }
 

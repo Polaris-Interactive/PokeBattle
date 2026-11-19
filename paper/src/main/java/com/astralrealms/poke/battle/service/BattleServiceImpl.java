@@ -633,7 +633,17 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             PokeBattleMessages.NOT_IN_BATTLE.message(player);
             return;
         }
-        this.submit(player, battle, view.rqid(), choice);
+        // Doubles: the next creature's choice first; every slot's goes at once, with the last one
+        ChoiceView next = view.next(choice);
+        if (next == null) {
+            this.submit(player, battle, view.rqid(), view.choice(choice));
+            return;
+        }
+        synchronized (battle) {
+            if (this.answerable(player, battle, view.rqid()) == null)
+                return;
+        }
+        this.withUi(battle.playerId(), (ui, viewer) -> ui.choose(viewer, next));
     }
 
     /**

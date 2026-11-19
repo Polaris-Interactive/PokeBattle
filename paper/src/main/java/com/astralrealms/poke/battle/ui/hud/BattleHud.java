@@ -100,7 +100,8 @@ final class BattleHud {
             "ally-status", "foe-status", "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon",
             "ally-underlay", "foe-underlay", "timer", "turn-icon", "hint");
 
-    enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS }
+    /** {@code AIM}: where a move is aimed, in doubles. */
+    enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS, AIM }
 
     /** What an item element was last given, so an unchanged model and tint is not sent again. */
     private record Art(Key model, @Nullable Color tint) {
@@ -153,6 +154,8 @@ final class BattleHud {
     private List<Entry> entries = List.of();
     private int page;
     private BattleBag.@Nullable Entry item;
+    /** The move being aimed (doubles). */
+    private ChoiceView.@Nullable Move aimed;
     private long deadline;
     /** The team as the last choice told it: the details of the player's creature outlive the choice. */
     private List<ChoiceView.Member> team = List.of();
@@ -492,8 +495,7 @@ final class BattleHud {
                                     .registerDirect("pp", pp(move.pp(), move.maxPp())));
                     // The move's type colour on the shared move strip; the plain list strip without colours
                     Color tint = HudArt.moveColour(this.config.moveColours(), move.typeId(), move.disabled());
-                    entries.add(new Entry(label,
-                            move.disabled() ? null : () -> this.handler().choose(this.player, view, "move " + move.index()),
+                    entries.add(new Entry(label, move.disabled() ? null : () -> this.pick(view, move),
                             PokeBattleMessages.HUD_TOOLTIP_MOVE.component(placeholders
                                     .registerDirect("pp", pp(move.pp(), move.maxPp()))),
                             tint == null ? null : HudArt.FRAME_MOVE, null, tint));
@@ -531,6 +533,28 @@ final class BattleHud {
                         this.show(Menu.TARGETS);
                     }, this.itemTooltip(item), null, item.model()));
             }
+            case AIM -> {
+                ChoiceView.Move move = this.aimed;
+                if (move == null)
+                    return null;
+                for (ChoiceView.Target target : view.targets(move)) {
+                    ChoiceView.Creature creature = target.creature();
+                    entries.add(new Entry((target.foe()
+                            ? PokeBattleMessages.HUD_AIM_FOE_BUTTON
+                            : PokeBattleMessages.HUD_AIM_ALLY_BUTTON).component(new PlaceholderContainer()
+                                    .registerDirect("name", creature.name())
+                                    .registerDirect("level", creature.level())
+                                    .registerDirect("hp", HealthBar.points(creature.hp(), creature.maxHp(),
+                                            this.config.bar()))
+                                    .registerDirect("max", creature.maxHp())
+                                    .registerDirect("status", creature.hp() <= 0
+                                            ? PokeBattleMessages.TARGET_FAINTED.component()
+                                            : this.shortStatus(creature.status()))),
+                            () -> this.handler().choose(this.player, view, "move " + move.index() + " "
+                                                                           + target.location()),
+                            null, null, HudArt.speciesItem(creature.species())));
+                }
+            }
             case TARGETS -> {
                 BattleBag.Entry item = this.item;
                 List<ChoiceView.Member> targets = item == null ? List.of() : BattleBag.targets(item, view.team());
@@ -548,7 +572,19 @@ final class BattleHud {
     }
 
     /**
-     * Where {@code back} goes, or null when there is no way back (the main menu, a forced switch).
+     * A move: chosen, or aimed first when it needs a target (doubles).
+     */
+    private void pick(ChoiceView view, ChoiceView.Move move) {
+        if (view.targets(move).isEmpty()) {
+            this.handler().choose(this.player, view, "move " + move.index());
+            return;
+        }
+        this.aimed = move;
+        this.show(Menu.AIM);
+    }
+
+    /**
+     * Where {@code back} goes, or null when there is no way back in this choice (the main menu, a forced switch).
      */
     private @Nullable Menu back() {
         ChoiceView view = this.choice;
@@ -557,7 +593,22 @@ final class BattleHud {
             case TEAM -> view != null && view.forceSwitch() ? null : Menu.MAIN;
             case MOVES, BALLS, BAG -> Menu.MAIN;
             case TARGETS -> Menu.BAG;
+            case AIM -> Menu.MOVES;
         };
+    }
+
+    /**
+     * In doubles, the choice of the creature before this one, where {@code back} goes from a menu with no way back
+     * of its own; null otherwise.
+     */
+    private @Nullable ChoiceView previous() {
+        ChoiceView view = this.choice;
+        ChoiceView.Doubles doubles = view == null ? null : view.doubles();
+        return doubles == null || this.menu == Menu.NONE || this.back() != null ? null : doubles.previous();
+    }
+
+    private boolean canGoBack() {
+        return this.back() != null || this.previous() != null;
     }
 
     private int pages() {
@@ -602,11 +653,14 @@ final class BattleHud {
      * The back button, or the drop key: one menu up, when there is one.
      */
     private void goBack() {
-        Menu back = this.back();
-        if (this.closed || this.choice == null || back == null || this.camera != null && this.camera.busy())
+        if (this.closed || this.choice == null || !this.canGoBack() || this.camera != null && this.camera.busy())
             return;
         this.sound(this.config.clickSound());
-        this.show(back);
+        Menu back = this.back();
+        if (back != null)
+            this.show(back);
+        else
+            this.choose(this.previous());
     }
 
     void hover(String id, boolean entered) {
@@ -639,7 +693,7 @@ final class BattleHud {
         }
 
         // The back button's art lights up the same way
-        if (id.equals(BACK) && !moving && this.back() != null)
+        if (id.equals(BACK) && !moving && this.canGoBack())
             this.setItem(BACK_FRAME, entered ? HudArt.hover(HudArt.BACK) : HudArt.BACK);
     }
 
@@ -757,7 +811,7 @@ final class BattleHud {
         this.set("prompt", menu == Menu.NONE ? List.of() : List.of(switch (menu) {
             case NONE -> Component.empty();
             case MAIN -> PokeBattleMessages.HUD_PROMPT.component(new PlaceholderContainer()
-                    .registerDirect("ally", this.field.ally().name()));
+                    .registerDirect("ally", view != null ? view.ally().name() : this.field.ally().name()));
             case MOVES -> PokeBattleMessages.HUD_MOVES_TITLE.component();
             case TEAM -> view != null && view.forceSwitch()
                     ? PokeBattleMessages.DIALOG_FORCED_SWITCH.component(new PlaceholderContainer()
@@ -767,6 +821,8 @@ final class BattleHud {
             case BAG -> PokeBattleMessages.BAG_TITLE.component();
             case TARGETS -> PokeBattleMessages.TARGET_TITLE.component(new PlaceholderContainer()
                     .registerDirect("item", this.item == null ? "" : this.item.name()));
+            case AIM -> PokeBattleMessages.AIM_TITLE.component(new PlaceholderContainer()
+                    .registerDirect("move", this.aimed == null ? "" : this.aimed.name()));
         }));
 
         for (String button : this.buttons) {
@@ -783,9 +839,9 @@ final class BattleHud {
         }
         // Icon only: the button's art says what it does (ChoiceDialogs keeps the text for the dialog fallback)
         this.set(BACK, List.of());
-        this.visible(BACK, !moving && this.back() != null);
+        this.visible(BACK, !moving && this.canGoBack());
         this.setItem(BACK_FRAME, HudArt.BACK);
-        this.visible(BACK_FRAME, !moving && this.back() != null);
+        this.visible(BACK_FRAME, !moving && this.canGoBack());
         this.set(NEXT, List.of(PokeBattleMessages.HUD_NEXT_BUTTON.component(new PlaceholderContainer()
                 .registerDirect("page", this.page + 1)
                 .registerDirect("pages", this.pages()))));

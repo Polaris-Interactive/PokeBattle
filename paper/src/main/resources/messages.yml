@@ -104,6 +104,14 @@ bag-entry-button: "%item% <gray>×%amount%"
 target-title: "<green>Sur qui utiliser %item%<green> ?"
 target-button: "<white>%name%</white> <gray>N.%level% · %hp%/%max% PV %status%"
 target-fainted: "<red>K.O."
+# Doubles: each creature of a side on its own line (the dialog's field), which creature is being chosen for, and
+# where a move that needs a target is aimed (the opponent's creatures, then the player's own).
+dialog-field-foe: "<white>%name%</white> <gray>N.%level% · <white>%percent%</white>/100 PV %status%"
+dialog-field-ally: "<white>%name%</white> <gray>N.%level% · <white>%hp%</white>/%max% PV %status%"
+dialog-slot: "<aqua>Que doit faire <white>%ally%</white><aqua> ?"
+aim-title: "<aqua>Sur qui utiliser %move%<aqua> ?"
+aim-foe-button: "<red>Adversaire</red> <white>%name%</white> <gray>N.%level% · %percent%/100 PV %status%"
+aim-ally-button: "<green>Allié</green> <white>%name%</white> <gray>N.%level% · %hp%/%max% PV %status%"
 
 # Battle HUD (AstralHologram). Dialog texts above are reused for the move, team, bag and target buttons and the menu
 # titles. %bar%: the health bar (hud.bar in config.yml); %status%: dialog-status, empty when healthy.
@@ -163,6 +171,9 @@ hud-effect-ball: "<gray>Capture un Pokémon sauvage"
 # %hp% is coloured by what is left; %status% is hud-member-status (or target-fainted), empty when healthy.
 hud-member-button: "<white>%name%</white> <gray>N.%level%<newline>%hp% <gray>PV</gray> %status%"
 hud-target-button: "<white>%name%</white> <gray>N.%level%<newline>%hp% <gray>PV</gray> %status%"
+# Doubles: where a move is aimed, on the same strips (%hp% is the percentage for the opponent's creatures).
+hud-aim-foe-button: "<red>Adv.</red> <white>%name%</white> <gray>N.%level%<newline>%hp% <gray>%</gray> %status%"
+hud-aim-ally-button: "<green>Allié</green> <white>%name%</white> <gray>N.%level%<newline>%hp% <gray>PV</gray> %status%"
 # %status%: the status cut to its first three letters (BRÛ, PAR...).
 hud-member-status: "<yellow>%status%"
 # In place of %status% for the creature on the field (the team menu lists the whole team; it cannot be sent in).
