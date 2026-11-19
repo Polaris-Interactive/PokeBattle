@@ -3,6 +3,11 @@ package com.astralrealms.poke.battle.model;
 import java.util.List;
 import java.util.UUID;
 
+import org.bukkit.Location;
+import org.bukkit.World;
+import org.jetbrains.annotations.Nullable;
+
+import com.astralrealms.poke.battle.api.model.StageSpots;
 import com.google.gson.Gson;
 
 /**
@@ -11,9 +16,12 @@ import com.google.gson.Gson;
  * named by id, in label order: they are read back from the player's storage, which a battle never changes. The foes
  * are in label order too (a context written before trainers held whole wild creatures: their species, form and level
  * read the same).
+ *
+ * @param staging where the battle was staged (an arena, a gym's marks); null when it was laid in front of the player,
+ *                and in a context written before staged battles were kept
  */
 public record BattleContext(UUID battleId, String format, UUID playerId, List<UUID> allies,
-                            List<Battle.Foe> foes, Battle.Options options) {
+                            List<Battle.Foe> foes, Battle.Options options, @Nullable Staging staging) {
 
     private static final Gson GSON = new Gson();
 
@@ -22,11 +30,20 @@ public record BattleContext(UUID battleId, String format, UUID playerId, List<UU
         foes = List.copyOf(foes);
     }
 
-    public static BattleContext of(Battle battle) {
+    /**
+     * A battle laid in front of the player.
+     */
+    public BattleContext(UUID battleId, String format, UUID playerId, List<UUID> allies, List<Battle.Foe> foes,
+                         Battle.Options options) {
+        this(battleId, format, playerId, allies, foes, options, null);
+    }
+
+    public static BattleContext of(Battle battle, @Nullable Staging staging) {
         return new BattleContext(battle.id(), battle.format(), battle.playerId(),
                 battle.allies().stream().map(ally -> ally.pokemon().id()).toList(),
                 battle.foes(),
-                battle.options());
+                battle.options(),
+                staging);
     }
 
     public String toJson() {
@@ -35,5 +52,61 @@ public record BattleContext(UUID battleId, String format, UUID playerId, List<UU
 
     public static BattleContext fromJson(String json) {
         return GSON.fromJson(json, BattleContext.class);
+    }
+
+    /**
+     * A staged battle's place, its world by name: the shard that takes the battle over lays it there again when it
+     * has that world (the same arena server, its instance still open), else in front of the player.
+     *
+     * @param world the stage's world
+     * @param stage feet of the player's side, facing the opponent
+     * @param ally  the player's creature; null, with {@code foe}, for the configured offsets from the stage
+     * @param foe   the opponent's creature
+     */
+    public record Staging(String world, Spot stage, @Nullable Spot ally, @Nullable Spot foe) {
+
+        /**
+         * The staging of a battle laid at {@code stage}, with its creature spots only when they are in its world (as
+         * {@code BattleStages} uses them). Null for a stage with no world.
+         */
+        public static @Nullable Staging of(Location stage, @Nullable StageSpots spots) {
+            World world = stage.getWorld();
+            if (world == null)
+                return null;
+            return of(world.getName(), stage, spots == null || spots.ally().getWorld() != world ? null : spots);
+        }
+
+        static Staging of(String world, Location stage, @Nullable StageSpots spots) {
+            return new Staging(world, Spot.of(stage),
+                    spots == null ? null : Spot.of(spots.ally()),
+                    spots == null ? null : Spot.of(spots.foe()));
+        }
+
+        public Location stage(@Nullable World world) {
+            return this.stage.in(world);
+        }
+
+        /**
+         * The creature spots in {@code world}, null when the battle had none.
+         */
+        public @Nullable StageSpots spots(@Nullable World world) {
+            if (this.ally == null || this.foe == null)
+                return null;
+            return new StageSpots(this.ally.in(world), this.foe.in(world));
+        }
+    }
+
+    /**
+     * A location without its world.
+     */
+    public record Spot(double x, double y, double z, float yaw, float pitch) {
+
+        public static Spot of(Location location) {
+            return new Spot(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
+        }
+
+        public Location in(@Nullable World world) {
+            return new Location(world, this.x, this.y, this.z, this.yaw, this.pitch);
+        }
     }
 }

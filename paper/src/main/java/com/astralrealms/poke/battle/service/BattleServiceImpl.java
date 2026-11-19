@@ -19,6 +19,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +27,7 @@ import com.astralrealms.core.packet.Packet;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.api.event.BattleEndEvent;
+import com.astralrealms.poke.battle.api.event.BattleResumeEvent;
 import com.astralrealms.poke.battle.api.event.BattleStartEvent;
 import com.astralrealms.poke.battle.api.model.BattleOutcome;
 import com.astralrealms.poke.battle.api.model.BattleRequest;
@@ -56,6 +58,7 @@ import com.astralrealms.poke.battle.protocol.ProtocolLine;
 import com.astralrealms.poke.battle.render.BattleLogRenderer;
 import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleCue;
+import com.astralrealms.poke.battle.ui.BattleStage;
 import com.astralrealms.poke.battle.ui.BattleUi;
 import com.astralrealms.poke.battle.ui.ChoiceDialogs;
 import com.astralrealms.poke.battle.ui.ChoiceView;
@@ -229,7 +232,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                         return CompletableFuture.completedFuture(BattleStartResult.ALREADY_IN_BATTLE);
                     }
                     // Before a worker can run it: another shard may have to take it over
-                    return this.records.saveContext(BattleContext.of(battle), configuration.battle().lockTtl())
+                    BattleContext.Staging staging = request.stage() == null
+                            ? null
+                            : BattleContext.Staging.of(request.stage(), request.spots());
+                    return this.records.saveContext(BattleContext.of(battle, staging), configuration.battle().lockTtl())
                             .thenCompose(_ -> this.transport.start(packet, configuration.start().timeout(),
                                     configuration.start().attempts()))
                             .thenApply(reply -> this.onStartReply(battle, player, reply));
@@ -1510,6 +1516,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             this.showField(battle);
             this.openDialog(battle);
         }
+        this.resumed(battle, player);
     }
 
     /**
@@ -1554,6 +1561,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         battle.workerId(state.workerId());
         battle.adopted(true);
         this.battles.put(battleId, battle);
+        if (context.staging() != null)
+            this.restage(player, battleId, context.staging());
         this.locks.refresh(playerId, battleId, this.plugin.configuration().battle().lockTtl()).exceptionally(_ -> false);
         this.plugin.getSLF4JLogger().info("Taking over battle {} of {} ({})", battleId, player.getName(),
                 state.status());
@@ -1573,6 +1582,35 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             case MISSING -> {
             }
         }
+        if (state.status() == BattleRecords.Status.ALIVE || state.status() == BattleRecords.Status.DEAD)
+            this.resumed(battle, player);
+    }
+
+    /**
+     * Tells the other plugins the player got their battle back, for them to put back what they staged on it.
+     */
+    private void resumed(Battle battle, Player player) {
+        BattleStage stage = this.plugin.stages().placed(battle.id()) ? this.plugin.stages().find(battle.id()) : null;
+        Bukkit.getPluginManager().callEvent(new BattleResumeEvent(battle.id(), player, battle.format(),
+                battle.options().tag(), stage == null ? null : stage.origin()));
+    }
+
+    /**
+     * Lays a battle taken over where its first shard staged it (an arena, a gym's marks), when this server has that
+     * world: the same arena server, its instance still open. Elsewhere it is laid in front of the player, as any
+     * battle that was not staged.
+     */
+    private void restage(Player player, UUID battleId, BattleContext.Staging staging) {
+        World world = Bukkit.getWorld(staging.world());
+        if (world == null) {
+            this.plugin.getSLF4JLogger().warn("Battle {}: its stage world {} is not on this server, laid in front of "
+                    + "{}", battleId, staging.world(), player.getName());
+            return;
+        }
+        this.plugin.stages().place(battleId, staging.stage(world), staging.spots(world), this.plugin.configuration());
+        if (!world.equals(player.getWorld()))
+            this.plugin.getSLF4JLogger().info("Battle {}: staged again in {}, {} is in {} for now", battleId,
+                    world.getName(), player.getName(), player.getWorld().getName());
     }
 
     /**

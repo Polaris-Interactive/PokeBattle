@@ -6,8 +6,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.bukkit.Location;
 import org.junit.jupiter.api.Test;
 
+import com.astralrealms.poke.battle.api.model.StageSpots;
 import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
 import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
 import com.astralrealms.poke.core.model.Gender;
@@ -72,5 +74,72 @@ class BattleContextTest {
         assertThat(read.options().experience()).isEqualTo(1.0);
         assertThat(read.options().trainer()).isNull();
         assertThat(read.options().tag()).isNull();
+    }
+
+    @Test
+    void gymStagingSurvivesRedisAsJson() {
+        Location stage = new Location(null, 11.5, 95, -29.5, 180, 0);
+        StageSpots spots = new StageSpots(new Location(null, 11.5, 95, -32.5),
+                new Location(null, 10.5, 95, -45.5, 90, 5));
+        BattleContext context = new BattleContext(UUID.randomUUID(), "polarisgym", UUID.randomUUID(),
+                List.of(UUID.randomUUID()), List.of(Battle.Foe.of("1", TrainerMember.of("fakemon", null, 14))),
+                new Battle.Options(false, true, false, null, Set.of(), "arena-rock", "Pierre", null,
+                        "poketrainers:pierre"),
+                BattleContext.Staging.of("instance-7", stage, spots));
+
+        BattleContext read = BattleContext.fromJson(context.toJson());
+
+        assertThat(read).isEqualTo(context);
+        BattleContext.Staging staging = read.staging();
+        assertThat(staging).isNotNull();
+        assertThat(staging.world()).isEqualTo("instance-7");
+        assertThat(staging.stage(null)).isEqualTo(stage);
+        StageSpots back = staging.spots(null);
+        assertThat(back).isNotNull();
+        assertThat(back.ally()).isEqualTo(spots.ally());
+        assertThat(back.foe()).isEqualTo(spots.foe());
+    }
+
+    @Test
+    void stagingWithoutCreatureSpotsKeepsTheConfiguredOffsets() {
+        // A wild arena: staged at the template's stage spawn, creatures at the configured offsets
+        BattleContext.Staging staging = BattleContext.Staging.of("arena-1", new Location(null, 0.5, 64, 0.5, 90, 0),
+                null);
+        BattleContext context = new BattleContext(UUID.randomUUID(), "polariswild", UUID.randomUUID(), List.of(),
+                List.of(), new Battle.Options(true, true, true, null, Set.of(), "arena"), staging);
+
+        BattleContext read = BattleContext.fromJson(context.toJson());
+
+        assertThat(read.staging()).isEqualTo(staging);
+        assertThat(read.staging().spots(null)).isNull();
+        assertThat(read.staging().stage(null).getYaw()).isEqualTo(90);
+    }
+
+    @Test
+    void unstagedBattleWritesNoStaging() {
+        BattleContext context = new BattleContext(UUID.randomUUID(), "polariswild", UUID.randomUUID(), List.of(),
+                List.of(), new Battle.Options(true, true, true, null, Set.of(), "world"));
+
+        String json = context.toJson();
+
+        assertThat(json).doesNotContain("staging");
+        assertThat(BattleContext.fromJson(json).staging()).isNull();
+    }
+
+    @Test
+    void contextWrittenBeforeStagingStillReads() {
+        // A gym battle taken over from a shard that did not keep where it was staged
+        String json = """
+                {"battleId":"0190f1c4-0000-7000-8000-000000000001","format":"polarisgym",
+                 "playerId":"0190f1c4-0000-7000-8000-000000000002","allies":[],
+                 "foes":[{"label":"1","species":"fakemon","level":14}],
+                 "options":{"capture":false,"bag":true,"flee":false,"captureFlags":[],"metAt":"arena-rock",
+                            "trainer":"Pierre","tag":"poketrainers:pierre"}}""";
+
+        BattleContext read = BattleContext.fromJson(json);
+
+        assertThat(read.staging()).isNull();
+        assertThat(read.options().tag()).isEqualTo("poketrainers:pierre");
+        assertThat(read.foes().getFirst().level()).isEqualTo(14);
     }
 }
