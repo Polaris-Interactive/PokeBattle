@@ -159,7 +159,8 @@ final class BattleCamera {
     /**
      * The shot of a beat's cue, looking at the creatures the beat is about: in doubles, a shot that looks at
      * {@code ally} or {@code foe} looks at the partner ({@code ally-2}, {@code foe-2}) when the beat's creature, or the
-     * target of its move, stands there.
+     * target of its move, stands there; a shot of the other side with no target looks at the creature across
+     * ({@code p2b} faces {@code p1a}).
      */
     private PokeBattleConfiguration.@Nullable Shot shot(BattleBeat beat) {
         BattleCue cue = beat.cue();
@@ -176,6 +177,8 @@ final class BattleCamera {
             slot = beat.slot();
         else if (beat.target() != null && beat.target().ally() == ally)
             slot = beat.target().slot();
+        else if (beat.field().doubles() && beat.slot() <= 1)
+            slot = 1 - beat.slot();
         if (slot <= 0)
             return shot;
         return new PokeBattleConfiguration.Shot(shot.from(), BattleStage.key(ally, slot), shot.glide(), shot.hold());

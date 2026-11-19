@@ -956,9 +956,10 @@ final class BattleHud {
         ChoiceView.Creature ally = this.field.ally();
         if (!FieldView.present(ally))
             return null;
-        // The team is as old as the last choice: after a switch, its active member is no longer the one on the card
+        // The team is as old as the last choice: after a switch, its active member is no longer the one on the card.
+        // The card is the first position's, the team's first member, whatever its partner is called
         return this.team.stream()
-                .filter(member -> member.active() && member.name().equals(ally.name()))
+                .filter(member -> member.position() == 1 && member.active() && member.name().equals(ally.name()))
                 .findFirst()
                 .map(this::memberTooltip)
                 .orElse(null);
