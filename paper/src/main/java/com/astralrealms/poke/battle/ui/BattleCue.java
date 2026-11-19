@@ -28,7 +28,10 @@ public enum BattleCue {
     ALLY_UNBOOST,
     FOE_UNBOOST,
     CAPTURE,
-    END;
+    END,
+    /** The side's two creatures traded places (Ally Switch, doubles). */
+    ALLY_SWAP,
+    FOE_SWAP;
 
     /**
      * Its key in {@code config.yml}: {@code ally-move}...
@@ -45,6 +48,7 @@ public enum BattleCue {
             case "switch", "drag" -> side(line, ALLY_SWITCH, FOE_SWITCH);
             case "move" -> side(line, ALLY_MOVE, FOE_MOVE);
             case "faint" -> side(line, ALLY_FAINT, FOE_FAINT);
+            case "swap" -> side(line, ALLY_SWAP, FOE_SWAP);
             case "-damage" -> side(line, ALLY_DAMAGE, FOE_DAMAGE);
             case "-boost" -> changed(line) ? side(line, ALLY_BOOST, FOE_BOOST) : null;
             case "-unboost" -> changed(line) ? side(line, ALLY_UNBOOST, FOE_UNBOOST) : null;

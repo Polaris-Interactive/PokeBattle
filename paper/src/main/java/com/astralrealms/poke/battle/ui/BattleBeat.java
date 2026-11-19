@@ -19,7 +19,7 @@ import net.kyori.adventure.text.Component;
  * @param slot   the slot of the creature the cue is about ({@code 0} for {@code p1a}/{@code p2a}, {@code 1} for
  *               {@code b} in doubles)
  * @param target for a move cue, the creature it was aimed at; null when the line names none (then the creature
- *               across)
+ *               across). For a swap, the position the creature went to
  */
 public record BattleBeat(@Nullable BattleCue cue, @Nullable String move, FieldView field, List<Component> log,
                          int slot, @Nullable Spot target) {
@@ -41,10 +41,22 @@ public record BattleBeat(@Nullable BattleCue cue, @Nullable String move, FieldVi
      */
     public static BattleBeat of(BattleCue cue, ProtocolLine line, FieldView field, List<Component> log) {
         PokemonRef actor = PokemonRef.parse(line.arg(0));
+        int slot = actor == null ? 0 : actor.slot();
+        if (line.type().equals("swap"))
+            return new BattleBeat(cue, null, field, log, slot, actor == null ? null
+                    : new Spot(actor.side().equals(Battle.PLAYER_SIDE), number(line.arg(1))));
         PokemonRef target = line.type().equals("move") ? PokemonRef.parse(line.arg(2)) : null;
-        return new BattleBeat(cue, BattleCue.move(line), field, log, actor == null ? 0 : actor.slot(),
+        return new BattleBeat(cue, BattleCue.move(line), field, log, slot,
                 target == null || target.slot() < 0 ? null : new Spot(target.side().equals(Battle.PLAYER_SIDE),
                         target.slot()));
+    }
+
+    private static int number(String value) {
+        try {
+            return Math.max(0, Integer.parseInt(value.trim()));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     /**

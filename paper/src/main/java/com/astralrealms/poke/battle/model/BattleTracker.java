@@ -64,6 +64,7 @@ public class BattleTracker {
     public void accept(ProtocolLine line) {
         switch (line.type()) {
             case "switch", "drag", "replace" -> this.onSwitch(line);
+            case "swap" -> this.onSwap(PokemonRef.parse(line.arg(0)), line.arg(1));
             case "-damage", "-heal", "-sethp" -> this.onCondition(PokemonRef.parse(line.arg(0)), line.arg(1));
             case "-status" -> this.onStatus(PokemonRef.parse(line.arg(0)), line.arg(1));
             case "-curestatus" -> this.onStatus(PokemonRef.parse(line.arg(0)), "");
@@ -99,6 +100,27 @@ public class BattleTracker {
                 fought.add(ally);
         }
         this.participants.put(ref.label(), fought);
+    }
+
+    /**
+     * {@code |swap|<creature at its old position>|<new 0-based position>} (Ally Switch): the two positions of a side
+     * trade creatures.
+     */
+    private void onSwap(@Nullable PokemonRef ref, String position) {
+        int to;
+        try {
+            to = Integer.parseInt(position.trim());
+        } catch (NumberFormatException e) {
+            return;
+        }
+        if (ref == null || ref.slot() < 0 || to < 0 || to == ref.slot())
+            return;
+        this.slots = Math.max(this.slots, to + 1);
+        String other = this.active.put(ref.side() + PokemonRef.position(to), ref.label());
+        if (other == null)
+            this.active.remove(ref.key());
+        else
+            this.active.put(ref.key(), other);
     }
 
     private void onCondition(@Nullable PokemonRef ref, String value) {

@@ -2,6 +2,9 @@ package com.astralrealms.poke.battle.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+import java.util.UUID;
+
 import org.junit.jupiter.api.Test;
 
 import com.astralrealms.poke.battle.protocol.ProtocolLine;
@@ -53,5 +56,22 @@ class BattleCueTest {
     void keysAreKebabCase() {
         assertThat(BattleCue.ALLY_MOVE.key()).isEqualTo("ally-move");
         assertThat(BattleCue.END.key()).isEqualTo("end");
+    }
+
+    @Test
+    void doublesBeatsNameTheirPositionAndTarget() {
+        ChoiceView.Creature nobody = new ChoiceView.Creature("", 0, 0, 0, "", "", "");
+        FieldView field = new FieldView(UUID.randomUUID(), 1, nobody, nobody);
+        ProtocolLine move = ProtocolLine.parse("|move|p1b: 2|Test Move|p2a: 1");
+        BattleBeat aimed = BattleBeat.of(BattleCue.of(move), move, field, List.of());
+        assertThat(aimed.slot()).isEqualTo(1);
+        assertThat(aimed.target()).isEqualTo(new BattleBeat.Spot(false, 0));
+
+        ProtocolLine swap = ProtocolLine.parse("|swap|p2a: 1|1|[from] move: Ally Switch");
+        assertThat(BattleCue.of(swap)).isEqualTo(BattleCue.FOE_SWAP);
+        BattleBeat swapped = BattleBeat.of(BattleCue.FOE_SWAP, swap, field, List.of());
+        assertThat(swapped.slot()).isZero();
+        assertThat(swapped.target()).isEqualTo(new BattleBeat.Spot(false, 1));
+        assertThat(swapped.move()).isNull();
     }
 }

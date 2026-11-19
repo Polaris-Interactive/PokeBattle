@@ -53,6 +53,7 @@ public class BattleLogRenderer {
                         : this.hp(line.arg(0), line.arg(1));
             }
             case "faint" -> PokeBattleMessages.LOG_FAINT.component(this.creature(line.arg(0)));
+            case "swap" -> PokeBattleMessages.LOG_SWAP.component(this.creature(line.arg(0)));
             case "-supereffective" -> PokeBattleMessages.LOG_SUPER_EFFECTIVE.component();
             case "-resisted" -> PokeBattleMessages.LOG_RESISTED.component();
             case "-immune" -> PokeBattleMessages.LOG_IMMUNE.component(this.creature(line.arg(0)));

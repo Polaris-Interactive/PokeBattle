@@ -76,4 +76,24 @@ class DoublesTrackerTest {
                 new BattleTracker.Defeat("1", Set.of("1", "2")),
                 new BattleTracker.Defeat("2", Set.of("1")));
     }
+
+    @Test
+    void allySwitchTradesThePositionsOfASide() {
+        BattleTracker tracker = feed(
+                "|gametype|doubles",
+                "|switch|p1a: 1|Emberling, L10|30/38",
+                "|switch|p1b: 2|Leafkit, L12|31/31",
+                "|switch|p2a: 1|Pebblit, L7|100/100",
+                "|switch|p2b: 2|Mosslet, L8|100/100",
+                "|swap|p2a: 1|1|[from] move: Ally Switch");
+
+        assertThat(tracker.active("p2", 0)).isEqualTo("2");
+        assertThat(tracker.active("p2", 1)).isEqualTo("1");
+        assertThat(tracker.active("p1", 0)).isEqualTo("1");
+
+        // Back again, from the creature's new position
+        tracker.accept(ProtocolLine.parse("|swap|p2b: 1|0|[from] move: Ally Switch"));
+        assertThat(tracker.active("p2", 0)).isEqualTo("1");
+        assertThat(tracker.active("p2", 1)).isEqualTo("2");
+    }
 }

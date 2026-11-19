@@ -82,6 +82,8 @@ log-run-failed: "<gray>Impossible de fuir !"
 log-item: "<gray>Vous utilisez %item% <gray>sur %pokemon%<gray>."
 log-revive: "%pokemon% <gray>reprend connaissance !"
 log-timer: "<warning>Temps écoulé : une action a été choisie pour vous."
+# Doubles: Ally Switch, the creature traded places with its partner.
+log-swap: "%pokemon% <gray>change de place avec son partenaire !"
 
 # Choice dialog
 dialog-title: "<gold>Combat <gray>· tour %turn%"

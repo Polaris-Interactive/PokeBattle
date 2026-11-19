@@ -85,6 +85,7 @@ public enum PokeBattleMessages implements MessageEnum {
     LOG_ITEM,
     LOG_REVIVE,
     LOG_TIMER,
+    LOG_SWAP,
     DIALOG_TITLE,
     DIALOG_FIELD,
     DIALOG_FORCED_SWITCH,

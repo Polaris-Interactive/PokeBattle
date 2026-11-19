@@ -135,6 +135,8 @@ public class StagedUi implements BattleUi {
             case ALLY_FAINT -> scene.faint(ally);
             case FOE_FAINT -> scene.faint(foe);
             case CAPTURE -> scene.leave(new Spot(false, 0), 0);
+            case ALLY_SWAP -> scene.swap(ally, beat.target());
+            case FOE_SWAP -> scene.swap(foe, beat.target());
             case END -> {
             }
         }
@@ -321,7 +323,8 @@ public class StagedUi implements BattleUi {
         Spot target(Spot attacker, @Nullable Spot aimed) {
             if (aimed != null && !aimed.equals(attacker) && shown(this.standing.get(aimed)))
                 return aimed;
-            Spot across = new Spot(!attacker.ally(), attacker.slot());
+            // Across the stage: p2b faces p1a in doubles (the partners stand on the other side of each line)
+            Spot across = new Spot(!attacker.ally(), attacker.slot() <= 1 ? 1 - attacker.slot() : attacker.slot());
             if (shown(this.standing.get(across)))
                 return across;
             return this.standing.keySet().stream()
@@ -485,6 +488,39 @@ public class StagedUi implements BattleUi {
                 this.hp.put(new Spot(true, slot), field.ally(slot).hp());
             for (int slot = 0; slot < field.foes().size(); slot++)
                 this.hp.put(new Spot(false, slot), field.foe(slot).hp());
+        }
+
+        /**
+         * The creatures at {@code from} and {@code to} traded places (Ally Switch): each goes to the other's spot.
+         */
+        void swap(Spot from, @Nullable Spot to) {
+            if (to == null || to.equals(from))
+                return;
+            for (Spot spot : List.of(from, to)) {
+                StageMotion motion = this.moving.remove(spot);
+                if (motion != null)
+                    motion.cancel();
+            }
+            Actor first = this.standing.remove(from);
+            Actor second = this.standing.remove(to);
+            BattleStage.Body firstBody = this.stage.body(key(from));
+            BattleStage.Body secondBody = this.stage.body(key(to));
+            Integer firstHp = this.hp.remove(from);
+            Integer secondHp = this.hp.remove(to);
+            this.place(to, first, firstBody, firstHp);
+            this.place(from, second, secondBody, secondHp);
+        }
+
+        private void place(Spot spot, @Nullable Actor actor, BattleStage.@Nullable Body body, @Nullable Integer hp) {
+            this.stage.body(key(spot), actor == null ? null : body);
+            if (hp != null)
+                this.hp.put(spot, hp);
+            if (actor == null)
+                return;
+            Location home = this.stage.spot(spot.ally(), spot.slot());
+            if (actor.entity().isValid())
+                actor.entity().teleport(home);
+            this.standing.put(spot, new Actor(actor.species(), actor.entity(), home.clone()));
         }
 
         void faint(Spot side) {
