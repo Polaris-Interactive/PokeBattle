@@ -13,6 +13,10 @@ import com.astralrealms.poke.battle.api.model.StageSpots;
 import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
 import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
 import com.astralrealms.poke.core.model.Gender;
+import com.astralrealms.poke.core.model.MoveSlot;
+import com.astralrealms.poke.core.model.Pokemon;
+import com.astralrealms.poke.core.model.PokemonLocation;
+import com.astralrealms.poke.core.model.PokemonOrigin;
 import com.astralrealms.poke.core.model.stat.StatSpread;
 import com.astralrealms.poke.core.team.TrainerMember;
 
@@ -52,6 +56,26 @@ class BattleContextTest {
         assertThat(read.options().trainer()).isEqualTo("Pierre");
         assertThat(read.options().experience()).isEqualTo(1.5);
         assertThat(read.options().tag()).isEqualTo("poketrainers:pierre");
+    }
+
+    @Test
+    void standInsAreKeptWhole() {
+        UUID owner = UUID.randomUUID();
+        Pokemon rental = new Pokemon(UUID.randomUUID(), owner, "fakemon", null, "Rent", 50, 125000, "calm",
+                "ability-a", false, Gender.MALE, false, "items:common/example-ball", "items:held/example", 70,
+                new StatSpread(31, 31, 31, 31, 31, 31), new StatSpread(0, 252, 0, 0, 4, 252), 140, null,
+                List.of(new MoveSlot("move-a", 15, 0), new MoveSlot("move-b", 5, 3)), owner, "tower", 50,
+                PokemonOrigin.EVENT, PokemonLocation.PARTY, null, 0, 0);
+        BattleContext context = new BattleContext(UUID.randomUUID(), "polaristower", owner,
+                List.of(rental.id()), List.of(Battle.Foe.of("1", TrainerMember.of("othermon", null, 50))),
+                new Battle.Options(false, false, false, null, Set.of(), "tower", "Rival", 0.0,
+                        "poketrainers:tower:run", true), null, List.of(rental));
+
+        BattleContext read = BattleContext.fromJson(context.toJson());
+
+        assertThat(read).isEqualTo(context);
+        assertThat(read.standIns()).containsExactly(rental);
+        assertThat(read.options().foughtByStandIns()).isTrue();
     }
 
     @Test

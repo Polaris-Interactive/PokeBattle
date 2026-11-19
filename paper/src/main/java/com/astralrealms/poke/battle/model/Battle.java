@@ -84,13 +84,24 @@ public class Battle {
      * @param trainer              the NPC trainer's name, null for a wild battle
      * @param experienceMultiplier the request's, null for none (1.0)
      * @param tag                  the request's tag, given back by the battle's events
+     * @param standIns             the player's side are stand-ins, not stored creatures: nothing is written when it
+     *                             ends; null for false
      */
     public record Options(boolean capture, boolean bag, boolean flee, @Nullable SignedRoll wildRoll,
                           Set<String> captureFlags, String metAt, @Nullable String trainer,
-                          @Nullable Double experienceMultiplier, @Nullable String tag) {
+                          @Nullable Double experienceMultiplier, @Nullable String tag, @Nullable Boolean standIns) {
 
         public Options {
             captureFlags = captureFlags == null ? Set.of() : Set.copyOf(captureFlags);
+        }
+
+        /**
+         * Options of a battle fought by the player's stored creatures.
+         */
+        public Options(boolean capture, boolean bag, boolean flee, @Nullable SignedRoll wildRoll,
+                       Set<String> captureFlags, String metAt, @Nullable String trainer,
+                       @Nullable Double experienceMultiplier, @Nullable String tag) {
+            this(capture, bag, flee, wildRoll, captureFlags, metAt, trainer, experienceMultiplier, tag, null);
         }
 
         /**
@@ -103,6 +114,13 @@ public class Battle {
 
         public double experience() {
             return this.experienceMultiplier == null ? 1.0 : this.experienceMultiplier;
+        }
+
+        /**
+         * Whether the player's side are stand-ins: the battle writes nothing.
+         */
+        public boolean foughtByStandIns() {
+            return Boolean.TRUE.equals(this.standIns);
         }
     }
 

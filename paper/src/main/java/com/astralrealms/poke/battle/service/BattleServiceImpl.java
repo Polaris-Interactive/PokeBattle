@@ -157,33 +157,11 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Player player = request.player();
         UUID playerId = player.getUniqueId();
         SpeciesRegistry registry = PokeCoreAPI.get().species();
-        TrainerStorage storage = PokeCoreAPI.get().trainers().cached(playerId).orElse(null);
-        if (storage == null)
+        List<Battle.Ally> allies = request.standIns() != null
+                ? standInAllies(request.standIns(), registry)
+                : this.partyAllies(playerId, request.lead(), registry);
+        if (allies.isEmpty())
             return CompletableFuture.completedFuture(BattleStartResult.NO_USABLE_CREATURE);
-
-        // Standing creatures first (the lead must fight); fainted ones follow, only there to be revived from the bag
-        List<Pokemon> standing = new ArrayList<>();
-        List<Pokemon> fainted = new ArrayList<>();
-        for (Pokemon pokemon : storage.partyMembers())
-            (PokemonStats.currentHp(pokemon, registry) > 0 ? standing : fainted).add(pokemon);
-        if (standing.isEmpty())
-            return CompletableFuture.completedFuture(BattleStartResult.NO_USABLE_CREATURE);
-        // The creature the player threw at it goes first, the others keep their order
-        if (request.lead() != null)
-            standing.stream()
-                    .filter(pokemon -> pokemon.id().equals(request.lead()))
-                    .findFirst()
-                    .ifPresent(lead -> {
-                        standing.remove(lead);
-                        standing.addFirst(lead);
-                    });
-        List<Battle.Ally> allies = new ArrayList<>();
-        for (Pokemon pokemon : standing)
-            if (allies.size() < MAX_TEAM)
-                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
-        for (Pokemon pokemon : fainted)
-            if (allies.size() < MAX_TEAM)
-                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
 
         UUID battleId = UuidV7.generate();
         BattleRules rules = request.rules();
@@ -196,11 +174,14 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         try {
             SignedRoll wild = request.wild();
             TrainerOpponent trainer = request.trainer();
+            List<Pokemon> standIns = request.standIns();
             if (wild != null) {
                 foes.add(Battle.Foe.of(Battle.label(0), wild.creature()));
                 foeSets.add(BattleSets.of(wild.creature(), Battle.label(0), registry));
-                options = new Battle.Options(rules.capture(), rules.bag(), rules.flee(), wild, request.captureFlags(),
-                        metAt, null, rules.experienceMultiplier(), request.tag());
+                // Stand-ins never catch: a caught creature would be written
+                options = new Battle.Options(rules.capture() && standIns == null, rules.bag(), rules.flee(), wild,
+                        request.captureFlags(), metAt, null, rules.experienceMultiplier(), request.tag(),
+                        standIns == null ? null : true);
             } else {
                 List<String> errors = PokeCoreAPI.get().creation().validate(trainer.team());
                 if (!errors.isEmpty()) {
@@ -217,7 +198,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 }
                 // Never capture a trainer's creature, whatever the rules say
                 options = new Battle.Options(false, rules.bag(), rules.flee(), null, Set.of(), metAt,
-                        trainerName(trainer.name()), rules.experienceMultiplier(), request.tag());
+                        trainerName(trainer.name()), rules.experienceMultiplier(), request.tag(),
+                        standIns == null ? null : true);
             }
             battle = new Battle(battleId, request.format(), playerId, allies, foes, options);
             packet = this.startPacket(battle, player.getName(), registry, foeSets,
@@ -255,6 +237,53 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                     this.discard(battle);
                     return BattleStartResult.ERROR;
                 });
+    }
+
+    /**
+     * The player's party as it fights: standing creatures first (the lead must fight), the one the player threw at the
+     * wild creature leading; fainted ones follow, only there to be revived from the bag. Empty when no creature can
+     * fight.
+     */
+    private List<Battle.Ally> partyAllies(UUID playerId, @Nullable UUID lead, SpeciesRegistry registry) {
+        TrainerStorage storage = PokeCoreAPI.get().trainers().cached(playerId).orElse(null);
+        if (storage == null)
+            return List.of();
+        List<Pokemon> standing = new ArrayList<>();
+        List<Pokemon> fainted = new ArrayList<>();
+        for (Pokemon pokemon : storage.partyMembers())
+            (PokemonStats.currentHp(pokemon, registry) > 0 ? standing : fainted).add(pokemon);
+        if (standing.isEmpty())
+            return List.of();
+        // The creature the player threw at it goes first, the others keep their order
+        if (lead != null)
+            standing.stream()
+                    .filter(pokemon -> pokemon.id().equals(lead))
+                    .findFirst()
+                    .ifPresent(first -> {
+                        standing.remove(first);
+                        standing.addFirst(first);
+                    });
+        List<Battle.Ally> allies = new ArrayList<>();
+        for (Pokemon pokemon : standing)
+            if (allies.size() < MAX_TEAM)
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+        for (Pokemon pokemon : fainted)
+            if (allies.size() < MAX_TEAM)
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+        return allies;
+    }
+
+    /**
+     * Stand-ins as they fight, in the given order; empty when none can fight (the first must).
+     */
+    static List<Battle.Ally> standInAllies(List<Pokemon> standIns, SpeciesRegistry registry) {
+        if (standIns.isEmpty() || PokemonStats.currentHp(standIns.getFirst(), registry) <= 0)
+            return List.of();
+        List<Battle.Ally> allies = new ArrayList<>();
+        for (Pokemon pokemon : standIns)
+            if (allies.size() < MAX_TEAM)
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+        return allies;
     }
 
     /**
@@ -977,6 +1006,10 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     private void settleClaimed(Battle battle, BattleEndedPacket ended, boolean retaken, int attempt) {
         BattleTracker.Capture capture = battle.tracker().capture();
         BattleOutcome outcome = outcome(battle, ended);
+        if (battle.options().foughtByStandIns()) {
+            this.settleStandIns(battle, outcome, ended.turns());
+            return;
+        }
         BattleTeamState team = ended.teams()
                 .stream()
                 .filter(state -> state.slot().equals(Battle.PLAYER_SIDE))
@@ -1208,6 +1241,22 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                                             gain.experience(), gain.evs(), gain.friendship()))
                                     .toList(),
                             false));
+                });
+    }
+
+    /**
+     * A battle fought by stand-ins writes nothing (no condition, no reward, no capture): only its outcome is told.
+     */
+    private void settleStandIns(Battle battle, BattleOutcome outcome, int turns) {
+        this.records.confirmSettlement(battle.id(), this.shardId)
+                .exceptionally(throwable -> {
+                    this.plugin.getSLF4JLogger().warn("Battle {}: stand-in settlement not confirmed in Redis",
+                            battle.id(), throwable);
+                    return null;
+                })
+                .thenRun(() -> {
+                    this.report(battle, outcome, null, List.of(), List.of());
+                    this.finish(battle, outcome, turns, true);
                 });
     }
 
@@ -1628,18 +1677,25 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     /**
-     * The battle as its first shard built it; null if one of the player's creatures is no longer in their storage.
+     * The battle as its first shard built it; null if one of the player's stored creatures is no longer in their
+     * storage.
      */
     private @Nullable Battle rebuild(BattleContext context) {
-        TrainerStorage storage = PokeCoreAPI.get().trainers().cached(context.playerId()).orElse(null);
-        if (storage == null)
-            return null;
         List<Battle.Ally> allies = new ArrayList<>();
-        for (UUID pokemonId : context.allies()) {
-            Pokemon pokemon = storage.find(pokemonId).orElse(null);
-            if (pokemon == null)
+        if (context.standIns() != null) {
+            // Stand-ins are in no storage: the context kept them whole
+            for (Pokemon pokemon : context.standIns())
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+        } else {
+            TrainerStorage storage = PokeCoreAPI.get().trainers().cached(context.playerId()).orElse(null);
+            if (storage == null)
                 return null;
-            allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+            for (UUID pokemonId : context.allies()) {
+                Pokemon pokemon = storage.find(pokemonId).orElse(null);
+                if (pokemon == null)
+                    return null;
+                allies.add(new Battle.Ally(Battle.label(allies.size()), pokemon));
+            }
         }
         List<Battle.Foe> foes = new ArrayList<>();
         // Labelled again by position: a context written before trainers has no labels

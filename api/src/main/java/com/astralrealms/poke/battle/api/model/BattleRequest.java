@@ -1,5 +1,6 @@
 package com.astralrealms.poke.battle.api.model;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -8,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
 import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
+import com.astralrealms.poke.core.model.Pokemon;
 
 /**
  * A battle to start: a player's party against either one rolled wild creature, which the player can catch (the roll
@@ -28,11 +30,14 @@ import com.astralrealms.poke.core.mechanics.generation.SignedRoll;
  * @param spots        where the creatures stand on a {@code stage}, null for the configured offsets from it
  * @param lead         the party creature sent first (one the player threw at the wild creature), null for the party
  *                     order; ignored when it is not in the party or cannot fight
+ * @param standIns     creatures that fight in place of the player's party (a Battle Tower's rentals, or copies of the
+ *                     player's own creatures at the tower's level), in order, the first leading; null for the party.
+ *                     Nothing such a battle does is written: no condition, no reward, never a capture
  */
 public record BattleRequest(String format, Player player, @Nullable SignedRoll wild,
                             @Nullable TrainerOpponent trainer, Set<String> captureFlags, BattleRules rules,
                             @Nullable String tag, @Nullable Location stage, @Nullable String place,
-                            @Nullable StageSpots spots, @Nullable UUID lead) {
+                            @Nullable StageSpots spots, @Nullable UUID lead, @Nullable List<Pokemon> standIns) {
 
     public static final String WILD_FORMAT = "polariswild";
     public static final String TRAINER_FORMAT = "polaristrainer";
@@ -44,6 +49,21 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
         captureFlags = captureFlags == null ? Set.of() : Set.copyOf(captureFlags);
         if (rules == null)
             rules = wild != null ? BattleRules.WILD : BattleRules.TRAINER;
+        if (standIns != null) {
+            if (standIns.isEmpty() || standIns.size() > TrainerOpponent.MAX_TEAM)
+                throw new IllegalArgumentException("A stand-in team needs 1 to " + TrainerOpponent.MAX_TEAM
+                                                   + " creatures");
+            standIns = List.copyOf(standIns);
+        }
+    }
+
+    /**
+     * Without stand-ins (the request as it was before they existed).
+     */
+    public BattleRequest(String format, Player player, @Nullable SignedRoll wild, @Nullable TrainerOpponent trainer,
+                         Set<String> captureFlags, BattleRules rules, @Nullable String tag, @Nullable Location stage,
+                         @Nullable String place, @Nullable StageSpots spots, @Nullable UUID lead) {
+        this(format, player, wild, trainer, captureFlags, rules, tag, stage, place, spots, lead, null);
     }
 
     /**
@@ -89,7 +109,7 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest at(Location stage, String place) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                this.tag, stage.clone(), place, this.spots, this.lead);
+                this.tag, stage.clone(), place, this.spots, this.lead, this.standIns);
     }
 
     /**
@@ -98,7 +118,7 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest withSpots(@Nullable StageSpots spots) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                this.tag, this.stage, this.place, spots, this.lead);
+                this.tag, this.stage, this.place, spots, this.lead, this.standIns);
     }
 
     /**
@@ -106,7 +126,7 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest withTag(@Nullable String tag) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                tag, this.stage, this.place, this.spots, this.lead);
+                tag, this.stage, this.place, this.spots, this.lead, this.standIns);
     }
 
     /**
@@ -114,6 +134,14 @@ public record BattleRequest(String format, Player player, @Nullable SignedRoll w
      */
     public BattleRequest withLead(@Nullable UUID lead) {
         return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
-                this.tag, this.stage, this.place, this.spots, lead);
+                this.tag, this.stage, this.place, this.spots, lead, this.standIns);
+    }
+
+    /**
+     * The same battle fought by {@code standIns} instead of the player's party; null for the party.
+     */
+    public BattleRequest withStandIns(@Nullable List<Pokemon> standIns) {
+        return new BattleRequest(this.format, this.player, this.wild, this.trainer, this.captureFlags, this.rules,
+                this.tag, this.stage, this.place, this.spots, this.lead, standIns);
     }
 }
