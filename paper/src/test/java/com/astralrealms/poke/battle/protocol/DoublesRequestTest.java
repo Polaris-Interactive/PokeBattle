@@ -103,4 +103,44 @@ class DoublesRequestTest {
         // Singles never takes a target
         assertThat(ChoiceRequest.targets("normal", 0, 1)).isEmpty();
     }
+
+    @Test
+    void aCommandingCreatureAndAnEmptyPositionPass() {
+        ChoiceRequest commanding = ChoiceRequest.parse("""
+                {"active":[
+                  {"moves":[{"move":"Ember Tap","id":"embertap","pp":24,"maxpp":24,"target":"normal"}]},
+                  {"moves":[{"move":"Leaf Cut","id":"leafcut","pp":12,"maxpp":16,"target":"any"}]}],
+                 "side":{"pokemon":[
+                  {"ident":"p1: 1","condition":"30/38","active":true,"commanding":true},
+                  {"ident":"p1: 2","condition":"21/31","active":true,"commanding":false}]},"rqid":11}""");
+        assertThat(commanding.slots()).extracting(ChoiceRequest.Slot::idle).containsExactly(true, false);
+        assertThat(SlotChoices.legal(commanding, "pass, move 1 1")).isTrue();
+        assertThat(SlotChoices.legal(commanding, "move 1 1, move 1 2")).isFalse();
+
+        // A side with a single creature on a doubles field: its second position comes as null
+        ChoiceRequest alone = ChoiceRequest.parse("""
+                {"active":[
+                  {"moves":[{"move":"Ember Tap","id":"embertap","pp":24,"maxpp":24,"target":"normal"}]},
+                  null],
+                 "side":{"pokemon":[{"ident":"p1: 1","condition":"30/38","active":true}]},"rqid":12}""");
+        assertThat(alone.slots()).extracting(ChoiceRequest.Slot::idle).containsExactly(false, true);
+        assertThat(SlotChoices.legal(alone, "move 1 2, pass")).isTrue();
+    }
+
+    @Test
+    void revivalBlessingCanBringBackAFaintedPartnerOnTheField() {
+        ChoiceRequest reviving = ChoiceRequest.parse("""
+                {"forceSwitch":[true,false],"side":{"pokemon":[
+                  {"ident":"p1: 1","condition":"30/38","active":true,"reviving":true},
+                  {"ident":"p1: 2","condition":"0 fnt","active":true},
+                  {"ident":"p1: 3","condition":"18/20","active":false},
+                  {"ident":"p1: 4","condition":"0 fnt","active":false}]},"rqid":13}""");
+        assertThat(reviving.reviving()).isTrue();
+        assertThat(reviving.onBench(2)).isTrue();
+        assertThat(reviving.onBench(4)).isTrue();
+        assertThat(reviving.onBench(1)).isFalse();
+        assertThat(reviving.onBench(3)).isFalse();
+        assertThat(SlotChoices.legal(reviving, "switch 2, pass")).isTrue();
+        assertThat(SlotChoices.legal(reviving, "switch 3, pass")).isFalse();
+    }
 }

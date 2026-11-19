@@ -107,9 +107,12 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
 
         List<List<MoveOption>> movesBySlot = new ArrayList<>();
         List<Boolean> trappedBySlot = new ArrayList<>();
+        // A position with nobody on it (a side with fewer creatures than positions) comes as null
+        List<Boolean> emptyBySlot = new ArrayList<>();
         if (!forceSwitch && root.has("active"))
             for (JsonElement element : root.getAsJsonArray("active")) {
                 List<MoveOption> moves = new ArrayList<>();
+                emptyBySlot.add(!element.isJsonObject());
                 if (!element.isJsonObject()) {
                     movesBySlot.add(moves);
                     trappedBySlot.add(false);
@@ -128,6 +131,7 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
             }
 
         List<TeamMember> team = new ArrayList<>();
+        List<Boolean> commanding = new ArrayList<>();
         boolean reviving = false;
         if (root.has("side")) {
             JsonArray list = root.getAsJsonObject("side").getAsJsonArray("pokemon");
@@ -135,6 +139,8 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
                 JsonObject member = list.get(i).getAsJsonObject();
                 boolean active = member.has("active") && member.get("active").getAsBoolean();
                 reviving |= forceSwitch && active && member.has("reviving") && member.get("reviving").getAsBoolean();
+                // Tatsugiri inside Dondozo: on the field, but it does nothing until it comes out
+                commanding.add(active && member.has("commanding") && member.get("commanding").getAsBoolean());
                 PokemonRef ref = PokemonRef.parse(string(member, "ident"));
                 team.add(new TeamMember(i + 1, ref == null ? "" : ref.label(),
                         Condition.parse(string(member, "condition")), active));
@@ -146,9 +152,13 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
         List<Slot> slots = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             boolean slotForced = forceSwitch && i < forced.size() && forced.get(i);
-            // The active creatures come first in the team: a fainted one with nobody to replace it only passes
+            // The active creatures come first in the team: a fainted one with nobody to replace it only passes, as
+            // does a commanding one or an empty position
             boolean fainted = i < team.size() && team.get(i).active() && team.get(i).fainted();
-            boolean idle = forceSwitch ? !slotForced : count > 1 && fainted;
+            boolean empty = i >= team.size() || (i < emptyBySlot.size() && emptyBySlot.get(i));
+            boolean idle = forceSwitch
+                    ? !slotForced
+                    : count > 1 && (fainted || empty || (i < commanding.size() && commanding.get(i)));
             slots.add(new Slot(i, slotForced, idle, i < trappedBySlot.size() && trappedBySlot.get(i),
                     forceSwitch || i >= movesBySlot.size() ? List.of() : movesBySlot.get(i)));
         }
@@ -227,12 +237,13 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
 
     /**
      * Whether the creature at this position is one a switch may send in, whoever leaves for it (in doubles, each
-     * slot is trapped or not on its own): on the bench and still standing, or fainted after Revival Blessing.
+     * slot is trapped or not on its own): on the bench and still standing. After Revival Blessing, any fainted
+     * member, a fainted partner still on the field included (doubles).
      */
     public boolean onBench(int position) {
         return this.team.stream()
-                .anyMatch(member -> member.position() == position && !member.active()
-                        && member.fainted() == this.reviving);
+                .anyMatch(member -> member.position() == position
+                        && (this.reviving ? member.fainted() : !member.active() && !member.fainted()));
     }
 
     /**
