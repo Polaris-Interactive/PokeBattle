@@ -166,4 +166,59 @@ class BattleContextTest {
         assertThat(read.options().tag()).isEqualTo("poketrainers:pierre");
         assertThat(read.foes().getFirst().level()).isEqualTo(14);
     }
+
+    @Test
+    void doublesStagingKeepsThePartnerSpots() {
+        Location stage = new Location(null, 11.5, 95, -29.5, 180, 0);
+        StageSpots spots = new StageSpots(new Location(null, 12.5, 95, -32.5), new Location(null, 10.5, 95, -45.5),
+                new Location(null, 9.5, 95, -32.5, 0, 0), new Location(null, 13.5, 95, -45.5, 180, 0));
+        BattleContext context = new BattleContext(UUID.randomUUID(), "polaristowerdoubles", UUID.randomUUID(),
+                List.of(UUID.randomUUID(), UUID.randomUUID()),
+                List.of(Battle.Foe.of("1", TrainerMember.of("fakemon", null, 50)),
+                        Battle.Foe.of("2", TrainerMember.of("fakemon", null, 50))),
+                new Battle.Options(false, false, false, null, Set.of(), "tower", "Lise", null, "poketower:1:1"),
+                BattleContext.Staging.of("tower-3", stage, spots));
+
+        BattleContext read = BattleContext.fromJson(context.toJson());
+
+        assertThat(read).isEqualTo(context);
+        StageSpots back = read.staging().spots(null);
+        assertThat(back.allyPartner()).isEqualTo(spots.allyPartner());
+        assertThat(back.foePartner()).isEqualTo(spots.foePartner());
+    }
+
+    @Test
+    void singlesStagingWritesNoPartnerSpots() {
+        StageSpots spots = new StageSpots(new Location(null, 1, 64, 1), new Location(null, 1, 64, 9));
+        assertThat(spots.allyPartner()).isNull();
+        BattleContext context = new BattleContext(UUID.randomUUID(), "polarisgym", UUID.randomUUID(), List.of(),
+                List.of(), new Battle.Options(false, true, false, null, Set.of(), "gym"),
+                BattleContext.Staging.of("gym", new Location(null, 1, 64, 0), spots));
+
+        String json = context.toJson();
+
+        assertThat(json).doesNotContain("Partner");
+        assertThat(BattleContext.fromJson(json).staging().spots(null).allyPartner()).isNull();
+    }
+
+    @Test
+    void stagingWrittenBeforeDoublesStillReads() {
+        String json = """
+                {"battleId":"0190f1c4-0000-7000-8000-000000000001","format":"polarisgym",
+                 "playerId":"0190f1c4-0000-7000-8000-000000000002","allies":[],
+                 "foes":[{"label":"1","species":"fakemon","level":14}],
+                 "options":{"capture":false,"bag":true,"flee":false,"captureFlags":[],"metAt":"arena-rock"},
+                 "staging":{"world":"instance-7","stage":{"x":11.5,"y":95,"z":-29.5,"yaw":180,"pitch":0},
+                            "ally":{"x":11.5,"y":95,"z":-32.5,"yaw":0,"pitch":0},
+                            "foe":{"x":10.5,"y":95,"z":-45.5,"yaw":90,"pitch":5}}}""";
+
+        BattleContext.Staging staging = BattleContext.fromJson(json).staging();
+
+        assertThat(staging.allyPartner()).isNull();
+        assertThat(staging.foePartner()).isNull();
+        StageSpots spots = staging.spots(null);
+        assertThat(spots.ally().getZ()).isEqualTo(-32.5);
+        assertThat(spots.allyPartner()).isNull();
+        assertThat(spots.foePartner()).isNull();
+    }
 }

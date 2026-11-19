@@ -1,7 +1,9 @@
 package com.astralrealms.poke.battle.ui.stage;
 
 import java.time.Duration;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -15,6 +17,7 @@ import org.jetbrains.annotations.Nullable;
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.ui.BattleBeat;
+import com.astralrealms.poke.battle.ui.BattleBeat.Spot;
 import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.BattleStage;
 import com.astralrealms.poke.battle.ui.BattleUi;
@@ -26,8 +29,9 @@ import com.astralrealms.poke.core.species.MoveData;
 
 /**
  * The battle's creatures standing on its stage, around whichever UI the player has (HUD or dialog): each side's
- * active creature, seen only by the player, playing each beat of the battle as {@link com.astralrealms.poke.battle.ui.PacedUi}
- * plays it.
+ * active creatures (one, or two in doubles, each on its own spot), seen only by the player, playing each beat of
+ * the battle as {@link com.astralrealms.poke.battle.ui.PacedUi} plays it: a move goes from its creature to the one
+ * it was aimed at.
  * <p>
  * Also owns the battle's stage: it is dropped when the battle closes. Without {@link CreatureActors} (PokeEntities
  * missing) or with {@code creatures.enabled: false}, it only passes calls on.
@@ -63,8 +67,10 @@ public class StagedUi implements BattleUi {
         if (scene == null)
             return;
         // A creature already out (coming back with /combat, a battle shown after a reload) stands there at once
-        scene.sync(Side.ALLY, field.ally());
-        scene.sync(Side.FOE, field.foe());
+        for (int slot = 0; slot < field.allies().size(); slot++)
+            scene.sync(new Spot(true, slot), field.ally(slot));
+        for (int slot = 0; slot < field.foes().size(); slot++)
+            scene.sync(new Spot(false, slot), field.foe(slot));
         scene.seen(field);
     }
 
@@ -85,8 +91,9 @@ public class StagedUi implements BattleUi {
         Pace full = pace.with(new Pace(0, ticks(spacing) + (owed == null ? 0 : owed)));
         // A creature that goes to its target strikes it there: the next beat (the hit: its flash, the HP lost) comes
         // with the strike, not once the creature is back on its spot
-        long impact = !move ? -1 : this.scene(player, beat.field().battleId())
-                .impact(beat.cue() == BattleCue.ALLY_MOVE ? Side.ALLY : Side.FOE, beat.move());
+        Scene scene = this.scene(player, beat.field().battleId());
+        Spot attacker = new Spot(beat.cue() == BattleCue.ALLY_MOVE, beat.slot());
+        long impact = !move ? -1 : scene.impact(attacker, scene.target(attacker, beat.target()), beat.move());
         if (impact < 0)
             return full;
         long hold = Math.max(1, impact);
@@ -112,20 +119,22 @@ public class StagedUi implements BattleUi {
         if (scene == null || beat.cue() == null)
             return;
         FieldView field = beat.field();
+        Spot ally = new Spot(true, beat.slot());
+        Spot foe = new Spot(false, beat.slot());
         switch (beat.cue()) {
-            case ALLY_SWITCH -> scene.enter(Side.ALLY, field.ally());
-            case FOE_SWITCH -> scene.enter(Side.FOE, field.foe());
-            case ALLY_MOVE -> scene.attack(Side.ALLY, beat.move());
-            case FOE_MOVE -> scene.attack(Side.FOE, beat.move());
-            case ALLY_DAMAGE -> scene.hit(Side.ALLY, field.ally());
-            case FOE_DAMAGE -> scene.hit(Side.FOE, field.foe());
-            case ALLY_BOOST -> scene.stat(Side.ALLY, true);
-            case FOE_BOOST -> scene.stat(Side.FOE, true);
-            case ALLY_UNBOOST -> scene.stat(Side.ALLY, false);
-            case FOE_UNBOOST -> scene.stat(Side.FOE, false);
-            case ALLY_FAINT -> scene.faint(Side.ALLY);
-            case FOE_FAINT -> scene.faint(Side.FOE);
-            case CAPTURE -> scene.leave(Side.FOE, 0);
+            case ALLY_SWITCH -> scene.enter(ally, field.ally(beat.slot()));
+            case FOE_SWITCH -> scene.enter(foe, field.foe(beat.slot()));
+            case ALLY_MOVE -> scene.attack(ally, scene.target(ally, beat.target()), beat.move());
+            case FOE_MOVE -> scene.attack(foe, scene.target(foe, beat.target()), beat.move());
+            case ALLY_DAMAGE -> scene.hit(ally, field.ally(beat.slot()));
+            case FOE_DAMAGE -> scene.hit(foe, field.foe(beat.slot()));
+            case ALLY_BOOST -> scene.stat(ally, true);
+            case FOE_BOOST -> scene.stat(foe, true);
+            case ALLY_UNBOOST -> scene.stat(ally, false);
+            case FOE_UNBOOST -> scene.stat(foe, false);
+            case ALLY_FAINT -> scene.faint(ally);
+            case FOE_FAINT -> scene.faint(foe);
+            case CAPTURE -> scene.leave(new Spot(false, 0), 0);
             case END -> {
             }
         }
@@ -201,14 +210,11 @@ public class StagedUi implements BattleUi {
         return duration == null ? 0 : duration.toMillis() / 50;
     }
 
-    private enum Side {
-        ALLY,
-        FOE;
-
-        /** The side as the stage and its shots name it. */
-        String key() {
-            return this.name().toLowerCase(Locale.ROOT);
-        }
+    /**
+     * The spot as the stage and its shots name it ({@code ally}, {@code foe-2}...).
+     */
+    private static String key(Spot spot) {
+        return BattleStage.key(spot.ally(), spot.slot());
     }
 
     /**
@@ -225,11 +231,11 @@ public class StagedUi implements BattleUi {
         private final Player player;
         private final BattleStage stage;
         private final CreatureActors actors;
-        private final Map<Side, Actor> standing = new HashMap<>();
-        /** A creature moving for its move, by side. */
-        private final Map<Side, StageMotion> moving = new HashMap<>();
-        /** Each side's HP as last shown, to tell how much a hit took. */
-        private final Map<Side, Integer> hp = new HashMap<>();
+        private final Map<Spot, Actor> standing = new HashMap<>();
+        /** A creature moving for its move, by spot. */
+        private final Map<Spot, StageMotion> moving = new HashMap<>();
+        /** Each spot's HP as last shown, to tell how much a hit took. */
+        private final Map<Spot, Integer> hp = new HashMap<>();
 
         Scene(Player player, BattleStage stage, CreatureActors actors) {
             this.player = player;
@@ -240,20 +246,20 @@ public class StagedUi implements BattleUi {
         /**
          * The side's creature now: put there if it is not already (an empty species or a fainted one is left out).
          */
-        void sync(Side side, ChoiceView.Creature creature) {
+        void sync(Spot side, ChoiceView.Creature creature) {
             if (creature.species().isEmpty() || (creature.maxHp() > 0 && creature.hp() <= 0))
                 return;
             Actor actor = this.standing.get(side);
             if (actor != null && actor.species().equals(creature.species()) && actor.entity().isValid())
                 return;
             this.leave(side, 0);
-            Location spot = side == Side.ALLY ? this.stage.ally() : this.stage.foe();
+            Location spot = this.stage.spot(side.ally(), side.slot());
             Entity entity = this.actors.spawn(this.player, creature.species(), spot);
             if (entity == null)
                 return;
             this.standing.put(side, new Actor(creature.species(), entity, spot.clone()));
             // The camera frames it, and keeps clear of it, by its size
-            this.stage.body(side.key(), this.actors.size(entity));
+            this.stage.body(key(side), this.actors.size(entity));
             // Its battle stance, looping under everything else it plays (a once animation goes back to it)
             this.animate(side, "stance");
         }
@@ -261,7 +267,7 @@ public class StagedUi implements BattleUi {
         /**
          * A creature was sent out: it takes the spot and plays its entrance.
          */
-        void enter(Side side, ChoiceView.Creature creature) {
+        void enter(Spot side, ChoiceView.Creature creature) {
             this.leave(side, 0);
             this.sync(side, creature);
             this.animate(side, "switch");
@@ -273,7 +279,7 @@ public class StagedUi implements BattleUi {
          *
          * @return the animation played, null for none
          */
-        @Nullable String animate(Side side, String moment, String fallback, @Nullable String move) {
+        @Nullable String animate(Spot side, String moment, String fallback, @Nullable String move) {
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
             if (config == null)
                 return null;
@@ -285,15 +291,15 @@ public class StagedUi implements BattleUi {
          *
          * @return the animation played, null for none
          */
-        @Nullable String animate(Side side, String moment) {
+        @Nullable String animate(Spot side, String moment) {
             return this.animate(side, moment, null);
         }
 
         /**
-         * As {@link #animate(Side, String)}; {@code {move}} in an animation name stands for the move's id, so a model
+         * As {@link #animate(Spot, String)}; {@code {move}} in an animation name stands for the move's id, so a model
          * can have an animation of its own for a move ({@code vinewhip}). Names left with a placeholder are skipped.
          */
-        @Nullable String animate(Side side, String moment, @Nullable String move) {
+        @Nullable String animate(Spot side, String moment, @Nullable String move) {
             Actor actor = this.standing.get(side);
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
             if (actor == null || config == null || !actor.entity().isValid())
@@ -309,23 +315,39 @@ public class StagedUi implements BattleUi {
         }
 
         /**
-         * The side's creature uses a move. A move with a motion ({@link MoveMotions}) first takes it to the other
-         * creature (running, leaping, underground...), strikes there and brings it back; any other strikes from its
-         * spot.
+         * Who a move from {@code attacker} is aimed at: the creature its line names when it stands there, else the
+         * one across from it, else the first one standing on the other side.
          */
-        void attack(Side side, @Nullable String move) {
+        Spot target(Spot attacker, @Nullable Spot aimed) {
+            if (aimed != null && !aimed.equals(attacker) && shown(this.standing.get(aimed)))
+                return aimed;
+            Spot across = new Spot(!attacker.ally(), attacker.slot());
+            if (shown(this.standing.get(across)))
+                return across;
+            return this.standing.keySet().stream()
+                    .filter(spot -> spot.ally() != attacker.ally() && shown(this.standing.get(spot)))
+                    .min(Comparator.comparingInt(Spot::slot))
+                    .orElse(new Spot(!attacker.ally(), 0));
+        }
+
+        /**
+         * The side's creature uses a move on {@code target}. A move with a motion ({@link MoveMotions}) first takes it
+         * to that creature (running, leaping, underground...), strikes there and brings it back; any other strikes
+         * from its spot.
+         */
+        void attack(Spot side, Spot target, @Nullable String move) {
             Actor attacker = this.standing.get(side);
             MoveMotions.Motion motion = plugin.motions().get(move);
-            Location contact = motion == null ? null : this.contact(side);
+            Location contact = motion == null ? null : this.contact(side, target);
             StageMotion previous = this.moving.remove(side);
             if (previous != null)
                 previous.cancel();
             if (motion == null || contact == null || !shown(attacker)) {
-                this.strike(side, move);
+                this.strike(side, target, move);
                 return;
             }
             StageMotion running = new StageMotion(plugin, attacker.entity(), attacker.home(), contact, motion,
-                    this.height(side), () -> this.strike(side, move) + STRIKE_HOLD);
+                    this.height(side), () -> this.strike(side, target, move) + STRIKE_HOLD);
             this.moving.put(side, running);
             running.start();
         }
@@ -334,10 +356,10 @@ public class StagedUi implements BattleUi {
          * Ticks before the side's creature hits its target with this move, for a move that takes it there: the way,
          * then its strike up to the release marker. -1 for a move it uses from its spot (its effect travels).
          */
-        long impact(Side side, @Nullable String move) {
+        long impact(Spot side, Spot target, @Nullable String move) {
             MoveMotions.Motion motion = plugin.motions().get(move);
             Actor attacker = this.standing.get(side);
-            Location contact = motion == null ? null : this.contact(side);
+            Location contact = motion == null ? null : this.contact(side, target);
             if (contact == null || !shown(attacker))
                 return -1;
             return StageMotion.ticksToStrike(motion, attacker.home(), contact, this.height(side))
@@ -365,12 +387,11 @@ public class StagedUi implements BattleUi {
         }
 
         /**
-         * Where the side's creature strikes the other one from: in front of it, the two bodies apart. Null when there
-         * is nobody to go to.
+         * Where the side's creature strikes {@code otherSide}'s from: in front of it, the two bodies apart. Null when
+         * there is nobody to go to.
          */
-        private @Nullable Location contact(Side side) {
+        private @Nullable Location contact(Spot side, Spot otherSide) {
             Actor self = this.standing.get(side);
-            Side otherSide = side == Side.ALLY ? Side.FOE : Side.ALLY;
             Actor other = this.standing.get(otherSide);
             if (!shown(self) || !shown(other))
                 return null;
@@ -378,8 +399,8 @@ public class StagedUi implements BattleUi {
             Location to = other.home();
             Vector way = to.toVector().subtract(from.toVector()).setY(0);
             double distance = way.length();
-            BattleStage.Body mine = this.stage.body(side.key());
-            BattleStage.Body theirs = this.stage.body(otherSide.key());
+            BattleStage.Body mine = this.stage.body(key(side));
+            BattleStage.Body theirs = this.stage.body(key(otherSide));
             double gap = Math.max(MIN_GAP, ((mine == null ? 1 : mine.width()) + (theirs == null ? 1 : theirs.width())) / 2
                     + CONTACT_ROOM);
             if (distance <= gap)
@@ -390,20 +411,20 @@ public class StagedUi implements BattleUi {
             return contact;
         }
 
-        private double height(Side side) {
-            BattleStage.Body body = this.stage.body(side.key());
+        private double height(Spot side) {
+            BattleStage.Body body = this.stage.body(key(side));
             return body == null ? 0 : body.height();
         }
 
         /**
          * The strike: the first animation its model has from the move's category list ({@code move-physical},
          * {@code move-special}, {@code move-status}, else {@code move}; {@code {move}} there is the move's own animation,
-         * {@code vinewhip}), and the move's effect leaving towards the other side's creature when the animation
+         * {@code vinewhip}), and the move's effect leaving towards {@code target}'s creature when the animation
          * reaches its release marker (at once without one).
          *
          * @return ticks until the release
          */
-        long strike(Side side, @Nullable String move) {
+        long strike(Spot side, Spot target, @Nullable String move) {
             MoveData data = move == null ? null : PokeCoreAPI.get().species().findMove(move).orElse(null);
             String moment = data == null ? "move" : "move-" + data.category().name().toLowerCase(Locale.ROOT);
             String animation = this.animate(side, moment, "move", move);
@@ -417,9 +438,9 @@ public class StagedUi implements BattleUi {
             Entity entity = attacker.entity();
             Runnable play = () -> {
                 // Looked up when it plays: the target may have changed or gone meanwhile
-                Actor target = this.standing.get(side == Side.ALLY ? Side.FOE : Side.ALLY);
-                if (entity.isValid() && shown(target))
-                    effects.play(entity, target.entity(), move);
+                Actor aimed = this.standing.get(this.target(side, target));
+                if (entity.isValid() && shown(aimed))
+                    effects.play(entity, aimed.entity(), move);
             };
             long delay = ticks(release);
             if (delay <= 0)
@@ -432,9 +453,9 @@ public class StagedUi implements BattleUi {
         /**
          * A stat of the side's creature rose ({@code up}) or fell.
          */
-        void stat(Side side, boolean up) {
+        void stat(Spot side, boolean up) {
             Actor creature = this.standing.get(side);
-            Actor facing = this.standing.get(side == Side.ALLY ? Side.FOE : Side.ALLY);
+            Actor facing = this.standing.get(this.target(side, null));
             if (effects != null && shown(creature) && shown(facing))
                 effects.stat(creature.entity(), facing.entity(), up);
         }
@@ -447,12 +468,12 @@ public class StagedUi implements BattleUi {
          * The side's creature took a hit: its damage animation, its red flash and the HP it lost ({@code creature},
          * the side after the hit, against the HP last shown).
          */
-        void hit(Side side, ChoiceView.Creature creature) {
+        void hit(Spot side, ChoiceView.Creature creature) {
             this.animate(side, "damage");
             Actor actor = this.standing.get(side);
             Integer before = this.hp.get(side);
             if (hits != null && shown(actor))
-                hits.hit(this.player, actor.entity(), side == Side.ALLY,
+                hits.hit(this.player, actor.entity(), side.ally(),
                         before == null ? 0 : before - creature.hp());
         }
 
@@ -460,11 +481,13 @@ public class StagedUi implements BattleUi {
          * The field as shown after a beat: the HP the next hit is measured from (a heal or a switch in between counts).
          */
         void seen(FieldView field) {
-            this.hp.put(Side.ALLY, field.ally().hp());
-            this.hp.put(Side.FOE, field.foe().hp());
+            for (int slot = 0; slot < field.allies().size(); slot++)
+                this.hp.put(new Spot(true, slot), field.ally(slot).hp());
+            for (int slot = 0; slot < field.foes().size(); slot++)
+                this.hp.put(new Spot(false, slot), field.foe(slot).hp());
         }
 
-        void faint(Side side) {
+        void faint(Spot side) {
             this.animate(side, "faint");
             PokeBattleConfiguration.Creatures config = plugin.configuration().creatures();
             this.leave(side, config == null ? 0 : ticks(config.faintLinger()));
@@ -473,14 +496,14 @@ public class StagedUi implements BattleUi {
         /**
          * The side's creature goes, after {@code delay} ticks; the spot is free at once.
          */
-        void leave(Side side, long delay) {
+        void leave(Spot side, long delay) {
             StageMotion motion = this.moving.remove(side);
             if (motion != null)
                 motion.cancel();
             Actor actor = this.standing.remove(side);
             if (actor == null)
                 return;
-            this.stage.body(side.key(), null);
+            this.stage.body(key(side), null);
             Entity entity = actor.entity();
             if (delay <= 0) {
                 this.actors.remove(entity);
@@ -495,7 +518,7 @@ public class StagedUi implements BattleUi {
          * The battle is over: the creatures go after {@code delay} ticks.
          */
         void end(long delay) {
-            for (Side side : Side.values())
+            for (Spot side : List.copyOf(this.standing.keySet()))
                 this.leave(side, delay);
         }
     }

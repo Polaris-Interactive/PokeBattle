@@ -233,11 +233,39 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
      * Where a battle takes place, laid in front of where it started. Places are in blocks from there: {@code forward}
      * the way the player looked, {@code right} (left when negative), {@code up} from their feet.
      *
-     * @param ally where the player's creature stands
-     * @param foe  where the opponent stands
+     * @param ally        where the player's creature stands (the first one in doubles)
+     * @param foe         where the opponent stands (the first one in doubles)
+     * @param allyPartner where the player's second creature stands in doubles; null for {@code ally} moved
+     *                    {@value #PARTNER_GAP} blocks right
+     * @param foePartner  where the opponent's second creature stands in doubles; null for {@code foe} moved
+     *                    {@value #PARTNER_GAP} blocks left (it faces the player)
      */
     @ConfigSerializable
-    public record Stage(Point ally, Point foe) {
+    public record Stage(Point ally, Point foe, @Nullable Point allyPartner, @Nullable Point foePartner) {
+
+        /** Blocks between a creature and its partner when the stage does not place the partner. */
+        public static final double PARTNER_GAP = 2.5;
+
+        /**
+         * A stage for singles: in doubles, the partners stand {@value #PARTNER_GAP} blocks aside.
+         */
+        public Stage(Point ally, Point foe) {
+            this(ally, foe, null, null);
+        }
+
+        /**
+         * Where the player's ({@code ally}) or the opponent's creature at {@code slot} stands.
+         */
+        public Point spot(boolean ally, int slot) {
+            Point first = ally ? this.ally : this.foe;
+            if (slot <= 0)
+                return first;
+            Point partner = ally ? this.allyPartner : this.foePartner;
+            if (partner != null)
+                return partner;
+            double aside = ally ? PARTNER_GAP : -PARTNER_GAP;
+            return new Point(first.forward(), first.right() + aside, first.up());
+        }
     }
 
     /**

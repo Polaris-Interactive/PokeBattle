@@ -63,6 +63,10 @@ stage:
   # Where the creatures stand (GDD: 6 blocks apart).
   ally: { forward: 3, right: -0.8, up: 0 }
   foe: { forward: 8.8, right: 0.8, up: 0 }
+  # Doubles: the second creature of each side. Left out, the partner stands 2.5 blocks aside (right of the player's
+  # creature, left of the opponent's).
+  ally-partner: { forward: 3, right: 1.7, up: 0 }
+  foe-partner: { forward: 8.8, right: -1.7, up: 0 }
 
 # The two creatures standing on the stage, seen only by the player (needs PokeEntities, its models and blueprints).
 creatures:

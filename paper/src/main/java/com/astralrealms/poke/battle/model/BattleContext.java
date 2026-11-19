@@ -74,12 +74,23 @@ public record BattleContext(UUID battleId, String format, UUID playerId, List<UU
      * A staged battle's place, its world by name: the shard that takes the battle over lays it there again when it
      * has that world (the same arena server, its instance still open), else in front of the player.
      *
-     * @param world the stage's world
-     * @param stage feet of the player's side, facing the opponent
-     * @param ally  the player's creature; null, with {@code foe}, for the configured offsets from the stage
-     * @param foe   the opponent's creature
+     * @param world       the stage's world
+     * @param stage       feet of the player's side, facing the opponent
+     * @param ally        the player's creature; null, with {@code foe}, for the configured offsets from the stage
+     * @param foe         the opponent's creature
+     * @param allyPartner the player's second creature in doubles; null when the spots gave none, and in a context
+     *                    written before doubles
+     * @param foePartner  the opponent's second creature in doubles; null likewise
      */
-    public record Staging(String world, Spot stage, @Nullable Spot ally, @Nullable Spot foe) {
+    public record Staging(String world, Spot stage, @Nullable Spot ally, @Nullable Spot foe,
+                          @Nullable Spot allyPartner, @Nullable Spot foePartner) {
+
+        /**
+         * A staging without partner spots.
+         */
+        public Staging(String world, Spot stage, @Nullable Spot ally, @Nullable Spot foe) {
+            this(world, stage, ally, foe, null, null);
+        }
 
         /**
          * The staging of a battle laid at {@code stage}, with its creature spots only when they are in its world (as
@@ -95,7 +106,9 @@ public record BattleContext(UUID battleId, String format, UUID playerId, List<UU
         static Staging of(String world, Location stage, @Nullable StageSpots spots) {
             return new Staging(world, Spot.of(stage),
                     spots == null ? null : Spot.of(spots.ally()),
-                    spots == null ? null : Spot.of(spots.foe()));
+                    spots == null ? null : Spot.of(spots.foe()),
+                    spots == null || spots.allyPartner() == null ? null : Spot.of(spots.allyPartner()),
+                    spots == null || spots.foePartner() == null ? null : Spot.of(spots.foePartner()));
         }
 
         public Location stage(@Nullable World world) {
@@ -108,7 +121,9 @@ public record BattleContext(UUID battleId, String format, UUID playerId, List<UU
         public @Nullable StageSpots spots(@Nullable World world) {
             if (this.ally == null || this.foe == null)
                 return null;
-            return new StageSpots(this.ally.in(world), this.foe.in(world));
+            return new StageSpots(this.ally.in(world), this.foe.in(world),
+                    this.allyPartner == null ? null : this.allyPartner.in(world),
+                    this.foePartner == null ? null : this.foePartner.in(world));
         }
     }
 

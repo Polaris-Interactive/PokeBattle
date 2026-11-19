@@ -359,7 +359,7 @@ final class BattleHud {
     // ---- What the battle says ----
 
     BattleUi.Pace pace(BattleBeat beat) {
-        return this.camera == null ? BattleUi.Pace.NONE : this.camera.pace(beat.cue());
+        return this.camera == null ? BattleUi.Pace.NONE : this.camera.pace(beat);
     }
 
     /**
@@ -368,7 +368,7 @@ final class BattleHud {
     void cue(BattleBeat beat) {
         if (this.camera == null)
             return;
-        this.camera.cue(beat.cue());
+        this.camera.cue(beat);
         this.renderMenu();
     }
 

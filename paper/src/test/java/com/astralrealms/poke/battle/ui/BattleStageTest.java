@@ -176,4 +176,43 @@ class BattleStageTest {
         assertThat(spots.foe().forward()).isCloseTo(16, within(1.0E-9));
         assertThat(spots.foe().right()).isCloseTo(-1, within(1.0E-9));
     }
+
+    @Test
+    void partnersStandAsideUnlessTheStagePlacesThem() {
+        // Not placed: 2.5 blocks right of the player's creature, left of the opponent's (it faces the player)
+        assertThat(SPOTS.spot(true, 0)).isEqualTo(SPOTS.ally());
+        assertThat(SPOTS.spot(true, 1)).isEqualTo(new PokeBattleConfiguration.Point(2, 1.5, 0));
+        assertThat(SPOTS.spot(false, 1)).isEqualTo(new PokeBattleConfiguration.Point(8, -1.5, 0));
+
+        PokeBattleConfiguration.Stage placed = new PokeBattleConfiguration.Stage(SPOTS.ally(), SPOTS.foe(),
+                new PokeBattleConfiguration.Point(4, 3, 0), new PokeBattleConfiguration.Point(8, -3, 0));
+        assertThat(placed.spot(true, 1)).isEqualTo(new PokeBattleConfiguration.Point(4, 3, 0));
+
+        assertThat(BattleStage.key(true, 0)).isEqualTo("ally");
+        assertThat(BattleStage.key(false, 1)).isEqualTo("foe-2");
+    }
+
+    @Test
+    void partnerSpotsAreLookedAtAndCountInTheMiddleOnceStanding() {
+        PokeBattleConfiguration.Stage placed = new PokeBattleConfiguration.Stage(SPOTS.ally(), SPOTS.foe(),
+                new PokeBattleConfiguration.Point(4, 3, 0), new PokeBattleConfiguration.Point(8, -3, 0));
+        BattleStage stage = new BattleStage(new Location(null, 0, 0, 0, 0, 0), placed, CAMERA);
+
+        // Yaw 0: forward is +Z, right is -X
+        Location partner = stage.spot(true, 1);
+        assertThat(partner.getX()).isCloseTo(-3, within(1.0E-9));
+        assertThat(partner.getZ()).isCloseTo(4, within(1.0E-9));
+        assertThat(stage.target("ally-2").getY()).isCloseTo(1, within(1.0E-9));
+        // A partner faces the middle of the other side
+        assertThat(partner.getDirection().getZ()).isPositive();
+        assertThat(stage.spot(false, 1).getDirection().getZ()).isNegative();
+
+        // Nobody on the partner spots: the middle is the singles one
+        assertThat(stage.target("center").getZ()).isCloseTo(5, within(1.0E-9));
+        stage.body("ally-2", new BattleStage.Body(1, 1));
+        stage.body("foe-2", new BattleStage.Body(1, 1));
+        assertThat(stage.target("center").getZ()).isCloseTo(5.5, within(1.0E-9));
+        stage.body("ally-2", null);
+        assertThat(stage.body("ally-2")).isNull();
+    }
 }

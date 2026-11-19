@@ -3,6 +3,8 @@ package com.astralrealms.poke.battle.ui;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
@@ -18,7 +20,8 @@ import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 
 /**
  * Where a battle takes place: a frame laid in front of where it started ({@code forward} the way the player looked,
- * {@code right}, {@code up}), with the two creatures' spots in it. The creatures stand there, and camera shots turn
+ * {@code right}, {@code up}), with the creatures' spots in it: {@code ally} and {@code foe}, and in doubles their
+ * partners {@code ally-2} and {@code foe-2}. The creatures stand there, and camera shots turn
  * into eye locations from it. In a world, the creatures stand on the ground and shots keep blocks out of the way.
  * <p>
  * The creatures standing there ({@link #body}) count too: a shot looks at a creature's middle whatever its size, backs
@@ -73,30 +76,41 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     public record Body(double height, double width) {
     }
 
+    /** The spots, by name: the first creature of each side, then their partners in doubles. */
+    private static final List<String> SPOTS = List.of("ally", "foe", "ally-2", "foe-2");
+
     /**
-     * The creatures standing on the stage, by side. Set on the main thread, read by the camera.
+     * The creatures standing on the stage, by spot. Set on the main thread, read by the camera.
      */
     public static final class Bodies {
 
-        private volatile @Nullable Body ally;
-        private volatile @Nullable Body foe;
+        private final Map<String, Body> standing = new ConcurrentHashMap<>();
     }
 
     /**
-     * How big the creature standing on a side ({@code ally} or {@code foe}) is, null when unknown or empty.
+     * The name of a creature's spot: {@code ally} or {@code foe} for the first slot, {@code ally-2} or {@code foe-2}
+     * for the second (doubles).
      */
-    public @Nullable Body body(String side) {
-        return side.equals("ally") ? this.bodies.ally : this.bodies.foe;
+    public static String key(boolean ally, int slot) {
+        return (ally ? "ally" : "foe") + (slot <= 0 ? "" : "-" + (slot + 1));
     }
 
     /**
-     * The creature now standing on a side ({@code ally} or {@code foe}), or null when the side is empty.
+     * How big the creature standing on a spot ({@code ally}, {@code foe}, {@code ally-2}, {@code foe-2}) is, null when
+     * unknown or empty.
      */
-    public void body(String side, @Nullable Body body) {
-        if (side.equals("ally"))
-            this.bodies.ally = body;
+    public @Nullable Body body(String spot) {
+        return this.bodies.standing.get(spot);
+    }
+
+    /**
+     * The creature now standing on a spot, or null when the spot is empty.
+     */
+    public void body(String spot, @Nullable Body body) {
+        if (body == null)
+            this.bodies.standing.remove(spot);
         else
-            this.bodies.foe = body;
+            this.bodies.standing.put(spot, body);
     }
 
     /**
@@ -129,7 +143,19 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
      * The creatures' spots of a stage laid at {@code origin} with them standing at {@code ally} and {@code foe}.
      */
     public static PokeBattleConfiguration.Stage spotsAt(Location origin, Location ally, Location foe) {
-        return new PokeBattleConfiguration.Stage(pointOf(origin, ally), pointOf(origin, foe));
+        return spotsAt(origin, ally, foe, null, null);
+    }
+
+    /**
+     * The creatures' spots of a stage laid at {@code origin}, with their partners in doubles (null for the default
+     * gap aside).
+     */
+    public static PokeBattleConfiguration.Stage spotsAt(Location origin, Location ally, Location foe,
+                                                        @Nullable Location allyPartner,
+                                                        @Nullable Location foePartner) {
+        return new PokeBattleConfiguration.Stage(pointOf(origin, ally), pointOf(origin, foe),
+                allyPartner == null ? null : pointOf(origin, allyPartner),
+                foePartner == null ? null : pointOf(origin, foePartner));
     }
 
     /**
@@ -147,17 +173,33 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     }
 
     /**
+     * Where the player's ({@code ally}) or the opponent's creature at {@code slot} stands. The first slot as
+     * {@link #ally()} and {@link #foe()}; a partner (doubles) faces the middle of the other side's spots.
+     */
+    public Location spot(boolean ally, int slot) {
+        if (slot <= 0)
+            return ally ? this.ally() : this.foe();
+        Location across = this.spot(this.spots.spot(!ally, 0)).add(this.spot(this.spots.spot(!ally, 1))).multiply(0.5);
+        return facing(this.spot(this.spots.spot(ally, slot)), across);
+    }
+
+    /**
      * What a shot looks at: a creature at {@code look-ratio} of its height ({@code look-height} while its size is not
-     * known), or the middle of the two. Unknown names look at the middle.
+     * known), or the middle of the creatures ({@code ally} and {@code foe}, and the partners standing in doubles).
+     * Unknown names look at the middle.
      */
     public Location target(String lookAt) {
-        Location ally = this.spot(this.spots.ally()).add(0, this.lookUp(this.bodies.ally), 0);
-        Location foe = this.spot(this.spots.foe()).add(0, this.lookUp(this.bodies.foe), 0);
-        return switch (lookAt.toLowerCase(Locale.ROOT)) {
-            case "ally" -> ally;
-            case "foe" -> foe;
-            default -> ally.add(foe).multiply(0.5);
-        };
+        String spot = lookAt.toLowerCase(Locale.ROOT);
+        if (SPOTS.contains(spot))
+            return this.feet(spot).add(0, this.lookUp(this.body(spot)), 0);
+        Location middle = this.target("ally").add(this.target("foe"));
+        int count = 2;
+        for (String partner : List.of("ally-2", "foe-2"))
+            if (this.body(partner) != null) {
+                middle.add(this.target(partner));
+                count++;
+            }
+        return middle.multiply(1.0 / count);
     }
 
     /**
@@ -182,7 +224,7 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
 
         // Above a creature in the foreground: its nametag must not hang in the middle of the view
         double reach = flat(eye, target);
-        for (String side : new String[]{"ally", "foe"}) {
+        for (String side : SPOTS) {
             Body body = this.body(side);
             if (body == null)
                 continue;
@@ -227,14 +269,10 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
         double max = this.camera != null && this.camera.maxScale() > 0 ? this.camera.maxScale() : MAX_SCALE;
         double angle = this.camera != null && this.camera.fitAngle() > 0 ? this.camera.fitAngle() : FIT_ANGLE;
         double perSize = 1 / (2 * Math.tan(Math.toRadians(Math.min(angle, 170)) / 2));
-        List<String> shown = switch (lookAt) {
-            case "ally" -> List.of("ally");
-            case "foe" -> List.of("foe");
-            default -> List.of("ally", "foe");
-        };
+        List<String> shown = SPOTS.contains(lookAt) ? List.of(lookAt) : SPOTS;
         // Each creature shown: its middle, and how far the eye has to be for it to fit
-        List<Vector> middles = new ArrayList<>(2);
-        List<Double> rooms = new ArrayList<>(2);
+        List<Vector> middles = new ArrayList<>(SPOTS.size());
+        List<Double> rooms = new ArrayList<>(SPOTS.size());
         for (String side : shown) {
             Body body = this.body(side);
             if (body == null)
@@ -266,10 +304,10 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
     }
 
     /**
-     * Where the creature of a side ({@code ally} or {@code foe}) stands.
+     * Where the creature of a spot ({@code ally}, {@code foe}, {@code ally-2}, {@code foe-2}) stands.
      */
-    private Location feet(String side) {
-        return this.spot(side.equals("ally") ? this.spots.ally() : this.spots.foe());
+    private Location feet(String spot) {
+        return this.spot(this.spots.spot(spot.startsWith("ally"), spot.endsWith("-2") ? 1 : 0));
     }
 
     /**
@@ -336,19 +374,17 @@ public record BattleStage(Location origin, PokeBattleConfiguration.Stage spots,
      * The creatures a shot must see past: not the one it looks at, nor one its target stands in.
      */
     private List<BoundingBox> obstacles(String lookAt, Location target) {
-        List<BoundingBox> boxes = new ArrayList<>(2);
-        if (!lookAt.equals("ally"))
-            this.addBox(boxes, this.bodies.ally, this.spots.ally(), target);
-        if (!lookAt.equals("foe"))
-            this.addBox(boxes, this.bodies.foe, this.spots.foe(), target);
+        List<BoundingBox> boxes = new ArrayList<>(SPOTS.size());
+        for (String spot : SPOTS)
+            if (!lookAt.equals(spot))
+                this.addBox(boxes, this.body(spot), spot, target);
         return boxes;
     }
 
-    private void addBox(List<BoundingBox> boxes, @Nullable Body body, PokeBattleConfiguration.Point point,
-                        Location target) {
+    private void addBox(List<BoundingBox> boxes, @Nullable Body body, String spot, Location target) {
         if (body == null || body.height() <= 0)
             return;
-        Location feet = this.spot(point);
+        Location feet = this.feet(spot);
         double half = Math.max(body.width(), 0.1) / 2;
         BoundingBox box = new BoundingBox(feet.getX() - half, feet.getY(), feet.getZ() - half,
                 feet.getX() + half, feet.getY() + body.height(), feet.getZ() + half);

@@ -40,13 +40,14 @@ public class BattleStages {
 
     /**
      * Lays the battle's stage at {@code origin} with its creatures at {@code spots} (a gym's marks), or at the
-     * configured offsets when null, before it is first shown.
+     * configured offsets when null, before it is first shown. Partners {@code spots} leave out stand the default gap
+     * aside, not at the configured partner offsets (those are from the configured spots).
      */
     public void place(UUID battleId, Location origin, @Nullable StageSpots spots,
                       PokeBattleConfiguration configuration) {
         PokeBattleConfiguration.Stage creatures = spots == null || spots.ally().getWorld() != origin.getWorld()
                 ? configuration.stage()
-                : BattleStage.spotsAt(origin, spots.ally(), spots.foe());
+                : BattleStage.spotsAt(origin, spots.ally(), spots.foe(), spots.allyPartner(), spots.foePartner());
         this.placed.add(battleId);
         this.stages.put(battleId, new BattleStage(origin, creatures,
                 configuration.hud() == null ? null : configuration.hud().camera()));

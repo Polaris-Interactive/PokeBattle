@@ -1,5 +1,7 @@
 package com.astralrealms.poke.battle.ui.hud;
 
+import java.util.Locale;
+
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
@@ -8,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 import com.astralrealms.astralHologram.api.hud.HudView;
 import com.astralrealms.astralHologram.configuration.Easing;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
+import com.astralrealms.poke.battle.ui.BattleBeat;
 import com.astralrealms.poke.battle.ui.BattleCue;
 import com.astralrealms.poke.battle.ui.BattleStage;
 import com.astralrealms.poke.battle.ui.BattleUi;
@@ -79,8 +82,8 @@ final class BattleCamera {
      * camera is already on takes no glide, and one close by ({@code drift-distance}) does not hold the moment back:
      * the camera drifts there while it plays. A cue without a shot leaves the camera where it is and takes no time.
      */
-    BattleUi.Pace pace(@Nullable BattleCue cue) {
-        PokeBattleConfiguration.Shot shot = this.shot(cue);
+    BattleUi.Pace pace(BattleBeat beat) {
+        PokeBattleConfiguration.Shot shot = this.shot(beat);
         if (shot == null)
             return BattleUi.Pace.NONE;
         Location eye = this.stage.eye(shot);
@@ -92,10 +95,10 @@ final class BattleCamera {
     }
 
     /**
-     * Heads for the cue's shot, if it has one.
+     * Heads for the beat's shot, if its cue has one.
      */
-    void cue(@Nullable BattleCue cue) {
-        PokeBattleConfiguration.Shot shot = this.shot(cue);
+    void cue(BattleBeat beat) {
+        PokeBattleConfiguration.Shot shot = this.shot(beat);
         if (shot == null || this.stopped)
             return;
         this.cancel();
@@ -153,8 +156,29 @@ final class BattleCamera {
         this.onRest.run();
     }
 
-    private PokeBattleConfiguration.@Nullable Shot shot(@Nullable BattleCue cue) {
-        return cue == null ? null : this.shot(cue.key());
+    /**
+     * The shot of a beat's cue, looking at the creatures the beat is about: in doubles, a shot that looks at
+     * {@code ally} or {@code foe} looks at the partner ({@code ally-2}, {@code foe-2}) when the beat's creature, or the
+     * target of its move, stands there.
+     */
+    private PokeBattleConfiguration.@Nullable Shot shot(BattleBeat beat) {
+        BattleCue cue = beat.cue();
+        PokeBattleConfiguration.Shot shot = cue == null ? null : this.shot(cue.key());
+        if (shot == null)
+            return null;
+        String lookAt = shot.lookAt().toLowerCase(Locale.ROOT);
+        if (!lookAt.equals("ally") && !lookAt.equals("foe"))
+            return shot;
+        boolean ally = lookAt.equals("ally");
+        boolean actorAlly = cue.key().startsWith("ally");
+        int slot = 0;
+        if (actorAlly == ally)
+            slot = beat.slot();
+        else if (beat.target() != null && beat.target().ally() == ally)
+            slot = beat.target().slot();
+        if (slot <= 0)
+            return shot;
+        return new PokeBattleConfiguration.Shot(shot.from(), BattleStage.key(ally, slot), shot.glide(), shot.hold());
     }
 
     private PokeBattleConfiguration.@Nullable Shot shot(String key) {
