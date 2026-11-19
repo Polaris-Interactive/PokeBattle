@@ -60,21 +60,37 @@ public class SlotChoices {
         List<String> parts = split(choice);
         if (request.waiting() || parts.size() != request.slots().size())
             return false;
+        for (int slot = 0; slot < parts.size(); slot++)
+            if (!legal(request, slot, parts.get(slot), parts.subList(0, slot)))
+                return false;
+        return true;
+    }
+
+    /**
+     * Whether one slot's choice is legal, given the choices made for the slots before it ({@code before}, in slot
+     * order): checked as each slot is chosen, before the next one is asked.
+     */
+    public static boolean legal(ChoiceRequest request, int slot, String part, List<String> before) {
+        if (request.waiting() || slot < 0 || slot >= request.slots().size() || before.size() != slot)
+            return false;
+        ChoiceRequest.Slot asked = request.slots().get(slot);
+        Set<Integer> taken = new HashSet<>();
+        for (String earlier : before)
+            taken.add(switched(earlier));
+        if (!part.equals(PASS))
+            return legal(request, asked, part.trim(), taken);
+        if (asked.idle())
+            return true;
+        if (!asked.forced())
+            return false;
+        // Forced passes left: fewer bench members than forced slots, less those passed before
         long forced = request.slots().stream().filter(ChoiceRequest.Slot::forced).count();
         long bench = request.team().stream().filter(member -> request.onBench(member.position())).count();
-        long passes = Math.max(0, forced - bench);
-        Set<Integer> taken = new HashSet<>();
-        for (ChoiceRequest.Slot slot : request.slots()) {
-            String part = parts.get(slot.index());
-            if (part.equals(PASS)) {
-                if (!slot.idle() && (!slot.forced() || passes-- <= 0))
-                    return false;
-                continue;
-            }
-            if (!legal(request, slot, part, taken))
-                return false;
-        }
-        return true;
+        long passed = 0;
+        for (int index = 0; index < before.size(); index++)
+            if (request.slots().get(index).forced() && before.get(index).equals(PASS))
+                passed++;
+        return forced - bench - passed > 0;
     }
 
     private static boolean legal(ChoiceRequest request, ChoiceRequest.Slot slot, String part, Set<Integer> taken) {
@@ -98,7 +114,7 @@ public class SlotChoices {
                 if (words.length != 2 || slot.idle() || (request.forceSwitch() && !slot.forced())
                         || (slot.trapped() && !request.forceSwitch()) || !request.onBench(index))
                     yield false;
-                yield taken.add(index);
+                yield !taken.contains(index);
             }
             default -> false;
         };

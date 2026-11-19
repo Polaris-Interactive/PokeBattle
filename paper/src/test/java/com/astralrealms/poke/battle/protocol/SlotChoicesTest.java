@@ -85,4 +85,18 @@ class SlotChoicesTest {
         assertThat(SlotChoices.switched("switch 3")).isEqualTo(3);
         assertThat(SlotChoices.switched("move 1 2")).isEqualTo(-1);
     }
+
+    @Test
+    void eachPickIsCheckedAgainstItsOwnSlot() {
+        assertThat(SlotChoices.legal(MOVES, 0, "move 1 2", List.of())).isTrue();
+        // Out of PP, or a targeted move without its target: refused before the next slot is asked
+        assertThat(SlotChoices.legal(MOVES, 1, "move 3 1", List.of("move 1 2"))).isFalse();
+        assertThat(SlotChoices.legal(MOVES, 0, "move 1", List.of())).isFalse();
+        // A bench member already picked, a trapped slot
+        assertThat(SlotChoices.legal(MOVES, 0, "switch 3", List.of())).isTrue();
+        assertThat(SlotChoices.legal(MOVES, 1, "switch 3", List.of("switch 3"))).isFalse();
+        assertThat(SlotChoices.legal(MOVES, 1, "switch 5", List.of("move 1 2"))).isFalse();
+        // The picks before must be one per slot
+        assertThat(SlotChoices.legal(MOVES, 1, "move 1 1", List.of())).isFalse();
+    }
 }

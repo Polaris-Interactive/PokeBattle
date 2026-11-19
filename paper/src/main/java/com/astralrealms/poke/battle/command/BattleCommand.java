@@ -24,12 +24,16 @@ public class BattleCommand extends BaseCommand {
         this.plugin.battles().reopen(player);
     }
 
+    /**
+     * In doubles, the pick of the creature being chosen for; a move that needs a target takes it as Showdown numbers
+     * it (the opponent's positions 1 and 2, the player's own -1 and -2).
+     */
     @Subcommand("attaque")
     @Description("Utiliser une capacité")
-    @Syntax("<1-4>")
-    @CommandCompletion("1|2|3|4")
-    public void onMove(Player player, int index) {
-        this.plugin.battles().choose(player, "move " + index);
+    @Syntax("<1-4> [cible]")
+    @CommandCompletion("1|2|3|4 1|2|-1|-2")
+    public void onMove(Player player, int index, @Optional Integer target) {
+        this.plugin.battles().choose(player, "move " + index + (target == null ? "" : " " + target));
     }
 
     @Subcommand("fuite")

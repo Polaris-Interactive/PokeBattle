@@ -139,6 +139,8 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * after all (a capture in the last turn) is still settled.
      */
     private final Map<UUID, Battle> aborted = new ConcurrentHashMap<>();
+    /** By battle, the doubles choice last shown (the slot being chosen for): typed choices carry on from it. */
+    private final Map<UUID, ChoiceView> slotViews = new ConcurrentHashMap<>();
     /** Settlements being written: a stopping server waits for them (see {@link #shutdown}). */
     private final Set<CompletableFuture<?>> settling = ConcurrentHashMap.newKeySet();
 
@@ -581,7 +583,27 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         ChoiceView view = ChoiceView.of(battle, player.locale());
         if (view == null)
             return;
+        if (view.doubles() != null)
+            this.slotViews.put(battle.id(), view);
         this.withUi(battle.playerId(), (ui, viewer) -> ui.choose(viewer, view));
+    }
+
+    /**
+     * Shows the view of a doubles slot still to choose for, unless another request came by the time it shows (that
+     * one shows its own). Under the battle's monitor.
+     */
+    private void showSlot(Battle battle, ChoiceView view) {
+        this.slotViews.put(battle.id(), view);
+        this.withUi(battle.playerId(), (ui, viewer) -> {
+            boolean current;
+            synchronized (battle) {
+                ChoiceRequest pending = battle.pending();
+                current = battle.state() == Battle.State.RUNNING && !battle.chosen() && pending != null
+                          && pending.rqid() == view.rqid();
+            }
+            if (current)
+                ui.choose(viewer, view);
+        });
     }
 
     /**
@@ -633,17 +655,29 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             PokeBattleMessages.NOT_IN_BATTLE.message(player);
             return;
         }
-        // Doubles: the next creature's choice first; every slot's goes at once, with the last one
-        ChoiceView next = view.next(choice);
-        if (next == null) {
-            this.submit(player, battle, view.rqid(), view.choice(choice));
+        ChoiceView.Doubles doubles = view.doubles();
+        if (doubles == null) {
+            this.submit(player, battle, view.rqid(), choice);
             return;
         }
+        // Doubles: each slot's pick is checked as it is made, then the next creature's choice; every slot's goes at
+        // once, with the last one
         synchronized (battle) {
-            if (this.answerable(player, battle, view.rqid()) == null)
+            ChoiceRequest request = this.answerable(player, battle, view.rqid());
+            if (request == null)
                 return;
+            if (!SlotChoices.legal(request, doubles.slot(), choice, doubles.picks())) {
+                PokeBattleMessages.CHOICE_UNAVAILABLE.message(player);
+                this.showSlot(battle, view);
+                return;
+            }
+            ChoiceView next = view.next(choice);
+            if (next != null) {
+                this.showSlot(battle, next);
+                return;
+            }
         }
-        this.withUi(battle.playerId(), (ui, viewer) -> ui.choose(viewer, next));
+        this.submit(player, battle, view.rqid(), view.choice(choice));
     }
 
     /**
@@ -656,9 +690,19 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         }
         int rqid;
+        ChoiceView view = null;
         synchronized (battle) {
             ChoiceRequest pending = battle.pending();
             rqid = pending == null ? -1 : pending.rqid();
+            // Doubles: the pick is for the creature being chosen for, as a click would be
+            if (pending != null && pending.doubles() && !battle.chosen()) {
+                ChoiceView shown = this.slotViews.get(battle.id());
+                view = shown != null && shown.rqid() == rqid ? shown : ChoiceView.of(battle, player.locale());
+            }
+        }
+        if (view != null && view.doubles() != null) {
+            this.choose(player, view, choice);
+            return;
         }
         this.submit(player, battle, rqid, choice);
     }
@@ -1401,6 +1445,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
     }
 
     private void forget(Battle battle) {
+        this.slotViews.remove(battle.id());
         this.battles.remove(battle.id(), battle);
         this.byPlayer.remove(battle.playerId(), battle.id());
     }
