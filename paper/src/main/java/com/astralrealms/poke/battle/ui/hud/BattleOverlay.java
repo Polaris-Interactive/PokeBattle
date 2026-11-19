@@ -26,8 +26,9 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 
 /**
- * The two creatures' cards and the battle log drawn on the screen itself, in its corners, rather than in the world
- * in front of the camera: they keep their place and size whatever the player's FOV, and do not move with the camera.
+ * The creatures' cards and the battle log drawn on the screen itself, in its corners, rather than in the world
+ * in front of the camera (in doubles, each side's second card under its first): they keep their place and size
+ * whatever the player's FOV, and do not move with the camera.
  * <p>
  * It is the {@code battle} layer of PokeCore's {@link ScreenOverlay} (one boss bar per player whose title holds every
  * piece, {@link OverlayLine}); the {@code pokesmp} pack's text shader puts each piece in its corner. The layer is
@@ -54,6 +55,8 @@ final class BattleOverlay {
     private static final int BAR_WIDTH = 84;
     private static final int HP_Y = 29;
     private static final int STATUS_Y = 39;
+    /** From a card's top to the next one's, in doubles: the card and its status strip under it, and a gap. */
+    private static final int CARD_STEP = 50;
     // The log (230 x 82, the builder's LOG_SIZE): a dark panel inside a frame, a scroll gutter on its right
     private static final int LOG_HEIGHT = 82;
     private static final int LOG_TEXT_X = 9;
@@ -88,8 +91,10 @@ final class BattleOverlay {
      */
     void draw(FieldView field, Collection<Component> log, @Nullable Component turn, @Nullable Component hint) {
         OverlayLine line = new OverlayLine(this.font);
-        this.card(line, field.ally(), true);
-        this.card(line, field.foe(), false);
+        for (int slot = 0; slot < field.allies().size(); slot++)
+            this.card(line, field.ally(slot), true, slot);
+        for (int slot = 0; slot < field.foes().size(); slot++)
+            this.card(line, field.foe(slot), false, slot);
         this.turn(line, turn, hint);
         this.log(line, log);
         Component title = line.build();
@@ -108,15 +113,16 @@ final class BattleOverlay {
     }
 
     /**
-     * One card: the player's in the top left corner, the opponent's (mirrored art) in the top right one.
+     * One card: the player's in the top left corner, the opponent's (mirrored art) in the top right one; the second
+     * slot's (doubles) under the first.
      */
-    private void card(OverlayLine line, ChoiceView.Creature creature, boolean ally) {
+    private void card(OverlayLine line, ChoiceView.Creature creature, boolean ally, int slot) {
         if (!FieldView.present(creature))
             return;
         Anchor anchor = ally ? Anchor.TOP_LEFT : Anchor.TOP_RIGHT;
         // The card's left edge from its anchor, and a place of the ally's art turned into this card's
         int left = ally ? this.margin : -this.margin - CARD_WIDTH;
-        int top = this.margin;
+        int top = this.margin + slot * CARD_STEP;
         (ally ? OverlayGlyph.FRAME_ALLY : OverlayGlyph.FRAME_FOE).draw(line, anchor, left, top);
         OverlayGlyph.UNDERLAY.draw(line, anchor, left + this.across(ally, UNDERLAY_X, OverlayGlyph.UNDERLAY.width()),
                 top + UNDERLAY_Y);

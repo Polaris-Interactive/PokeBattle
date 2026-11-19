@@ -238,6 +238,9 @@ hud:
   # how many entries a page holds.
   # Laid out like a handheld battle screen: the creatures' cards in the top corners, the turn between them, the menu
   # as a grid bottom left, the log bottom right.
+  # Doubles: with the screen overlay on, the second creature of each side gets its card under the first one. Without
+  # it, optional text elements ally-2 and foe-2 (name, HP and bar of the partner) can be added here; left out, only
+  # the first creature of each side has a card.
   elements:
     # Laid out like the reference battle screen, for the default FOV (70): at a wider FOV everything sits closer to
     # the centre, at a narrower one the corners leave the screen. Computed from screen pixels (1920x1057 at FOV 70)

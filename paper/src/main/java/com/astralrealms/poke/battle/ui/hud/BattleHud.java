@@ -67,7 +67,7 @@ final class BattleHud {
     private static final Set<String> DISPLAYS = Set.of("foe", "ally", "prompt", "timer", "log", "info", "hint",
             "ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status", "turn-icon",
             "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon", "info-frame",
-            "ally-underlay", "foe-underlay", BACK_FRAME);
+            "ally-underlay", "foe-underlay", BACK_FRAME, "ally-2", "foe-2");
     /** Art drawn as items (see {@link HudArt}); every other element is text. */
     private static final Set<String> ITEMS = Set.of("ally-frame", "foe-frame", "log-frame", "ally-status", "foe-status",
             "turn-icon", "ally-icon", "foe-icon", "info-frame", "ally-underlay", "foe-underlay", BACK_FRAME);
@@ -98,7 +98,7 @@ final class BattleHud {
     /** What the screen overlay draws instead, when it is on: these elements are then left out of the HUD. */
     private static final Set<String> OVERLAID = Set.of("foe", "ally", "log", "ally-frame", "foe-frame", "log-frame",
             "ally-status", "foe-status", "ally-hp", "foe-hp", "ally-bar", "foe-bar", "ally-icon", "foe-icon",
-            "ally-underlay", "foe-underlay", "timer", "turn-icon", "hint");
+            "ally-underlay", "foe-underlay", "timer", "turn-icon", "hint", "ally-2", "foe-2");
 
     /** {@code AIM}: where a move is aimed, in doubles. */
     enum Menu { NONE, MAIN, MOVES, TEAM, BALLS, BAG, TARGETS, AIM }
@@ -722,7 +722,29 @@ final class BattleHud {
         this.card("ally", ally, PokeBattleMessages.HUD_ALLY_NAME, PokeBattleMessages.HUD_ALLY_HP);
         this.setItem("ally-status", this.strip(ally));
         this.setItem("foe-status", this.strip(foe));
+        this.partner("foe-2", this.field.foe(1), PokeBattleMessages.HUD_FOE_NAME, PokeBattleMessages.HUD_FOE_HP);
+        this.partner("ally-2", this.field.ally(1), PokeBattleMessages.HUD_ALLY_NAME, PokeBattleMessages.HUD_ALLY_HP);
         this.renderOverlay();
+    }
+
+    /**
+     * The card of a side's second creature in doubles, in one text element when the HUD has it: its name and level,
+     * its HP and its bar. Empty in singles.
+     */
+    private void partner(String id, ChoiceView.Creature creature, PokeBattleMessages name, PokeBattleMessages hp) {
+        if (!FieldView.present(creature)) {
+            this.set(id, List.of());
+            return;
+        }
+        this.set(id, List.of(name.component(new PlaceholderContainer()
+                        .registerDirect("name", creature.name())
+                        .registerDirect("level", creature.level())
+                        .registerDirect("status", this.status(creature.status()))),
+                hp.component(new PlaceholderContainer()
+                        .registerDirect("hp", creature.hp())
+                        .registerDirect("max", creature.maxHp())
+                        .registerDirect("percent", creature.hp())),
+                HealthBar.render(creature.hp(), creature.maxHp(), this.config.bar())));
     }
 
     /**
