@@ -14,10 +14,9 @@ class ConfigurationDefaultsTest {
         // What Configurate builds when the sections are absent: records with null fields, or no record at all
         PokeBattleConfiguration empty = new PokeBattleConfiguration(null, null, null,
                 new PokeBattleConfiguration.Recovery(null, null, null), new PokeBattleConfiguration.Arena(null, null), null, null,
-                null, null, null, new PokeBattleConfiguration.Staging(null, null, null, null, null, null, null),
-                new PokeBattleConfiguration.Capture(null, null));
+                null, null, null, new PokeBattleConfiguration.Staging(null, null, null, null, null, null, null));
         PokeBattleConfiguration absent = new PokeBattleConfiguration(null, null, null, null, null, null, null, null,
-                null, null, null, null);
+                null, null, null);
 
         for (PokeBattleConfiguration configuration : new PokeBattleConfiguration[]{empty, absent}) {
             assertThat(configuration.recoveryOrDefault().checkInterval()).isEqualTo(Duration.ofSeconds(2));
@@ -31,8 +30,6 @@ class ConfigurationDefaultsTest {
             assertThat(staging.radius()).isEqualTo(6.5);
             assertThat(staging.particle()).isEqualTo("end_rod");
             assertThat(staging.interval()).isEqualTo(Duration.ofMillis(500));
-            assertThat(configuration.captureOrDefault().guaranteedBelow()).isEqualTo(2);
-            assertThat(configuration.captureOrDefault().guaranteedMaxLevel()).isEqualTo(10);
         }
     }
 
@@ -40,16 +37,13 @@ class ConfigurationDefaultsTest {
     void aPartialSectionKeepsWhatItSets() {
         PokeBattleConfiguration partial = new PokeBattleConfiguration(null, null, null, null,
                 new PokeBattleConfiguration.Arena("podium", null), null, null, null, null, null,
-                new PokeBattleConfiguration.Staging(null, null, 9.0, null, null, null, false),
-                new PokeBattleConfiguration.Capture(0, null));
+                new PokeBattleConfiguration.Staging(null, null, 9.0, null, null, null, false));
 
         assertThat(partial.arenaOrDefault().stageSpawn()).isEqualTo("podium");
         assertThat(partial.arenaOrDefault().returnDelay()).isEqualTo(Duration.ofSeconds(3));
         assertThat(partial.stagingOrDefault().radius()).isEqualTo(9.0);
         assertThat(partial.stagingOrDefault().barrier()).isFalse();
         assertThat(partial.stagingOrDefault().ring()).isTrue();
-        assertThat(partial.captureOrDefault().guaranteedBelow()).isZero();
-        assertThat(partial.captureOrDefault().guaranteedMaxLevel()).isEqualTo(10);
     }
 
     @Test

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
@@ -45,9 +46,9 @@ public class StagedUi implements BattleUi {
     private final @Nullable CreatureActors actors;
     private final @Nullable MoveEffects effects;
     private final @Nullable HitFeedback hits;
-    private final Map<UUID, Scene> scenes = new HashMap<>();
+    private final Map<UUID, Scene> scenes = new ConcurrentHashMap<>();
     /** By player, the ticks a move that struck early left unspent: the next beat of the run takes them. */
-    private final Map<UUID, Long> owed = new HashMap<>();
+    private final Map<UUID, Long> owed = new ConcurrentHashMap<>();
 
     /**
      * @param effects what moves look like between the creatures; null for none (AstralSkill missing)

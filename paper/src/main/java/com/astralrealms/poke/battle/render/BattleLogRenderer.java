@@ -1,6 +1,5 @@
 package com.astralrealms.poke.battle.render;
 
-import java.util.Locale;
 import java.util.Set;
 
 import org.jetbrains.annotations.Nullable;
@@ -26,11 +25,9 @@ public class BattleLogRenderer {
     private static final String REVIVE = "polaris-revive";
 
     private final Battle battle;
-    private final @Nullable Locale locale;
 
-    public BattleLogRenderer(Battle battle, @Nullable Locale locale) {
+    public BattleLogRenderer(Battle battle) {
         this.battle = battle;
-        this.locale = locale;
     }
 
     public @Nullable Component render(ProtocolLine line) {
@@ -43,7 +40,7 @@ public class BattleLogRenderer {
                     : PokeBattleMessages.LOG_TRAINER_CHALLENGE.component(this.placeholders());
             case "turn" -> PokeBattleMessages.LOG_TURN.component(this.placeholders().registerDirect("turn", line.arg(0)));
             case "move" -> PokeBattleMessages.LOG_MOVE.component(this.creature(line.arg(0))
-                    .registerDirect("move", Names.text(this.locale, "move", ProtocolLine.toId(line.arg(1)))));
+                    .registerDirect("move", Names.text("move", ProtocolLine.toId(line.arg(1)))));
             case "-damage" -> this.damage(line);
             case "-heal" -> {
                 if (REVIVE.equals(line.tag("from")))
@@ -63,14 +60,14 @@ public class BattleLogRenderer {
                     : line.arg(1)));
             case "-fail" -> PokeBattleMessages.LOG_FAIL.component();
             case "-status" -> PokeBattleMessages.LOG_STATUS.component(this.creature(line.arg(0))
-                    .registerDirect("status", Names.text(this.locale, "status", line.arg(1))));
+                    .registerDirect("status", Names.text("status", line.arg(1))));
             case "-curestatus" -> PokeBattleMessages.LOG_CURE_STATUS.component(this.creature(line.arg(0))
-                    .registerDirect("status", Names.text(this.locale, "status", line.arg(1))));
+                    .registerDirect("status", Names.text("status", line.arg(1))));
             case "-boost", "-unboost" -> (line.type().equals("-boost")
                     ? PokeBattleMessages.LOG_BOOST
                     : PokeBattleMessages.LOG_UNBOOST)
                     .component(this.creature(line.arg(0))
-                            .registerDirect("stat", Names.text(this.locale, "stat", line.arg(1)))
+                            .registerDirect("stat", Names.text("stat", line.arg(1)))
                             .registerDirect("amount", line.arg(2)));
             case "cant" -> PokeBattleMessages.LOG_CANT.component(this.creature(line.arg(0))
                     .registerDirect("reason", this.effect(line.arg(1))));
@@ -150,8 +147,8 @@ public class BattleLogRenderer {
 
     private String name(PokemonRef ref) {
         if (ref.side().equals(Battle.PLAYER_SIDE))
-            return this.battle.ally(ref.label()).map(ally -> Names.ally(this.locale, ally)).orElse(ref.label());
-        return this.battle.foe(ref.label()).map(foe -> Names.foe(this.locale, foe)).orElse(ref.label());
+            return this.battle.ally(ref.label()).map(ally -> Names.ally(ally)).orElse(ref.label());
+        return this.battle.foe(ref.label()).map(foe -> Names.foe(foe)).orElse(ref.label());
     }
 
     /**
@@ -160,8 +157,8 @@ public class BattleLogRenderer {
     private String effect(String value) {
         ProtocolLine.Effect effect = ProtocolLine.effect(value);
         if (effect.kind().isEmpty())
-            return Names.text(this.locale, STATUSES.contains(effect.id()) ? "status" : "condition", effect.id());
-        return Names.text(this.locale, effect.kind(), effect.id());
+            return Names.text(STATUSES.contains(effect.id()) ? "status" : "condition", effect.id());
+        return Names.text(effect.kind(), effect.id());
     }
 
     /**
@@ -169,7 +166,7 @@ public class BattleLogRenderer {
      */
     private Object item(String itemId) {
         Component name = this.battle.itemNames().get(itemId);
-        return name != null ? name : Names.text(this.locale, "item", itemId);
+        return name != null ? name : Names.text("item", itemId);
     }
 
     private boolean ownSide(String creature) {

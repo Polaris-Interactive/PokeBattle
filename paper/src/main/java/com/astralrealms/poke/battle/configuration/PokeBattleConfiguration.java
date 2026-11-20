@@ -16,16 +16,13 @@ import com.astralrealms.poke.battle.model.RewardCalculator;
 @ConfigSerializable
 public record PokeBattleConfiguration(Settings settings, Start start, Battle battle, @Nullable Recovery recovery,
                                       @Nullable Arena arena, Rewards rewards, Dialog dialog, Stage stage,
-                                      @Nullable Creatures creatures, @Nullable Hud hud, @Nullable Staging staging,
-                                      @Nullable Capture capture) {
+                                      @Nullable Creatures creatures, @Nullable Hud hud, @Nullable Staging staging) {
 
     private static final Duration DEFAULT_CHECK_INTERVAL = Duration.ofSeconds(2);
     private static final Duration DEFAULT_SETTLE_LEASE = Duration.ofSeconds(20);
     private static final int DEFAULT_SETTLE_ATTEMPTS = 3;
     private static final String DEFAULT_STAGE_SPAWN = "stage";
     private static final Duration DEFAULT_RETURN_DELAY = Duration.ofSeconds(3);
-    private static final int DEFAULT_GUARANTEED_BELOW = 2;
-    private static final int DEFAULT_GUARANTEED_MAX_LEVEL = 10;
     private static final double DEFAULT_RING_RADIUS = 6.5;
     private static final String DEFAULT_RING_PARTICLE = "end_rod";
     private static final Duration DEFAULT_RING_INTERVAL = Duration.ofMillis(500);
@@ -66,30 +63,6 @@ public record PokeBattleConfiguration(Settings settings, Start start, Battle bat
     public record Staging(@Nullable Boolean ring, @Nullable Point centre, @Nullable Double radius,
                           @Nullable String particle, @Nullable Integer points, @Nullable Duration interval,
                           @Nullable Boolean barrier) {
-    }
-
-    /**
-     * The {@code capture} section, its missing keys at their defaults (see {@link #arenaOrDefault()}).
-     */
-    public Capture captureOrDefault() {
-        Capture section = this.capture;
-        return new Capture(section == null || section.guaranteedBelow() == null
-                ? DEFAULT_GUARANTEED_BELOW
-                : section.guaranteedBelow(),
-                section == null || section.guaranteedMaxLevel() == null
-                        ? DEFAULT_GUARANTEED_MAX_LEVEL
-                        : section.guaranteedMaxLevel());
-    }
-
-    /**
-     * @param guaranteedBelow a ball always catches while the player's Pokédex counts fewer caught species than this
-     *                        (onboarding, GDD: the first capture is guaranteed; the starter already counts one, hence
-     *                        2); 0 for never
-     * @param guaranteedMaxLevel the onboarding guarantee only covers wild creatures at or below this level; 0 for no
-     *                        ceiling
-     */
-    @ConfigSerializable
-    public record Capture(@Nullable Integer guaranteedBelow, @Nullable Integer guaranteedMaxLevel) {
     }
 
     /**

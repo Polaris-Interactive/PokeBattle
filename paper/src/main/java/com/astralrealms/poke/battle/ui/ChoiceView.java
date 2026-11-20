@@ -156,7 +156,7 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     /**
      * Must run under the battle's monitor.
      */
-    public static @Nullable ChoiceView of(Battle battle, @Nullable Locale locale) {
+    public static @Nullable ChoiceView of(Battle battle) {
         ChoiceRequest request = battle.pending();
         if (request == null || !request.choosable())
             return null;
@@ -171,22 +171,22 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
             if (!request.doubles() && active == null)
                 active = request.active().orElse(null);
             Battle.Ally member = active == null ? null : battle.ally(active.label()).orElse(null);
-            allies.add(member == null ? NOBODY : creature(Names.ally(locale, member), member.pokemon().species(),
-                    member.pokemon().level(), active.condition(), true, locale));
+            allies.add(member == null ? NOBODY : creature(Names.ally(member), member.pokemon().species(),
+                    member.pokemon().level(), active.condition(), true));
         }
 
         List<Creature> foes = new ArrayList<>();
         for (int slot = 0; slot < Math.max(1, battle.tracker().slots()); slot++) {
             String foeLabel = battle.tracker().active(Battle.FOE_SIDE, slot);
             Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
-            foes.add(opponent == null ? NOBODY : creature(Names.foe(locale, opponent), opponent.species(),
-                    opponent.level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale));
+            foes.add(opponent == null ? NOBODY : creature(Names.foe(opponent), opponent.species(),
+                    opponent.level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false));
         }
 
         List<SlotView> slots = new ArrayList<>();
         for (ChoiceRequest.Slot slot : request.slots())
             slots.add(new SlotView(slot.index(), slot.forced(), slot.idle(), slot.trapped(),
-                    moves(slot.moves(), registry, locale)));
+                    moves(slot.moves(), registry)));
 
         List<Member> switchable = new ArrayList<>();
         List<Member> team = new ArrayList<>();
@@ -208,15 +208,15 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
                         .filter(move -> move.id().equals(slot.move()))
                         .findFirst()
                         .orElse(null);
-                known.add(new MemberMove(Names.text(locale, "move", slot.move()),
+                known.add(new MemberMove(Names.text("move", slot.move()),
                         data == null ? "" : typeId(data.type()), option == null ? slot.pp() : option.pp(),
                         option != null ? option.maxPp() : data == null ? slot.pp() : data.maxPp(slot.ppUps())));
             }
-            Member view = new Member(member.position(), Names.ally(locale, stored), pokemon.level(),
+            Member view = new Member(member.position(), Names.ally(stored), pokemon.level(),
                     condition == null ? 0 : condition.hp(), condition == null ? 0 : condition.maxHp(),
-                    status(condition, locale), member.fainted(), known,
-                    pokemon.ability() == null ? "" : Names.text(locale, "ability", pokemon.ability()),
-                    pokemon.ability() == null ? "" : Names.description(locale, "ability", pokemon.ability()),
+                    status(condition), member.fainted(), known,
+                    pokemon.ability() == null ? "" : Names.text("ability", pokemon.ability()),
+                    pokemon.ability() == null ? "" : Names.description("ability", pokemon.ability()),
                     speed(pokemon, registry), pokemon.species(), member.active(), statusId(condition));
             team.add(view);
             if (request.doubles() ? request.onBench(member.position()) : request.canSwitchTo(member.position()))
@@ -253,15 +253,14 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
         return start.following(List.of(), null);
     }
 
-    private static List<Move> moves(List<ChoiceRequest.MoveOption> options, SpeciesRegistry registry,
-                                    @Nullable Locale locale) {
+    private static List<Move> moves(List<ChoiceRequest.MoveOption> options, SpeciesRegistry registry) {
         List<Move> moves = new ArrayList<>();
         for (ChoiceRequest.MoveOption option : options) {
             MoveData data = registry.findMove(option.id()).orElse(null);
-            moves.add(new Move(option.index(), Names.text(locale, "move", option.id()),
-                    data == null ? "" : Names.text(locale, "type", data.type()),
+            moves.add(new Move(option.index(), Names.text("move", option.id()),
+                    data == null ? "" : Names.text("type", data.type()),
                     data == null ? "" : typeId(data.type()),
-                    data == null ? "" : Names.text(locale, "category", data.category().name().toLowerCase(Locale.ROOT)),
+                    data == null ? "" : Names.text("category", data.category().name().toLowerCase(Locale.ROOT)),
                     data == null ? 0 : data.power(), data == null ? null : data.accuracy(),
                     option.pp(), option.maxPp(), option.disabled(), option.target()));
         }
@@ -355,12 +354,11 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
     /**
      * @param exact the player's own creature (exact HP); the opponent's is only known as a percentage
      */
-    static Creature creature(String name, String species, int level, @Nullable Condition condition, boolean exact,
-                             @Nullable Locale locale) {
+    static Creature creature(String name, String species, int level, @Nullable Condition condition, boolean exact) {
         if (condition == null)
             return new Creature(name, level, 0, 0, "", "", species);
         return new Creature(name, level, exact ? condition.hp() : condition.percent(),
-                exact ? condition.maxHp() : 100, status(condition, locale), statusId(condition), species);
+                exact ? condition.maxHp() : 100, status(condition), statusId(condition), species);
     }
 
     private static String typeId(String type) {
@@ -382,9 +380,9 @@ public record ChoiceView(UUID battleId, int rqid, int turn, boolean forceSwitch,
         return condition.status();
     }
 
-    private static String status(@Nullable Condition condition, @Nullable Locale locale) {
+    private static String status(@Nullable Condition condition) {
         if (condition == null || condition.status().isEmpty() || condition.fainted())
             return "";
-        return Names.text(locale, "status", condition.status());
+        return Names.text("status", condition.status());
     }
 }

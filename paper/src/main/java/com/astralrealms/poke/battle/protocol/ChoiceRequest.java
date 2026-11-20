@@ -94,7 +94,15 @@ public record ChoiceRequest(int rqid, boolean waiting, boolean forceSwitch, bool
         } catch (RuntimeException e) {
             throw new IllegalArgumentException("Not a request: " + json, e);
         }
+        // A field of the wrong shape throws from the Gson getters (ClassCastException, IllegalStateException...)
+        try {
+            return read(root);
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("Malformed request: " + json, e);
+        }
+    }
 
+    private static ChoiceRequest read(JsonObject root) {
         int rqid = root.has("rqid") ? root.get("rqid").getAsInt() : 0;
         boolean waiting = root.has("wait") && root.get("wait").getAsBoolean();
         boolean forceSwitch = false;

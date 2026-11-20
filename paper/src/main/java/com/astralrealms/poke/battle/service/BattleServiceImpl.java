@@ -405,8 +405,14 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             Battle released = this.aborted.get(battleId);
             if (released != null) {
                 synchronized (released) {
-                    for (Packet ready : released.sequence().offer(seq, packet))
-                        this.processLate(released, ready);
+                    for (Packet ready : released.sequence().offer(seq, packet)) {
+                        try {
+                            this.processLate(released, ready);
+                        } catch (RuntimeException e) {
+                            this.plugin.getSLF4JLogger().error("Battle {}: late {} failed", battleId,
+                                    ready.getClass().getSimpleName(), e);
+                        }
+                    }
                 }
                 return;
             }
@@ -414,8 +420,15 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         }
         synchronized (battle) {
-            for (Packet ready : battle.sequence().offer(seq, packet))
-                this.process(battle, ready);
+            for (Packet ready : battle.sequence().offer(seq, packet)) {
+                // A malformed packet must not drop the rest of the batch and stall the battle
+                try {
+                    this.process(battle, ready);
+                } catch (RuntimeException e) {
+                    this.plugin.getSLF4JLogger().error("Battle {}: {} failed", battleId,
+                            ready.getClass().getSimpleName(), e);
+                }
+            }
         }
     }
 
@@ -478,7 +491,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             return;
         }
         Player player = Bukkit.getPlayer(battle.playerId());
-        BattleLogRenderer renderer = new BattleLogRenderer(battle, player == null ? null : player.locale());
+        BattleLogRenderer renderer = new BattleLogRenderer(battle);
         // One beat per cue, with the field right after it, so the UI shows each moment in turn
         List<BattleBeat> beats = new ArrayList<>();
         List<Component> log = new ArrayList<>();
@@ -494,14 +507,14 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
                 log.add(rendered);
             BattleCue cue = BattleCue.of(line);
             if (cue != null) {
-                beats.add(BattleBeat.of(cue, line, FieldView.of(battle, player.locale()), log));
+                beats.add(BattleBeat.of(cue, line, FieldView.of(battle), log));
                 log.clear();
             }
         }
         if (player == null)
             return;
         if (!log.isEmpty() || beats.isEmpty())
-            beats.add(new BattleBeat(null, null, FieldView.of(battle, player.locale()), log));
+            beats.add(new BattleBeat(null, null, FieldView.of(battle), log));
         this.withUi(battle.playerId(), (ui, viewer) -> beats.forEach(beat -> ui.update(viewer, beat)));
     }
 
@@ -525,7 +538,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             this.showField(battle);
             return;
         }
-        BattleBeat beat = new BattleBeat(null, null, FieldView.of(battle, player.locale()), List.of());
+        BattleBeat beat = new BattleBeat(null, null, FieldView.of(battle), List.of());
         this.withUi(battle.playerId(), (ui, viewer) -> ui.update(viewer, beat));
     }
 
@@ -580,7 +593,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player == null)
             return;
-        ChoiceView view = ChoiceView.of(battle, player.locale());
+        ChoiceView view = ChoiceView.of(battle);
         if (view == null)
             return;
         if (view.doubles() != null)
@@ -613,7 +626,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
         Player player = Bukkit.getPlayer(battle.playerId());
         if (player == null || battle.state() != Battle.State.RUNNING)
             return;
-        FieldView field = FieldView.of(battle, player.locale());
+        FieldView field = FieldView.of(battle);
         this.withUi(battle.playerId(), (ui, viewer) -> ui.open(viewer, field));
     }
 
@@ -697,7 +710,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             // Doubles: the pick is for the creature being chosen for, as a click would be
             if (pending != null && pending.doubles() && !battle.chosen()) {
                 ChoiceView shown = this.slotViews.get(battle.id());
-                view = shown != null && shown.rqid() == rqid ? shown : ChoiceView.of(battle, player.locale());
+                view = shown != null && shown.rqid() == rqid ? shown : ChoiceView.of(battle);
             }
         }
         if (view != null && view.doubles() != null) {
@@ -856,17 +869,13 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
      * the formula (the error is under 1 % of the rate).
      */
     /**
-     * Onboarding (GDD): a ball always catches while the player's Pokédex counts fewer caught species than
-     * {@code capture.guaranteed-below}.
+     * Onboarding (GDD): PokeCore's {@code capture.guaranteed-*}, the same rule as a ball thrown in the world. A battle
+     * without a wild roll has no known level: only guaranteed without a level ceiling.
      */
     private boolean guaranteed(Player player, Battle battle) {
-        PokeBattleConfiguration.Capture capture = this.plugin.configuration().captureOrDefault();
-        int below = capture.guaranteedBelow();
-        int maxLevel = capture.guaranteedMaxLevel();
         SignedRoll roll = battle.options().wildRoll();
-        if (maxLevel > 0 && (roll == null || roll.creature().level() > maxLevel))
-            return false;
-        return below > 0 && PokeCoreAPI.get().pokedex().caughtSpecies(player.getUniqueId()) < below;
+        int level = roll == null ? Integer.MAX_VALUE : roll.creature().level();
+        return PokeCoreAPI.get().capture().guaranteed(player.getUniqueId(), level);
     }
 
     private @Nullable CaptureAttempt attempt(Battle battle, String ball) {
@@ -1361,7 +1370,7 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             Pokemon after = progression.after();
             String name = after.nickname() != null && !after.nickname().isBlank()
                     ? after.nickname()
-                    : Names.text(player.locale(), "species", after.species());
+                    : Names.text("species", after.species());
             Integer gained = experience.get(after.id());
             if (gained != null)
                 PokeBattleMessages.EXPERIENCE_GAINED.message(player, new PlaceholderContainer()
@@ -1374,17 +1383,17 @@ public class BattleServiceImpl implements BattleService, ChoiceDialogs.Handler {
             for (String move : progression.learned())
                 PokeBattleMessages.MOVE_LEARNED.message(player, new PlaceholderContainer()
                         .registerDirect("pokemon", name)
-                        .registerDirect("move", Names.text(player.locale(), "move", move)));
+                        .registerDirect("move", Names.text("move", move)));
             for (String move : progression.pending())
                 PokeBattleMessages.MOVE_PENDING.message(player, new PlaceholderContainer()
                         .registerDirect("pokemon", name)
-                        .registerDirect("move", Names.text(player.locale(), "move", move)));
+                        .registerDirect("move", Names.text("move", move)));
         }
     }
 
     private void reportCapture(Player player, Battle battle, @Nullable CreationResult creation) {
         PlaceholderContainer placeholders = new PlaceholderContainer().registerDirect("pokemon",
-                battle.foes().isEmpty() ? "" : Names.foe(player.locale(), battle.foes().getFirst()));
+                battle.foes().isEmpty() ? "" : Names.foe(battle.foes().getFirst()));
         if (creation == null || !creation.succeeded()) {
             (creation != null && creation.status() == StorageResult.Status.STORAGE_FULL
                     ? PokeBattleMessages.CAPTURE_STORAGE_FULL

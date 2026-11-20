@@ -2,6 +2,7 @@ package com.astralrealms.poke.battle.api.event;
 
 import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
@@ -11,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
 import lombok.Getter;
 
 /**
- * A worker took a battle and it is now shown to the player. Called off the main thread.
+ * A worker took a battle and it is now shown to the player. Usually called off the main thread (async then).
  */
 @Getter
 public class BattleStartEvent extends Event {
@@ -25,7 +26,7 @@ public class BattleStartEvent extends Event {
     private final @Nullable String tag;
 
     public BattleStartEvent(UUID battleId, Player player, String format, @Nullable String tag) {
-        super(true);
+        super(!Bukkit.isPrimaryThread());
         this.battleId = battleId;
         this.player = player;
         this.format = format;

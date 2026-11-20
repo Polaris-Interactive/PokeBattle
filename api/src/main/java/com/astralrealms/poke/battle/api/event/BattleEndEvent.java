@@ -2,6 +2,7 @@ package com.astralrealms.poke.battle.api.event;
 
 import java.util.UUID;
 
+import org.bukkit.Bukkit;
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
@@ -13,7 +14,7 @@ import lombok.Getter;
 
 /**
  * A battle is over for a player and its outcome is settled (conditions and rewards written, or refused). The player
- * may be offline. Called off the main thread.
+ * may be offline. Usually called off the main thread (async then).
  *
  * @see #settled() false when PokeCore refused the settlement: nothing was written
  */
@@ -33,7 +34,7 @@ public class BattleEndEvent extends Event {
 
     public BattleEndEvent(UUID battleId, UUID playerId, String format, BattleOutcome outcome, int turns,
                           boolean settled, @Nullable String tag) {
-        super(true);
+        super(!Bukkit.isPrimaryThread());
         this.battleId = battleId;
         this.playerId = playerId;
         this.format = format;

@@ -37,6 +37,7 @@ import com.astralrealms.poke.battle.ui.stage.AstralSkillEffects;
 import com.astralrealms.poke.battle.ui.stage.CreatureActors;
 import com.astralrealms.poke.battle.ui.stage.MoveEffects;
 import com.astralrealms.poke.battle.ui.stage.MoveMotions;
+import com.astralrealms.poke.battle.ui.stage.MoveSkills;
 import com.astralrealms.poke.battle.ui.stage.PokeEntitiesActors;
 import com.astralrealms.poke.battle.ui.stage.StagedUi;
 import com.astralrealms.poke.core.PokeCoreAPI;
@@ -52,6 +53,7 @@ public final class PokeBattle extends AstralPaperPlugin {
     private volatile PokeBattleConfiguration configuration;
     /** How moves move their creature on stage ({@code motions.yml}, content from poke-content). */
     private volatile MoveMotions motions = MoveMotions.NONE;
+    private volatile MoveSkills moveSkills = MoveSkills.NONE;
     private volatile ChoiceDialogs dialogs;
     private BattleUi ui;
     private final BattleStages stages = new BattleStages();
@@ -162,6 +164,8 @@ public final class PokeBattle extends AstralPaperPlugin {
         this.loadEnum("messages.yml", PokeBattleMessages.class);
         this.motions = MoveMotions.load(new File(this.getDataFolder(), "motions.yml"), this.getSLF4JLogger());
         this.getSLF4JLogger().info("{} move motions loaded", this.motions.size());
+        this.moveSkills = MoveSkills.load(new File(this.getDataFolder(), "move-skills.yml"));
+        this.getSLF4JLogger().info("{} move skill mappings loaded", this.moveSkills.size());
         if (this.battles != null)
             this.dialogs = new ChoiceDialogs(this.battles, this.configuration.dialog().moveColumns());
     }

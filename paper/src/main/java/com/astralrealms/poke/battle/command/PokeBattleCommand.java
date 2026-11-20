@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import com.astralrealms.core.configuration.MessageEnum;
 import com.astralrealms.core.placeholder.container.PlaceholderContainer;
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.arena.ArenaBattle;
@@ -14,8 +15,8 @@ import com.astralrealms.poke.battle.api.model.BattleRequest;
 import com.astralrealms.poke.battle.api.model.BattleStartResult;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.core.PokeCoreAPI;
+import com.astralrealms.poke.core.api.configuration.SharedMessages;
 import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
-import com.astralrealms.poke.core.mechanics.generation.GenerationOptions;
 
 import co.aikar.commands.BaseCommand;
 import co.aikar.commands.annotation.*;
@@ -23,30 +24,30 @@ import co.aikar.commands.bukkit.contexts.OnlinePlayer;
 
 @CommandAlias("pokebattle|pkb")
 @CommandPermission("pokebattle.admin")
-@Description("PokeBattle administration")
+@Description("Administration de PokeBattle")
 public class PokeBattleCommand extends BaseCommand {
 
     @Dependency
     private PokeBattle plugin;
 
     @Subcommand("reload")
-    @Description("Reload the configuration and messages")
+    @Description("Recharger la configuration et les messages")
     public void onReload(CommandSender sender) {
         this.plugin.loadConfiguration();
         PokeBattleMessages.RELOADED.message(sender);
     }
 
     @Subcommand("wild")
-    @Description("Start a wild battle against a freshly rolled creature")
-    @Syntax("<player> <species> [level]")
+    @Description("Lancer un combat sauvage contre une créature tirée au sort")
+    @Syntax("<joueur> <espèce> [niveau]")
     @CommandCompletion("@players @species @nothing")
     public void onWild(CommandSender sender, OnlinePlayer target, String species, @Default("5") int level) {
         Player player = target.getPlayer();
         GeneratedCreature creature;
         try {
-            creature = PokeCoreAPI.get().creation().generate(species, null, level, GenerationOptions.DEFAULT);
+            creature = PokeCoreAPI.get().creation().generate(species, null, level);
         } catch (IllegalArgumentException e) {
-            PokeBattleMessages.UNKNOWN_SPECIES.message(sender, new PlaceholderContainer()
+            SharedMessages.UNKNOWN_SPECIES.message(sender, new PlaceholderContainer()
                     .registerDirect("species", species));
             return;
         }
@@ -57,8 +58,8 @@ public class PokeBattleCommand extends BaseCommand {
     }
 
     @Subcommand("arena")
-    @Description("Send a player to battle a freshly rolled creature in an arena (an instance on an arena server)")
-    @Syntax("<player> <template> <species> [level]")
+    @Description("Envoyer un joueur combattre une créature tirée au sort dans une arène (une instance sur un serveur d'arènes)")
+    @Syntax("<joueur> <modèle> <espèce> [niveau]")
     @CommandCompletion("@players @nothing @species @nothing")
     public void onArena(CommandSender sender, OnlinePlayer target, String template, String species,
                         @Default("5") int level) {
@@ -68,7 +69,7 @@ public class PokeBattleCommand extends BaseCommand {
             return;
         }
         if (PokeCoreAPI.get().species().findSpecies(species).isEmpty()) {
-            PokeBattleMessages.UNKNOWN_SPECIES.message(sender, new PlaceholderContainer()
+            SharedMessages.UNKNOWN_SPECIES.message(sender, new PlaceholderContainer()
                     .registerDirect("species", species));
             return;
         }
@@ -77,8 +78,8 @@ public class PokeBattleCommand extends BaseCommand {
     }
 
     @Subcommand("abort")
-    @Description("Stop a player's battle with no winner and no rewards")
-    @Syntax("<player>")
+    @Description("Arrêter le combat d'un joueur, sans vainqueur ni récompense")
+    @Syntax("<joueur>")
     @CommandCompletion("@players")
     public void onAbort(CommandSender sender, OnlinePlayer target) {
         Player player = target.getPlayer();
@@ -95,9 +96,9 @@ public class PokeBattleCommand extends BaseCommand {
      * Tells the player why their battle did not start; nothing when it did (the battle log follows).
      */
     public static void report(Player player, BattleStartResult result) {
-        PokeBattleMessages message = switch (result) {
+        MessageEnum message = switch (result) {
             case STARTED -> null;
-            case ALREADY_IN_BATTLE -> PokeBattleMessages.ALREADY_IN_BATTLE;
+            case ALREADY_IN_BATTLE -> SharedMessages.ALREADY_IN_BATTLE;
             case NO_USABLE_CREATURE -> PokeBattleMessages.NO_USABLE_CREATURE;
             case NO_WORKER -> PokeBattleMessages.NO_BATTLE_WORKER;
             case REFUSED -> PokeBattleMessages.BATTLE_REFUSED;

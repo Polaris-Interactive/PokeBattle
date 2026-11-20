@@ -20,7 +20,6 @@ import com.astralrealms.poke.battle.command.PokeBattleCommand;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.core.PokeCoreAPI;
 import com.astralrealms.poke.core.mechanics.generation.GeneratedCreature;
-import com.astralrealms.poke.core.mechanics.generation.GenerationOptions;
 import com.polaris.instances.PolarisInstancesAPI;
 import com.polaris.instances.api.event.InstanceEndEvent;
 import com.polaris.instances.api.event.PlayerEnterInstanceEvent;
@@ -77,7 +76,7 @@ public class ArenaBattles implements Listener {
             throw new IllegalArgumentException("unsupported arena format " + battle.format());
         GeneratedCreature creature = PokeCoreAPI.get()
                 .creation()
-                .generate(battle.species(), battle.form(), battle.level(), GenerationOptions.DEFAULT);
+                .generate(battle.species(), battle.form(), battle.level());
         Location stage = instance.spawn(this.plugin.configuration().arenaOrDefault().stageSpawn())
                 .orElse(player.getLocation());
         return BattleRequest.wild(player, PokeCoreAPI.get().creation().sign(creature), battle.captureFlags())

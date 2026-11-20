@@ -15,10 +15,8 @@ import lombok.Setter;
 public enum PokeBattleMessages implements MessageEnum {
     RELOADED,
     UNEXPECTED_ERROR,
-    UNKNOWN_SPECIES,
     BATTLE_ABORTED_BY_ADMIN,
     PLAYER_NOT_IN_BATTLE,
-    ALREADY_IN_BATTLE,
     NO_USABLE_CREATURE,
     NO_BATTLE_WORKER,
     BATTLE_REFUSED,

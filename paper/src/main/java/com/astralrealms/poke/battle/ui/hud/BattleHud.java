@@ -1048,7 +1048,7 @@ final class BattleHud {
                     : PokeBattleMessages.HUD_EFFECT_CURE_ONLY.component(new PlaceholderContainer()
                     .registerDirect("statuses", effect.statuses()
                             .stream()
-                            .map(status -> Names.text(null, "status", status))
+                            .map(status -> Names.text("status", status))
                             .collect(Collectors.joining(", ")))));
             case RESTORE_PP -> List.of(effect.oneMove()
                     ? (effect.amount() == null
@@ -1060,7 +1060,7 @@ final class BattleHud {
                     : PokeBattleMessages.HUD_EFFECT_PP.component(new PlaceholderContainer()
                     .registerDirect("amount", effect.amount()))));
             case BOOST -> List.of(PokeBattleMessages.HUD_EFFECT_BOOST.component(new PlaceholderContainer()
-                    .registerDirect("stat", Names.text(null, "stat", effect.boost()))
+                    .registerDirect("stat", Names.text("stat", effect.boost()))
                     .registerDirect("stages", effect.stages())));
             default -> List.of();
         };

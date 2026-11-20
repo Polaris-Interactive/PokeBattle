@@ -173,10 +173,10 @@ public class Battle {
     private final Map<Integer, Spent> spent = new HashMap<>();
     /** Its worker died: another one is being asked to take it over. */
     @Setter
-    private boolean recovering;
+    private volatile boolean recovering;
     /** Taken over from another shard: the next resync opens the battle for the player instead of updating it. */
     @Setter
-    private boolean adopted;
+    private volatile boolean adopted;
 
     public Battle(UUID id, String format, UUID playerId, List<Ally> allies, List<Foe> foes, Options options) {
         this.id = id;

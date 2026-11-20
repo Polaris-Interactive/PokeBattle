@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 
 import com.astralrealms.poke.battle.PokeBattle;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
+import com.astralrealms.poke.core.api.configuration.SharedMessages;
 import com.polaris.instances.bridge.PolarisInstancesBridgeAPI;
 import com.polaris.instances.bridge.api.model.InstanceRequest;
 
@@ -27,7 +28,7 @@ public class ArenaRequests {
      */
     public void request(Player player, String template, ArenaBattle battle) {
         if (this.plugin.battles().battleOf(player.getUniqueId()).isPresent()) {
-            PokeBattleMessages.ALREADY_IN_BATTLE.message(player);
+            SharedMessages.ALREADY_IN_BATTLE.message(player);
             return;
         }
         PokeBattleMessages.ARENA_REQUESTING.message(player);

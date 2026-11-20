@@ -2,7 +2,6 @@ package com.astralrealms.poke.battle.ui;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 import org.jetbrains.annotations.Nullable;
@@ -37,7 +36,7 @@ public record FieldView(UUID battleId, int turn, List<ChoiceView.Creature> allie
     /**
      * Must run under the battle's monitor.
      */
-    public static FieldView of(Battle battle, @Nullable Locale locale) {
+    public static FieldView of(Battle battle) {
         int slots = Math.max(1, battle.tracker().slots());
         List<ChoiceView.Creature> allies = new ArrayList<>();
         List<ChoiceView.Creature> foes = new ArrayList<>();
@@ -46,17 +45,16 @@ public record FieldView(UUID battleId, int turn, List<ChoiceView.Creature> allie
             String allyLabel = battle.tracker().active(Battle.PLAYER_SIDE, slot);
             Battle.Ally member = allyLabel == null ? null : battle.ally(allyLabel).orElse(null);
             if (member != null)
-                ally = ChoiceView.creature(Names.ally(locale, member), member.pokemon().species(),
-                        member.pokemon().level(), battle.tracker().condition(Battle.PLAYER_SIDE, allyLabel), true,
-                        locale);
+                ally = ChoiceView.creature(Names.ally(member), member.pokemon().species(),
+                        member.pokemon().level(), battle.tracker().condition(Battle.PLAYER_SIDE, allyLabel), true);
             allies.add(ally);
 
             ChoiceView.Creature foe = NOBODY;
             String foeLabel = battle.tracker().active(Battle.FOE_SIDE, slot);
             Battle.Foe opponent = foeLabel == null ? null : battle.foe(foeLabel).orElse(null);
             if (opponent != null)
-                foe = ChoiceView.creature(Names.foe(locale, opponent), opponent.species(),
-                        opponent.level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false, locale);
+                foe = ChoiceView.creature(Names.foe(opponent), opponent.species(),
+                        opponent.level(), battle.tracker().condition(Battle.FOE_SIDE, foeLabel), false);
             foes.add(foe);
         }
         return new FieldView(battle.id(), battle.tracker().turn(), allies, foes);

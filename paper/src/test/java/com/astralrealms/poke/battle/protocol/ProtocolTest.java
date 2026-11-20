@@ -1,6 +1,7 @@
 package com.astralrealms.poke.battle.protocol;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -74,5 +75,14 @@ class ProtocolTest {
         assertThat(forced.canSwitchTo(2)).isTrue();
 
         assertThat(ChoiceRequest.parse("{\"wait\":true,\"side\":{\"pokemon\":[]},\"rqid\":4}").choosable()).isFalse();
+    }
+
+    @Test
+    void rejectsMalformedRequests() {
+        assertThatThrownBy(() -> ChoiceRequest.parse("{\"forceSwitch\":true,\"rqid\":3}"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ChoiceRequest.parse("{\"active\":[{\"moves\":[1]}],\"rqid\":3}"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ChoiceRequest.parse("{\"rqid\":{}}")).isInstanceOf(IllegalArgumentException.class);
     }
 }

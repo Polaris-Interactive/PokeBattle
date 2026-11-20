@@ -1,6 +1,7 @@
 package com.astralrealms.poke.battle.ui.stage;
 
 import java.util.Locale;
+import java.util.Map;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
@@ -20,7 +21,9 @@ import com.astralrealms.skill.skill.SkillService;
  * Moves as AstralSkill skills cast by the attacking creature (a skill needs a real entity as caster), from
  * {@code creatures.moves.height} above its feet towards the same height above the target's. The skill is the first of
  * {@code creatures.moves.skills} that exists; it reads the distance to the target as {@code %move-distance%}, so a
- * projectile can end, and chain its impact, right on the target. Only created when AstralSkill is enabled.
+ * projectile can end, and chain its impact, right on the target. A move listed in {@code move-skills.yml}
+ * ({@link MoveSkills}) tries its mapped skill first and its skills read that file's placeholders, so moves can share
+ * skills. Only created when AstralSkill is enabled.
  */
 public class AstralSkillEffects implements MoveEffects {
 
@@ -37,7 +40,8 @@ public class AstralSkillEffects implements MoveEffects {
             return false;
         SkillService skills = SkillAPI.service();
         String skill = this.skill(skills, config, move);
-        return skill != null && this.cast(skills, config, attacker, target, skill);
+        return skill != null
+               && this.cast(skills, config, attacker, target, skill, this.plugin.moveSkills().placeholders(move));
     }
 
     @Override
@@ -47,7 +51,7 @@ public class AstralSkillEffects implements MoveEffects {
         if (skill == null || skill.isBlank())
             return false;
         SkillService skills = SkillAPI.service();
-        return skills.findById(skill).isPresent() && this.cast(skills, config, creature, facing, skill);
+        return skills.findById(skill).isPresent() && this.cast(skills, config, creature, facing, skill, Map.of());
     }
 
     private PokeBattleConfiguration.@Nullable MoveEffects config() {
@@ -57,10 +61,11 @@ public class AstralSkillEffects implements MoveEffects {
     }
 
     /**
-     * Casts {@code skill} from {@code caster} towards {@code target}.
+     * Casts {@code skill} from {@code caster} towards {@code target}, with {@code placeholders} set for it and every
+     * skill it chains.
      */
     private boolean cast(SkillService skills, PokeBattleConfiguration.MoveEffects config, Entity caster, Entity target,
-                         String skill) {
+                         String skill, Map<String, Object> placeholders) {
         if (!caster.getWorld().equals(target.getWorld()))
             return false;
         Location from = caster.getLocation().add(0, config.height(), 0);
@@ -70,8 +75,9 @@ public class AstralSkillEffects implements MoveEffects {
         // Towards the target; the way the caster faces if both stand at the same place
         Vector3d direction = (distance < 1.0E-6 ? caster.getLocation().getDirection() : towards.normalize())
                 .toVector3d();
-        PlaceholderContainer container = new PlaceholderContainer()
-                .registerDirect("move-distance", (float) distance);
+        PlaceholderContainer container = new PlaceholderContainer();
+        placeholders.forEach(container::registerDirect);
+        container.registerDirect("move-distance", (float) distance);
         try {
             // castAtPos, not tryCastAtPos: the servers' AstralSkill builds do not all have the latter
             skills.castAtPos(caster, caster.getUniqueId(), skill, from, direction, container);
@@ -84,16 +90,13 @@ public class AstralSkillEffects implements MoveEffects {
     }
 
     /**
-     * The first configured skill that exists for this move; null when none does.
+     * The first skill that exists for this move, its mapped one ({@link MoveSkills}) first; null when none does.
      */
     private @Nullable String skill(SkillService skills, PokeBattleConfiguration.MoveEffects config, String move) {
         MoveData data = PokeCoreAPI.get().species().findMove(move).orElse(null);
-        String type = data == null ? "" : data.type().toLowerCase(Locale.ROOT);
-        String category = data == null ? "" : data.category().name().toLowerCase(Locale.ROOT);
-        for (String pattern : config.skills()) {
-            if ((pattern.contains("{type}") || pattern.contains("{category}")) && data == null)
-                continue;
-            String id = pattern.replace("{move}", move).replace("{type}", type).replace("{category}", category);
+        String type = data == null ? null : data.type().toLowerCase(Locale.ROOT);
+        String category = data == null ? null : data.category().name().toLowerCase(Locale.ROOT);
+        for (String id : this.plugin.moveSkills().candidates(move, config.skills(), type, category)) {
             if (skills.findById(id).isPresent())
                 return id;
         }
