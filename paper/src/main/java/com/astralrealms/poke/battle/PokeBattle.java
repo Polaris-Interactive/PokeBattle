@@ -10,6 +10,7 @@ import com.astralrealms.core.cache.CacheService;
 import com.astralrealms.core.messaging.MessagingService;
 import com.astralrealms.core.paper.AstralPaperAPI;
 import com.astralrealms.core.paper.plugin.AstralPaperPlugin;
+import com.astralrealms.core.platform.executable.exception.ExecutableParseException;
 import com.astralrealms.poke.battle.arena.ArenaBattles;
 import com.astralrealms.poke.battle.arena.ArenaRequests;
 import com.astralrealms.poke.battle.command.BattleCommand;
@@ -17,6 +18,7 @@ import com.astralrealms.poke.battle.command.PokeBattleCommand;
 import com.astralrealms.poke.battle.configuration.PokeBattleConfiguration;
 import com.astralrealms.poke.battle.configuration.PokeBattleMessages;
 import com.astralrealms.poke.battle.listener.BattleConnectionListener;
+import com.astralrealms.poke.battle.listener.HudRefreshListener;
 import com.astralrealms.poke.battle.listener.StagingListener;
 import com.astralrealms.poke.battle.network.BattleTransport;
 import com.astralrealms.poke.battle.network.PokeBattleExchanges;
@@ -115,6 +117,14 @@ public final class PokeBattle extends AstralPaperPlugin {
             this.registerListeners(new ArenaBattles(this));
         if (this.getServer().getPluginManager().isPluginEnabled("PolarisInstances-Bridge"))
             this.arenas = new ArenaRequests(this);
+        // AstralHud: its boss bar hides in battle (%pokecore_in_battle%), re-picked at once on start and end
+        if (this.getServer().getPluginManager().isPluginEnabled("AstralHud")) {
+            try {
+                this.registerListeners(new HudRefreshListener(this));
+            } catch (ExecutableParseException e) {
+                this.getSLF4JLogger().warn("AstralHud has no [hud-update] action: its boss bar follows battles at its own pace", e);
+            }
+        }
 
         // Tasks: recover the battles of dead workers, settle ends this server missed
         long checkInterval = this.configuration.recoveryOrDefault().checkInterval().toMillis();
